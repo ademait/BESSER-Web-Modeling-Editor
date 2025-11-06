@@ -1,6 +1,6 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState } from 'react';
 import { useImportDiagramPictureFromImage } from '../../../services/import/useImportDiagramPicture';
-import { Dropdown, NavDropdown, Modal, Spinner } from 'react-bootstrap';
+import { NavDropdown, Modal, Spinner } from 'react-bootstrap';
 import { ApollonEditorContext } from '../../apollon-editor-component/apollon-editor-context';
 import { ModalContentType } from '../../modals/application-modal-types';
 
@@ -13,16 +13,21 @@ import { useExportPNG } from '../../../services/export/useExportPng';
 import { useExportSVG } from '../../../services/export/useExportSvg';
 import { useExportBUML } from '../../../services/export/useExportBuml';
 import { toast } from 'react-toastify';
-import { importProject } from '../../../services/import/useImportProject';
 import { useImportDiagramToProjectWorkflow } from '../../../services/import/useImportDiagram';
 import { useProject } from '../../../hooks/useProject';
+import { JsonViewerModal } from '../../modals/json-viewer-modal/json-viewer-modal';
+import { ProjectStorageRepository } from '../../../services/storage/ProjectStorageRepository';
+import { useGoogleDriveSync } from '../../../hooks/useGoogleDriveSync';
+import { GoogleDriveBrowserModal } from '../../modals/google-drive/GoogleDriveBrowserModal';
+import { GoogleDriveConfigModal } from '../../modals/google-drive/GoogleDriveConfigModal';
+import { GoogleDriveConfig, GoogleDriveFileSummary } from '../../../services/google-drive/GoogleDriveClient';
 
 export const FileMenu: React.FC = () => {
   const apollonEditor = useContext(ApollonEditorContext);
   const dispatch = useAppDispatch();
   const editor = apollonEditor?.editor;
   const diagram = useAppSelector((state) => state.diagram.diagram);
-  const { currentProject } = useProject();
+  const { currentProject, loadProject } = useProject();
   const exportAsSVG = useExportSVG();
   const exportAsPNG = useExportPNG();
   const exportAsPDF = useExportPDF();
@@ -30,6 +35,25 @@ export const FileMenu: React.FC = () => {
   const exportAsBUML = useExportBUML();
   const handleImportDiagramToProject = useImportDiagramToProjectWorkflow();
   const importDiagramPictureFromImage = useImportDiagramPictureFromImage();
+  const {
+    isConfigured: driveConfigured,
+    initializationState: driveInitState,
+    currentUser: driveUser,
+    lastUploadedFile: driveLastUploadedFile,
+    lastShareInfo: driveLastShareInfo,
+    driveError,
+    actionState: driveActionState,
+    connect: connectDrive,
+    disconnect: disconnectDrive,
+    refreshFiles: refreshDriveFiles,
+    uploadProject: uploadProjectToDrive,
+    importProjectFromDrive,
+    shareFile: shareDriveFile,
+    resetError: resetDriveError,
+    updateConfig: updateDriveConfig,
+    config: driveConfig,
+    credentialsFromEnv: driveEnvProvided,
+  } = useGoogleDriveSync();
 
   // Modal state for feedback and input
   const [showImportModal, setShowImportModal] = React.useState(false);
@@ -37,6 +61,25 @@ export const FileMenu: React.FC = () => {
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
   const [fileError, setFileError] = React.useState('');
   const [isImporting, setIsImporting] = React.useState(false);
+
+  // JSON Viewer modal state
+  const [showJsonViewer, setShowJsonViewer] = useState(false);
+  const [jsonToView, setJsonToView] = useState('');
+  const [jsonDiagramType, setJsonDiagramType] = useState('');
+  const [driveFiles, setDriveFiles] = useState<GoogleDriveFileSummary[]>([]);
+  const [showDriveBrowser, setShowDriveBrowser] = useState(false);
+  const [showDriveConfigModal, setShowDriveConfigModal] = useState(false);
+  const [isDriveListing, setIsDriveListing] = useState(false);
+
+  const driveReady = driveInitState === 'ready';
+  const driveConnected = !!driveUser;
+  const driveBusy = driveActionState.loading;
+  const driveConnecting = driveBusy && driveActionState.action === 'connect';
+  const driveUploading = driveBusy && driveActionState.action === 'upload';
+  const driveListingBusy = driveBusy && driveActionState.action === 'list';
+  const driveSharing = driveBusy && driveActionState.action === 'share';
+  const driveDownloading = driveBusy && driveActionState.action === 'download';
+  const driveModalBusy = isDriveListing || driveListingBusy || driveSharing || driveDownloading;
 
   const exportDiagram = async (exportType: 'PNG' | 'PNG_WHITE' | 'SVG' | 'JSON' | 'PDF' | 'BUML'): Promise<void> => {
     if (!editor) {
@@ -84,6 +127,266 @@ export const FileMenu: React.FC = () => {
   // };
   const handleLoadTemplate = () => dispatch(showModal({ type: ModalContentType.CreateDiagramFromTemplateModal }));
   const handleExportProject = () => dispatch(showModal({ type: ModalContentType.ExportProjectModal }));
+
+  // Handler for previewing project JSON
+  const handlePreviewProjectJSON = async () => {
+    if (!currentProject) {
+      toast.error('No project is open. Please create or open a project first.');
+      return;
+    }
+
+    try {
+      // Force GrapesJS to save before previewing (if editor is active)
+      const graphicalEditorContext = window as typeof window & {
+        editor?: { store: (callback: (result: unknown) => void) => void };
+      };
+      const graphicalEditor = graphicalEditorContext.editor;
+      if (graphicalEditor && currentProject.currentDiagramType === 'GUINoCodeDiagram') {
+        
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error('GrapesJS save timeout'));
+          }, 5000);
+          
+          graphicalEditor.store((_result: unknown) => {
+            clearTimeout(timeout);
+            console.log('[Preview] GrapesJS save completed');
+            setTimeout(() => resolve(), 300);
+          });
+        });
+      }
+
+      // Reload the project from storage to get the latest data
+      const freshProject = ProjectStorageRepository.loadProject(currentProject.id);
+      if (!freshProject) {
+        toast.error('Failed to load project data');
+        return;
+      }
+
+      // Format the JSON with the same structure as export (V2.0.0 format)
+      const exportData = {
+        project: freshProject,
+        exportedAt: new Date().toISOString(),
+        version: '2.0.0'
+      };
+      
+      const jsonString = JSON.stringify(exportData, null, 2);
+      setJsonToView(jsonString);
+      setJsonDiagramType('Project (V2.0.0)');
+      setShowJsonViewer(true);
+    } catch (error) {
+      console.error('Error previewing project JSON:', error);
+      toast.error(`Failed to preview project: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  // Handler for copying JSON to clipboard
+  const handleCopyJsonToClipboard = () => {
+    navigator.clipboard.writeText(jsonToView)
+      .then(() => toast.success('JSON copied to clipboard!'))
+      .catch(() => toast.error('Failed to copy JSON to clipboard'));
+  };
+
+  // Handler for downloading JSON
+  const handleDownloadJson = () => {
+    if (!currentProject) return;
+    
+    const blob = new Blob([jsonToView], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${currentProject.name.replace(/\s+/g, '_')}_project.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success('Project JSON downloaded!');
+  };
+
+  const handleConfigureDrive = () => {
+    if (driveEnvProvided) {
+      toast.info('Google Drive credentials are managed by the deployment configuration.');
+      return;
+    }
+    setShowDriveConfigModal(true);
+  };
+
+  const handleSaveDriveConfig = (config: GoogleDriveConfig) => {
+    updateDriveConfig(config);
+    setShowDriveConfigModal(false);
+    toast.success('Google Drive settings updated.');
+  };
+
+  const handleClearDriveConfig = () => {
+    if (driveEnvProvided) {
+      toast.info('Google Drive credentials are configured by the deployment and cannot be cleared here.');
+      return;
+    }
+
+    updateDriveConfig({ clientId: '', apiKey: '', defaultFolderId: undefined });
+    setShowDriveConfigModal(false);
+    toast.info('Google Drive settings cleared.');
+  };
+
+  const handleConnectDrive = async () => {
+    if (!driveConfigured && !driveConfig) {
+      toast.error('Please configure Google Drive credentials first.');
+      setShowDriveConfigModal(true);
+      return;
+    }
+
+    if (driveInitState === 'error') {
+      toast.error('Google Drive initialization failed. Update your credentials and try again.');
+      setShowDriveConfigModal(true);
+      return;
+    }
+
+    if (!driveReady) {
+      toast.info('Google Drive is still initializing. Please try again in a moment.');
+      return;
+    }
+
+    try {
+      await connectDrive();
+      toast.success('Connected to Google Drive.');
+    } catch (error) {
+      console.error('Failed to connect Google Drive:', error);
+    }
+  };
+
+  const handleDisconnectDrive = async () => {
+    if (!driveConnected) {
+      return;
+    }
+
+    try {
+      await disconnectDrive();
+      toast.info('Disconnected from Google Drive.');
+    } catch (error) {
+      console.error('Failed to disconnect Google Drive:', error);
+    }
+  };
+
+  const loadDriveFiles = async () => {
+    if (!driveConnected) {
+      toast.error('Connect to Google Drive first.');
+      return;
+    }
+
+    setIsDriveListing(true);
+    try {
+      const files = await refreshDriveFiles({ pageSize: 50 });
+      setDriveFiles(files);
+    } catch (error) {
+      console.error('Failed to fetch Google Drive files:', error);
+    } finally {
+      setIsDriveListing(false);
+    }
+  };
+
+  const handleOpenDriveBrowser = async () => {
+    if (!driveConnected) {
+      toast.error('Connect to Google Drive first.');
+      return;
+    }
+
+    setShowDriveBrowser(true);
+    await loadDriveFiles();
+  };
+
+  const handleCloseDriveBrowser = () => {
+    setShowDriveBrowser(false);
+    setIsDriveListing(false);
+    resetDriveError();
+  };
+
+  const handleRefreshDriveBrowser = async () => {
+    await loadDriveFiles();
+  };
+
+  const handleImportProjectFromDrive = async (file: GoogleDriveFileSummary) => {
+    try {
+      const result = await importProjectFromDrive(file);
+      setShowDriveBrowser(false);
+      await loadProject(result.projectId);
+    } catch (error) {
+      console.error('Failed to import project from Google Drive:', error);
+    }
+  };
+
+  const handleUploadProjectToDrive = async () => {
+    if (!currentProject) {
+      toast.error('No project is open. Save a project first.');
+      return;
+    }
+
+    if (!driveConnected) {
+      toast.error('Connect to Google Drive first.');
+      return;
+    }
+
+    try {
+      await uploadProjectToDrive(currentProject);
+    } catch (error) {
+      console.error('Failed to upload project to Google Drive:', error);
+    }
+  };
+
+  const handleShareLatestDriveFile = async () => {
+    if (!driveLastUploadedFile) {
+      toast.error('Save a project to Google Drive to generate a share link.');
+      return;
+    }
+
+    try {
+      const shareInfo = await shareDriveFile(driveLastUploadedFile.id);
+      if (navigator?.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(shareInfo.shareLink);
+          toast.info('Share link copied to clipboard.');
+        } catch (copyError) {
+          console.warn('Clipboard copy failed:', copyError);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to create share link:', error);
+    }
+  };
+
+  const handleShareFileFromBrowser = async (file: GoogleDriveFileSummary) => {
+    try {
+      const shareInfo = await shareDriveFile(file.id);
+      if (navigator?.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(shareInfo.shareLink);
+          toast.info('Share link copied to clipboard.');
+        } catch (copyError) {
+          console.warn('Clipboard copy failed:', copyError);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to share Google Drive file:', error);
+    }
+  };
+
+  const handleCopyLatestShareLink = async () => {
+    if (!driveLastShareInfo?.shareLink) {
+      toast.error('No share link available yet.');
+      return;
+    }
+
+    if (navigator?.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(driveLastShareInfo.shareLink);
+        toast.success('Latest share link copied to clipboard.');
+        return;
+      } catch (error) {
+        console.warn('Clipboard write failed:', error);
+      }
+    }
+
+    toast.info(`Share link: ${driveLastShareInfo.shareLink}`);
+  };
 
   // Handler for importing single diagram to project
   const handleImportDiagramToCurrentProject = async () => {
@@ -137,7 +440,7 @@ export const FileMenu: React.FC = () => {
       toast.success(result.message);
       toast.info(`Imported diagram type: ${result.diagramType}`);
       setShowImportModal(false);
-    } catch (error) {
+    } catch {
       setShowImportModal(false);
     } finally {
       setIsImporting(false);
@@ -202,6 +505,57 @@ export const FileMenu: React.FC = () => {
           Export Project
         </NavDropdown.Item>
 
+        {/* Preview Project JSON - only show when a project is active */}
+        {currentProject && (
+          <NavDropdown.Item onClick={handlePreviewProjectJSON}>
+            Preview Project JSON
+          </NavDropdown.Item>
+        )}
+
+        <NavDropdown.Divider />
+        <NavDropdown.Header>Google Drive</NavDropdown.Header>
+        {!driveEnvProvided && (
+          <NavDropdown.Item onClick={handleConfigureDrive}>
+            {driveConfigured ? 'Update Google Drive Settings' : 'Configure Google Drive'}
+          </NavDropdown.Item>
+        )}
+        <NavDropdown.Item
+          onClick={handleConnectDrive}
+          disabled={!driveConfigured || driveConnected || driveConnecting || driveInitState === 'loading'}
+        >
+          {driveConnecting ? 'Connecting to Google Drive…' : 'Connect to Google Drive'}
+        </NavDropdown.Item>
+        <NavDropdown.Item
+          onClick={handleDisconnectDrive}
+          disabled={!driveConnected || driveConnecting}
+        >
+          Disconnect Google Drive
+        </NavDropdown.Item>
+        <NavDropdown.Item
+          onClick={handleUploadProjectToDrive}
+          disabled={!driveConnected || !currentProject || driveUploading}
+          title={!driveConnected ? 'Connect to Google Drive first' : undefined}
+        >
+          {driveUploading ? 'Saving to Google Drive…' : 'Save Project to Google Drive'}
+        </NavDropdown.Item>
+        <NavDropdown.Item
+          onClick={handleOpenDriveBrowser}
+          disabled={!driveConnected || driveModalBusy}
+        >
+          {driveModalBusy ? 'Opening Google Drive…' : 'Open Google Drive Backups…'}
+        </NavDropdown.Item>
+        <NavDropdown.Item
+          onClick={handleShareLatestDriveFile}
+          disabled={!driveConnected || !driveLastUploadedFile || driveSharing}
+        >
+          {driveSharing ? 'Generating share link…' : 'Share Latest Drive Backup'}
+        </NavDropdown.Item>
+        {driveLastShareInfo?.shareLink && (
+          <NavDropdown.Item onClick={handleCopyLatestShareLink}>
+            Copy Latest Share Link
+          </NavDropdown.Item>
+        )}
+
       </NavDropdown>
 
       {/* Modal for API key and file upload */}
@@ -264,6 +618,39 @@ export const FileMenu: React.FC = () => {
           </button>
         </Modal.Footer>
       </Modal>
+
+      {!driveEnvProvided && (
+        <GoogleDriveConfigModal
+          isVisible={showDriveConfigModal}
+          initialConfig={driveConfig}
+          onSave={handleSaveDriveConfig}
+          onClear={handleClearDriveConfig}
+          onClose={() => setShowDriveConfigModal(false)}
+        />
+      )}
+
+      <GoogleDriveBrowserModal
+        isVisible={showDriveBrowser}
+        isLoading={driveModalBusy}
+        files={driveFiles}
+        currentUser={driveUser}
+        lastShareLink={driveLastShareInfo?.shareLink ?? null}
+        error={driveError}
+        onClose={handleCloseDriveBrowser}
+        onRefresh={handleRefreshDriveBrowser}
+        onSelect={handleImportProjectFromDrive}
+        onShare={driveConnected ? handleShareFileFromBrowser : undefined}
+      />
+
+      {/* JSON Viewer Modal */}
+      <JsonViewerModal
+        isVisible={showJsonViewer}
+        jsonData={jsonToView}
+        diagramType={jsonDiagramType}
+        onClose={() => setShowJsonViewer(false)}
+        onCopy={handleCopyJsonToClipboard}
+        onDownload={handleDownloadJson}
+      />
     </>
   );
 };

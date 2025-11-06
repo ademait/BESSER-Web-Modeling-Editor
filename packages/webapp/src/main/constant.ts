@@ -7,6 +7,17 @@ export const BACKEND_URL = process.env.NODE_ENV === 'development'
 export const SENTRY_DSN = process.env.SENTRY_DSN;
 export const POSTHOG_HOST = process.env.POSTHOG_HOST;
 export const POSTHOG_KEY = process.env.POSTHOG_KEY;
+export const GOOGLE_DRIVE_CLIENT_ID = process.env.GOOGLE_DRIVE_CLIENT_ID;
+export const GOOGLE_DRIVE_API_KEY = process.env.GOOGLE_DRIVE_API_KEY;
+export const GOOGLE_DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
+// Validate Google Drive credentials are properly configured
+if (process.env.NODE_ENV === 'development') {
+  if (GOOGLE_DRIVE_CLIENT_ID && GOOGLE_DRIVE_API_KEY) {
+    console.log('[GoogleDrive] Environment credentials detected');
+  } else {
+    console.log('[GoogleDrive] No environment credentials. Google Drive features will require manual configuration.');
+  }
+}
 export const BASE_URL = `${DEPLOYMENT_URL}/api`;
 export const NO_HTTP_URL = DEPLOYMENT_URL?.split('//')[1] || '';
 export const WS_PROTOCOL = DEPLOYMENT_URL?.startsWith('https') ? 'wss' : 'ws';
