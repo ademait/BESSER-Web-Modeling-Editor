@@ -4,6 +4,8 @@ import { ApollonEditorContext } from '../../apollon-editor-component/apollon-edi
 import { useGenerateCode, DjangoConfig, SQLConfig, SQLAlchemyConfig, JSONSchemaConfig, AgentConfig, QiskitConfig } from '../../../services/generate-code/useGenerateCode';
 import posthog from 'posthog-js';
 import { useDeployLocally } from '../../../services/generate-code/useDeployLocally';
+import { useDeployWebApp } from '../../../services/generate-code/useDeployWebApp';
+import { DeploymentsModal } from '../../modals/deployments-modal';
 import { useAppSelector } from '../../store/hooks';
 import { toast } from 'react-toastify';
 import { BACKEND_URL } from '../../../constant';
@@ -29,10 +31,12 @@ export const GenerateCodeMenu: React.FC = () => {
   const [showQiskitConfig, setShowQiskitConfig] = useState(false);
   const [qiskitBackend, setQiskitBackend] = useState<'aer_simulator' | 'fake_backend' | 'ibm_quantum'>('aer_simulator');
   const [qiskitShots, setQiskitShots] = useState<number>(1024);
+  const [showDeploymentsModal, setShowDeploymentsModal] = useState(false);
 
   const apollonEditor = useContext(ApollonEditorContext);
   const generateCode = useGenerateCode();
   const deployLocally = useDeployLocally();
+  const { deployWebApp, listDeployments, stopDeployment } = useDeployWebApp();
   const diagram = useAppSelector((state) => state.diagram.diagram);
   const currentDiagramType = useAppSelector((state) => state.diagram.editorOptions.type);
   const editor = apollonEditor?.editor;
@@ -314,6 +318,24 @@ export const GenerateCodeMenu: React.FC = () => {
       toast.error('Qiskit code generation failed');
     }
   };
+
+  const handleDeployWebApp = async () => {
+    try {
+      const deployment = await deployWebApp();
+      if (deployment) {
+        posthog.capture('web_app_deployed', {
+          deployment_id: deployment.deployment_id,
+          project_name: deployment.project_name,
+          frontend_port: deployment.ports.frontend,
+          backend_port: deployment.ports.backend,
+        });
+      }
+    } catch (error) {
+      console.error('Error deploying web app:', error);
+      toast.error('Web App deployment failed');
+    }
+  };
+
   const isAgentDiagram = currentDiagramType === UMLDiagramType.AgentDiagram;
 
   return (
@@ -325,9 +347,18 @@ export const GenerateCodeMenu: React.FC = () => {
             <Dropdown.Item onClick={() => handleGenerateCode('qiskit')}>Qiskit Code</Dropdown.Item>
           </>
         ) : isGUINoCodeDiagram ? (
-          // No-Code Diagram: Show No-Code generation options
+          // No-Code Diagram: Show No-Code generation and deployment options
           <>
-            <Dropdown.Item onClick={() => handleGenerateCode('web_app')}>Web Application</Dropdown.Item>
+            <Dropdown.Item onClick={() => handleGenerateCode('web_app')}>
+              <i className="bi bi-download me-2"></i>Download Web Application
+            </Dropdown.Item>
+            <Dropdown.Divider />
+            <Dropdown.Item onClick={handleDeployWebApp}>
+              <i className="bi bi-rocket-takeoff me-2"></i>Deploy Web Application
+            </Dropdown.Item>
+            <Dropdown.Item onClick={() => setShowDeploymentsModal(true)}>
+              <i className="bi bi-server me-2"></i>View Active Deployments
+            </Dropdown.Item>
           </>
         ) : isAgentDiagram ? (
           // Agent Diagram: Show agent generation option
@@ -716,6 +747,12 @@ export const GenerateCodeMenu: React.FC = () => {
           </Button>
         </Modal.Footer>
       </Modal>
+
+      {/* Deployments Modal */}
+      <DeploymentsModal
+        show={showDeploymentsModal}
+        onHide={() => setShowDeploymentsModal(false)}
+      />
     </>
   );
 };
