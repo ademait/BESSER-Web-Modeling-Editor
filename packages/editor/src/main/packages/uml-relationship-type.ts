@@ -16,6 +16,7 @@ import { StateRelationshipType } from './uml-state-diagram';
 import { GeneralRelationshipType } from './common/uml-link/general-relationship-type';
 
 import { AgentRelationshipType } from './agent-state-diagram';
+import { SwarmRelationshipType } from './swarm-diagram';
 
 export { GeneralRelationshipType };
 
@@ -36,7 +37,8 @@ export type UMLRelationshipType =
   | keyof typeof StateRelationshipType
   | keyof typeof AgentRelationshipType
   | keyof typeof UserModelRelationshipType
-  | keyof typeof GeneralRelationshipType;
+  | keyof typeof GeneralRelationshipType
+  | keyof typeof SwarmRelationshipType;
 
 export const UMLRelationshipType = {
   ...ClassRelationshipType,
@@ -55,6 +57,7 @@ export const UMLRelationshipType = {
   ...AgentRelationshipType,
   ...UserModelRelationshipType,
   ...GeneralRelationshipType,
+  ...SwarmRelationshipType,
 };
 
 export const DefaultUMLRelationshipType: { [key in UMLDiagramType]: UMLRelationshipType } = {
@@ -73,4 +76,5 @@ export const DefaultUMLRelationshipType: { [key in UMLDiagramType]: UMLRelations
   [UMLDiagramType.StateMachineDiagram]: StateRelationshipType.StateTransition,
   [UMLDiagramType.AgentDiagram]: AgentRelationshipType.AgentStateTransition,
   [UMLDiagramType.UserDiagram]: UserModelRelationshipType.UserModelLink,
+  [UMLDiagramType.SwarmDiagram]: SwarmRelationshipType.SwarmLink,
 };

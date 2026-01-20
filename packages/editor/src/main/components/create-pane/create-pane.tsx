@@ -35,6 +35,8 @@ import { composeStatePreview } from '../../packages/uml-state-diagram/state-prev
 
 import { composeBotPreview } from '../../packages/agent-state-diagram/agent-state-preview';
 
+import { composeSwarmPreview } from '../../packages/swarm-diagram/swarm-diagram-preview';
+
 import { setPalette } from '../../services/palette/palette-types';
 import { settingsService } from '../../services/settings/settings-service';
 
@@ -106,6 +108,9 @@ const getInitialState = ({ type, canvas, translate, colorEnabled }: Props) => {
     case UMLDiagramType.UserDiagram:
       // Use dedicated user modeling preview
       previews.push(...composeUserModelPreview(canvas, translate));
+      break;
+    case UMLDiagramType.SwarmDiagram:
+      previews.push(...composeSwarmPreview(canvas, translate));
       break;
   }
   if (colorEnabled) {
