@@ -56,6 +56,7 @@ function fillMissingDiagrams(project: BesserProject): BesserProject {
     AgentDiagram: UMLDiagramType.AgentDiagram,
     GUINoCodeDiagram: null,
     QuantumCircuitDiagram: null,
+    SwarmDiagram: UMLDiagramType.SwarmDiagram,
   };
 
   const diagramTitles: Record<SupportedDiagramType, string> = {
@@ -64,7 +65,8 @@ function fillMissingDiagrams(project: BesserProject): BesserProject {
     StateMachineDiagram: 'State Machine Diagram',
     AgentDiagram: 'Agent Diagram',
     GUINoCodeDiagram: 'GUI Diagram',
-    QuantumCircuitDiagram: 'Quantum Circuit'
+    QuantumCircuitDiagram: 'Quantum Circuit',
+    SwarmDiagram: 'Swarm Diagram',
   };
 
   const diagramKinds: Partial<Record<SupportedDiagramType, 'gui' | 'quantum'>> = {

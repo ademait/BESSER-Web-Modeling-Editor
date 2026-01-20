@@ -8,7 +8,8 @@ import {
   Gear,
   PencilSquare,
   House,
-  Cpu
+  Cpu,
+  People
 } from 'react-bootstrap-icons';
 import { UMLDiagramType } from '@besser/wme';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -98,6 +99,7 @@ const sidebarItems: SidebarItem[] = [
   { type: UMLDiagramType.AgentDiagram, label: 'Agent Diagram', icon: <Robot size={20} /> },
   { type: 'graphical-ui-editor', label: 'Graphical UI', icon: <PencilSquare size={20} />, path: '/graphical-ui-editor' },
   { type: 'quantum-editor', label: 'Quantum Circuit', icon: <Cpu size={20} />, path: '/quantum-editor' },
+  { type: UMLDiagramType.SwarmDiagram, label: 'Swarm Diagram', icon: <People size={20} /> },
   { type: 'settings', label: 'Project Settings', icon: <Gear size={20} />, path: '/project-settings' },
 ];
 

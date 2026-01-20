@@ -32,6 +32,7 @@ import { BPMNFlow } from './bpmn/bpmn-flow/bpmn-flow';
 import { UMLStateTransition } from './uml-state-diagram/uml-state-transition/uml-state-transition';
 import { AgentStateTransition } from './agent-state-diagram/agent-state-transition/agent-state-transition';
 import { AgentStateTransitionInit } from './agent-state-diagram/agent-state-transition-init/agent-state-transition-init';
+import { SwarmLink } from './swarm-diagram/swarm-link/swarm-link';
 
 type UMLRelationships = { [key in UMLRelationshipType]: new (values?: IUMLRelationship) => UMLRelationship };
 
@@ -68,4 +69,5 @@ export const UMLRelationships = {
   [UMLRelationshipType.StateTransition]: UMLStateTransition,
   [UMLRelationshipType.AgentStateTransition]: AgentStateTransition,
   [UMLRelationshipType.AgentStateTransitionInit]: AgentStateTransitionInit,
+  [UMLRelationshipType.SwarmLink]: SwarmLink,
 };

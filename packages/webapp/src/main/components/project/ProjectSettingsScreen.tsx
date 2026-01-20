@@ -87,7 +87,8 @@ const getDiagramTypeColor = (type: SupportedDiagramType): string => {
     'StateMachineDiagram': 'warning',
     'AgentDiagram': 'info',
     'GUINoCodeDiagram': 'dark',
-    'QuantumCircuitDiagram': 'secondary'
+    'QuantumCircuitDiagram': 'secondary',
+    'SwarmDiagram': 'purple',
   };
   return colors[type] || 'secondary';
 };

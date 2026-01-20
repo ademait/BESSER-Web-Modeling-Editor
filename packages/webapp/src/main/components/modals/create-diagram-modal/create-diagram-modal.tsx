@@ -26,6 +26,7 @@ const diagramNamesMap: { [key in UMLDiagramType]: string } = {
   Flowchart: 'Flowchart',
   BPMN: 'BPMN Diagram',
   UserDiagram: 'User Diagram',
+  SwarmDiagram: 'Swarm Diagram',
 };
 
 // Commenting out behavioral diagrams

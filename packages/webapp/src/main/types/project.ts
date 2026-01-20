@@ -1,6 +1,6 @@
 import { UMLDiagramType, UMLModel } from '@besser/wme';
 // Supported diagram types in projects
-export type SupportedDiagramType = 'ClassDiagram' | 'ObjectDiagram' | 'StateMachineDiagram' | 'AgentDiagram' | 'GUINoCodeDiagram' | 'QuantumCircuitDiagram';
+export type SupportedDiagramType = 'ClassDiagram' | 'ObjectDiagram' | 'StateMachineDiagram' | 'AgentDiagram' | 'GUINoCodeDiagram' | 'QuantumCircuitDiagram' | 'SwarmDiagram';
 
 // GrapesJS project data structure
 export interface GrapesJSProjectData {
@@ -47,6 +47,7 @@ export interface BesserProject {
     AgentDiagram: ProjectDiagram;
     GUINoCodeDiagram: ProjectDiagram;
     QuantumCircuitDiagram: ProjectDiagram;
+    SwarmDiagram: ProjectDiagram;
   };
   settings: {
     defaultDiagramType: SupportedDiagramType;
@@ -66,6 +67,8 @@ export const toSupportedDiagramType = (type: UMLDiagramType): SupportedDiagramTy
       return 'StateMachineDiagram';
     case UMLDiagramType.AgentDiagram:
       return 'AgentDiagram';
+    case UMLDiagramType.SwarmDiagram:
+      return 'SwarmDiagram';
     default:
       return 'ClassDiagram'; // fallback
   }
@@ -86,6 +89,8 @@ export const toUMLDiagramType = (type: SupportedDiagramType): UMLDiagramType | n
       return null; // GUINoCodeDiagram doesn't have a UML diagram type
     case 'QuantumCircuitDiagram':
       return null; // QuantumCircuitDiagram doesn't have a UML diagram type
+    case 'SwarmDiagram':
+      return UMLDiagramType.SwarmDiagram;
     default:
       return null;
   }
@@ -227,6 +232,7 @@ export const createDefaultProject = (
       AgentDiagram: createEmptyDiagram('Agent Diagram', UMLDiagramType.AgentDiagram),
       GUINoCodeDiagram: createEmptyDiagram('GUI Diagram', null, 'gui'),
       QuantumCircuitDiagram: createEmptyDiagram('Quantum Circuit', null, 'quantum'),
+      SwarmDiagram: createEmptyDiagram('Swarm Diagram', UMLDiagramType.SwarmDiagram),
     },
     settings: {
       defaultDiagramType: 'ClassDiagram',

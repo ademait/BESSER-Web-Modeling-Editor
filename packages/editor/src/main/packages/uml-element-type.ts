@@ -15,6 +15,7 @@ import { ReachabilityGraphElementType } from './uml-reachability-graph';
 import { BPMNElementType } from './bpmn';
 import { StateElementType } from './uml-state-diagram';
 import { AgentElementType } from './agent-state-diagram';
+import { SwarmElementType } from './swarm-diagram';
 
 export type UMLElementType =
   | keyof typeof ClassElementType
@@ -32,7 +33,8 @@ export type UMLElementType =
   | keyof typeof CommentsElementType
   | keyof typeof BPMNElementType
   | keyof typeof StateElementType
-  | keyof typeof AgentElementType;
+  | keyof typeof AgentElementType
+  | keyof typeof SwarmElementType;
 
 export const UMLElementType = {
   ...ClassElementType,
@@ -51,6 +53,7 @@ export const UMLElementType = {
   ...BPMNElementType,
   ...StateElementType,
   ...AgentElementType,
+  ...SwarmElementType,
 };
 
 export const UMLElementsForDiagram: { [key in UMLDiagramType]: any } = {
@@ -70,6 +73,7 @@ export const UMLElementsForDiagram: { [key in UMLDiagramType]: any } = {
     [UMLDiagramType.StateMachineDiagram]: StateElementType,
     [UMLDiagramType.AgentDiagram]: AgentElementType,
     [UMLDiagramType.UserDiagram]: ObjectElementType, // Use ObjectElementType for UserDiagram as well
+    [UMLDiagramType.SwarmDiagram]: SwarmElementType,
   },
   // ...ColorLegendElementType,
   // ...CommentsElementType,

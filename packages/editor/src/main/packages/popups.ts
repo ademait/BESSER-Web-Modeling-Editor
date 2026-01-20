@@ -48,6 +48,10 @@ import { AgentIntentBodyUpdate } from './agent-state-diagram/agent-intent-object
 import { AgentStateUpdate } from './agent-state-diagram/agent-state/agent-state-update';
 import { AgentStateTransitionUpdate } from './agent-state-diagram/agent-state-transition/agent-state-transition-update';
 
+import { SwarmUpdate } from './swarm-diagram/swarm/swarm-update';
+import { AgentGroupUpdate } from './swarm-diagram/agent-group/agent-group-update';
+import { LanguageModelUpdate } from './swarm-diagram/language-model/language-model-update';
+
 export type Popups = { [key in UMLElementType | UMLRelationshipType]: ComponentType<{ element: any }> | null };
 export const Popups: { [key in UMLElementType | UMLRelationshipType]: ComponentType<{ element: any }> | null } = {
   // Elements
@@ -159,4 +163,9 @@ export const Popups: { [key in UMLElementType | UMLRelationshipType]: ComponentT
   [UMLRelationshipType.StateTransition]: UMLStateTransitionUpdate,
   [UMLRelationshipType.AgentStateTransition]: AgentStateTransitionUpdate,
   [UMLRelationshipType.AgentStateTransitionInit]: DefaultRelationshipPopup,
+
+  [UMLElementType.Swarm]: SwarmUpdate,
+  [UMLElementType.AgentGroup]: AgentGroupUpdate,
+  [UMLElementType.LanguageModel]: LanguageModelUpdate,
+  [UMLRelationshipType.SwarmLink]: DefaultRelationshipPopup,
 };

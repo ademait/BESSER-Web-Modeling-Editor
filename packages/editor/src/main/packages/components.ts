@@ -87,6 +87,11 @@ import { AgentStateMemberComponent } from './agent-state-diagram/agent-state/age
 import { AgentStateTransitionComponent } from './agent-state-diagram/agent-state-transition/agent-state-transition-component';
 import { AgentStateTransitionInitComponent } from './agent-state-diagram/agent-state-transition-init/agent-state-transition-init-component';
 
+import { SwarmComponent } from './swarm-diagram/swarm/swarm-component';
+import { AgentGroupComponent } from './swarm-diagram/agent-group/agent-group-component';
+import { LanguageModelComponent } from './swarm-diagram/language-model/language-model-component';
+import { SwarmLinkComponent } from './swarm-diagram/swarm-link/swarm-link-component';
+
 export const Components: {
   [key in UMLElementType | UMLRelationshipType]:
     | FunctionComponent<PropsWithChildren<{ element: any; fillColor?: string }>>
@@ -199,4 +204,9 @@ export const Components: {
   [UMLElementType.AgentStateFallbackBody]: AgentStateMemberComponent,
   [UMLRelationshipType.AgentStateTransition]: AgentStateTransitionComponent,
   [UMLRelationshipType.AgentStateTransitionInit]: AgentStateTransitionInitComponent,
+
+  [UMLElementType.Swarm]: SwarmComponent,
+  [UMLElementType.AgentGroup]: AgentGroupComponent,
+  [UMLElementType.LanguageModel]: LanguageModelComponent,
+  [UMLRelationshipType.SwarmLink]: SwarmLinkComponent,
 };

@@ -75,7 +75,9 @@ import { AgentState } from './agent-state-diagram/agent-state/agent-state';
 import { AgentStateBody } from './agent-state-diagram/agent-state-body/agent-state-body';
 import { AgentStateFallbackBody } from './agent-state-diagram/agent-state-fallback-body/agent-state-fallback-body';
 
-
+import { Swarm } from './swarm-diagram/swarm/swarm';
+import { AgentGroup } from './swarm-diagram/agent-group/agent-group';
+import { LanguageModel } from './swarm-diagram/language-model/language-model';
 
 export const UMLElements = {
   [UMLElementType.Package]: UMLClassPackage,
@@ -151,4 +153,7 @@ export const UMLElements = {
   [UMLElementType.AgentState]: AgentState,
   [UMLElementType.AgentStateBody]: AgentStateBody,
   [UMLElementType.AgentStateFallbackBody]: AgentStateFallbackBody,
+  [UMLElementType.Swarm]: Swarm,
+  [UMLElementType.AgentGroup]: AgentGroup,
+  [UMLElementType.LanguageModel]: LanguageModel,
 };
