@@ -44,17 +44,19 @@ const enhance = compose<ComponentClass<OwnProps>>(
 
 class AgentGroupUpdateComponent extends Component<Props> {
   private rename = (id: string) => (value: string) => {
-    this.props.update<IAgentGroup>(id, { name: value });
+    this.props.update(id, { name: value });
   };
 
   private changeFramework = (id: string) => (value: string) => {
-    this.props.update<IAgentGroup>(id, { framework: value });
+    const updateData: any = { framework: value };
+    this.props.update(id, updateData);
   };
 
   private changeNumAgents = (id: string) => (value: string) => {
-    this.props.update<IAgentGroup>(id, { numAgents: parseInt(value, 10) || 1 });
+    const updateData: any = { numAgents: parseInt(value, 10) || 1 };
+    this.props.update(id, updateData);
   };
-
+  
   private delete = (id: string) => () => {
     this.props.delete(id);
   };

@@ -38,11 +38,12 @@ const enhance = compose<ComponentClass<OwnProps>>(
 );
 
 class SwarmUpdateComponent extends Component<Props> {
-  private changeFramework = (id: string) => (framework: string) => {
-    this.props.update<ISwarm>(id, { framework });
+  private changeFramework = (id: string) => (value: string) => {
+    const updateData: any = { framework: value };
+    this.props.update(id, updateData);
   };
   private rename = (id: string) => (value: string) => {
-    this.props.update<ISwarm>(id, { name: value });
+    this.props.update(id, { name: value });
   };
   private delete = (id: string) => () => {
     this.props.delete(id);

@@ -39,11 +39,12 @@ const enhance = compose<ComponentClass<OwnProps>>(
 
 class LanguageModelUpdateComponent extends Component<Props> {
   private rename = (id: string) => (value: string) => {
-    this.props.update<ILanguageModel>(id, { name: value });
+    this.props.update(id, { name: value });
   };
 
   private changeProvider = (id: string) => (value: string) => {
-    this.props.update<ILanguageModel>(id, { provider: value });
+    const updateData: any = { provider: value };
+    this.props.update(id, updateData);
   };
 
   private delete = (id: string) => () => {
