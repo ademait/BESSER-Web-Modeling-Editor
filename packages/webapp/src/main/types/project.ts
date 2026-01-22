@@ -269,6 +269,11 @@ export const isProject = (obj: any): obj is BesserProject => {
     obj.diagrams.QuantumCircuitDiagram = createEmptyDiagram('Quantum Circuit', null, 'quantum');
   }
 
+  // Add SwarmDiagram if missing (for backward compatibility with older projects)
+  if (!obj.diagrams.SwarmDiagram) {
+    obj.diagrams.SwarmDiagram = createEmptyDiagram('Swarm Diagram', UMLDiagramType.SwarmDiagram);
+  }
+
   return true;
 };
 
