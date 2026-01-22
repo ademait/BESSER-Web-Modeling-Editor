@@ -255,3 +255,23 @@ export type SVG = {
     height: number;
   };
 };
+
+export interface AgentGroup extends UMLElement {
+  numAgents: number;
+  framework: string;
+  persona: string;
+  role: string;
+}
+
+export interface Swarm extends UMLElement {
+  framework: string;
+}
+
+export interface LanguageModel extends UMLElement {
+  provider: string;
+  model: string;
+  endpoint: string;
+  temperature: number;
+  maxTokens: number;
+  apiKeySecret: string;
+}
