@@ -8,7 +8,7 @@ import { TrashIcon } from '../../../components/controls/icon/trash';
 import { Divider } from '../../../components/controls/divider/divider';
 import { styled } from '../../../components/theme/styles';
 import { UMLElementRepository } from '../../../services/uml-element/uml-element-repository';
-import { LanguageModel, ILanguageModel } from './language-model';
+import { LanguageModel } from './language-model';
 import { ModelState } from '../../../components/store/model-state';
 
 const Flex = styled.div`
@@ -47,6 +47,31 @@ class LanguageModelUpdateComponent extends Component<Props> {
     this.props.update(id, updateData);
   };
 
+  private changeModel = (id: string) => (value: string) => {
+    const updateData: any = { model: value };
+    this.props.update(id, updateData);
+  };
+
+  private changeEndpoint = (id: string) => (value: string) => {
+    const updateData: any = { endpoint: value };
+    this.props.update(id, updateData);
+  };
+
+  private changeTemperature = (id: string) => (value: string) => {
+    const updateData: any = { temperature: parseFloat(value) || 0.7 };
+    this.props.update(id, updateData);
+  };
+
+  private changeMaxTokens = (id: string) => (value: string) => {
+    const updateData: any = { maxTokens: parseInt(value, 10) || 4096 };
+    this.props.update(id, updateData);
+  };
+
+  private changeApiKeySecret = (id: string) => (value: string) => {
+    const updateData: any = { apiKeySecret: value };
+    this.props.update(id, updateData);
+  };
+
   private delete = (id: string) => () => {
     this.props.delete(id);
   };
@@ -72,6 +97,48 @@ class LanguageModelUpdateComponent extends Component<Props> {
             <Dropdown.Item value="OLLAMA">Ollama</Dropdown.Item>
             <Dropdown.Item value="CUSTOM">Custom</Dropdown.Item>
           </Dropdown>
+        </section>
+        <section>
+          <Textfield
+            value={element.model}
+            onChange={this.changeModel(element.id)}
+            placeholder="Model (e.g., gpt-4)"
+          />
+        </section>
+        <section>
+          <Textfield
+            value={element.endpoint}
+            onChange={this.changeEndpoint(element.id)}
+            placeholder="Endpoint URL"
+          />
+        </section>
+        <section>
+          <Textfield
+            value={String(element.temperature)}
+            onChange={this.changeTemperature(element.id)}
+            type="number"
+            placeholder="Temperature (0.0 - 1.0)"
+            step="0.1"
+            min="0"
+            max="1"
+          />
+        </section>
+        <section>
+          <Textfield
+            value={String(element.maxTokens)}
+            onChange={this.changeMaxTokens(element.id)}
+            type="number"
+            placeholder="Max Tokens"
+            step="1"
+            min="1"
+          />
+        </section>
+        <section>
+          <Textfield
+            value={element.apiKeySecret}
+            onChange={this.changeApiKeySecret(element.id)}
+            placeholder="API Key Secret"
+          />
         </section>
       </div>
     );

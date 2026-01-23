@@ -19,6 +19,7 @@ export class AgentGroup extends UMLElement implements IAgentGroup {
     ...UMLElement.features,
     resizable: true,
   };
+  static supportedContainers = [SwarmElementType.Swarm];
 
   type: UMLElementType = SwarmElementType.AgentGroup;
   numAgents: number = 1;

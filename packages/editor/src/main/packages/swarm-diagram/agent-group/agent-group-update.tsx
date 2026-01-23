@@ -8,7 +8,7 @@ import { TrashIcon } from '../../../components/controls/icon/trash';
 import { Divider } from '../../../components/controls/divider/divider';
 import { styled } from '../../../components/theme/styles';
 import { UMLElementRepository } from '../../../services/uml-element/uml-element-repository';
-import { AgentGroup, IAgentGroup } from './agent-group';
+import { AgentGroup } from './agent-group';
 import { ModelState } from '../../../components/store/model-state';
 
 const Flex = styled.div`
@@ -16,11 +16,6 @@ const Flex = styled.div`
   align-items: baseline;
   justify-content: space-between;
 `;
-
-// Define framework options
-const frameworkOptions = [
-  { value: 'BESSER-BAF', label: 'BESSER-BAF' },
-];
 
 interface OwnProps {
   element: AgentGroup;
@@ -56,7 +51,17 @@ class AgentGroupUpdateComponent extends Component<Props> {
     const updateData: any = { numAgents: parseInt(value, 10) || 1 };
     this.props.update(id, updateData);
   };
-  
+
+  private changePersona = (id: string) => (value: string) => {
+    const updateData: any = { persona: value };
+    this.props.update(id, updateData);
+  };
+
+  private changeRole = (id: string) => (value: string) => {
+    const updateData: any = { role: value };
+    this.props.update(id, updateData);
+  };
+    
   private delete = (id: string) => () => {
     this.props.delete(id);
   };
@@ -85,6 +90,21 @@ class AgentGroupUpdateComponent extends Component<Props> {
             onChange={this.changeNumAgents(element.id)}
             type="number"
             placeholder="Number of Agents"
+            min="1"
+          />
+        </section>
+        <section>
+          <Textfield
+            value={element.persona}
+            onChange={this.changePersona(element.id)}
+            placeholder="Persona"
+          />
+        </section>
+        <section>
+          <Textfield
+            value={element.role}
+            onChange={this.changeRole(element.id)}
+            placeholder="Role"
           />
         </section>
       </div>

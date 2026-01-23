@@ -13,6 +13,11 @@ export const composeSwarmPreview: ComposePreview = (
 
   // Swarm element for palette
   const swarm = new Swarm({ name: 'Swarm' });
+  swarm.bounds = {
+    ...swarm.bounds,
+    width: 250, 
+    height: 200,
+  };
   elements.push(swarm);
 
   // AgentGroup element for palette
