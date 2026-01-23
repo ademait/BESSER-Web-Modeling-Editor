@@ -265,6 +265,7 @@ export interface AgentGroup extends UMLElement {
 
 export interface Swarm extends UMLElement {
   framework: string;
+  ownedElements?: string[];
 }
 
 export interface LanguageModel extends UMLElement {

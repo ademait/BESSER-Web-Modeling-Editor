@@ -8,7 +8,7 @@ import { TrashIcon } from '../../../components/controls/icon/trash';
 import { Divider } from '../../../components/controls/divider/divider';
 import { styled } from '../../../components/theme/styles';
 import { UMLElementRepository } from '../../../services/uml-element/uml-element-repository';
-import { Swarm, ISwarm } from './swarm';
+import { Swarm } from './swarm';
 import { ModelState } from '../../../components/store/model-state';
 
 const Flex = styled.div`

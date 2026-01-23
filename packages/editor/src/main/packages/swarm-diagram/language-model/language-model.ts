@@ -23,7 +23,7 @@ export class LanguageModel extends UMLElement implements ILanguageModel {
   };
 
   type: UMLElementType = SwarmElementType.LanguageModel;
-  provider: string = 'OpenAI';
+  provider: string = 'OPENAI';
   model: string = 'gpt-4';
   endpoint: string = '';
   temperature: number = 0.7;
@@ -33,7 +33,7 @@ export class LanguageModel extends UMLElement implements ILanguageModel {
   constructor(values?: DeepPartial<ILanguageModel>) {
     super(values);
     this.name = values?.name ?? 'LanguageModel';
-    this.provider = values?.provider ?? 'OpenAI';
+    this.provider = values?.provider ?? 'OPENAI';
     this.model = values?.model ?? 'gpt-4';
     this.endpoint = values?.endpoint ?? '';
     this.temperature = values?.temperature ?? 0.7;
