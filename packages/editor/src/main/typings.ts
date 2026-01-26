@@ -263,6 +263,12 @@ export interface AgentGroup extends UMLElement {
   role: string;
 }
 
+// No modifications, just re-exports for easier access
+export interface Evaluator extends AgentGroup {}
+export interface Solver extends AgentGroup {}
+export interface Supervisor extends AgentGroup {}
+export interface Dispatcher extends AgentGroup {}
+
 export interface Swarm extends UMLElement {
   framework: string;
   ownedElements?: string[];

@@ -91,6 +91,10 @@ import { SwarmComponent } from './swarm-diagram/swarm/swarm-component';
 import { AgentGroupComponent } from './swarm-diagram/agent-group/agent-group-component';
 import { LanguageModelComponent } from './swarm-diagram/language-model/language-model-component';
 import { SwarmLinkComponent } from './swarm-diagram/swarm-link/swarm-link-component';
+import { EvaluatorComponent } from './swarm-diagram/agent-evaluator/evaluator-component';
+import { SolverComponent } from './swarm-diagram/agent-solver/solver-component';
+import { SupervisorComponent } from './swarm-diagram/agent-supervisor/supervisor-component';
+import { DispatcherComponent } from './swarm-diagram/agent-dispatcher/dispatcher-component';
 
 export const Components: {
   [key in UMLElementType | UMLRelationshipType]:
@@ -207,6 +211,10 @@ export const Components: {
 
   [UMLElementType.Swarm]: SwarmComponent,
   [UMLElementType.AgentGroup]: AgentGroupComponent,
+  [UMLElementType.Evaluator]: EvaluatorComponent,
+  [UMLElementType.Solver]: SolverComponent,
+  [UMLElementType.Supervisor]: SupervisorComponent,
+  [UMLElementType.Dispatcher]: DispatcherComponent,
   [UMLElementType.LanguageModel]: LanguageModelComponent,
   [UMLRelationshipType.SwarmLink]: SwarmLinkComponent,
 };

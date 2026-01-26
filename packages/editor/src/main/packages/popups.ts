@@ -51,6 +51,11 @@ import { AgentStateTransitionUpdate } from './agent-state-diagram/agent-state-tr
 import { SwarmUpdate } from './swarm-diagram/swarm/swarm-update';
 import { AgentGroupUpdate } from './swarm-diagram/agent-group/agent-group-update';
 import { LanguageModelUpdate } from './swarm-diagram/language-model/language-model-update';
+import { EvaluatorUpdate } from './swarm-diagram/agent-evaluator/evaluator-update';
+import { SolverUpdate } from './swarm-diagram/agent-solver/solver-update';
+import { SupervisorUpdate } from './swarm-diagram/agent-supervisor/supervisor-update';
+import { DispatcherUpdate } from './swarm-diagram/agent-dispatcher/dispatcher-update';
+
 
 export type Popups = { [key in UMLElementType | UMLRelationshipType]: ComponentType<{ element: any }> | null };
 export const Popups: { [key in UMLElementType | UMLRelationshipType]: ComponentType<{ element: any }> | null } = {
@@ -166,6 +171,10 @@ export const Popups: { [key in UMLElementType | UMLRelationshipType]: ComponentT
 
   [UMLElementType.Swarm]: SwarmUpdate,
   [UMLElementType.AgentGroup]: AgentGroupUpdate,
+  [UMLElementType.Evaluator]: EvaluatorUpdate,
+  [UMLElementType.Solver]: SolverUpdate,
+  [UMLElementType.Supervisor]: SupervisorUpdate,
+  [UMLElementType.Dispatcher]: DispatcherUpdate,
   [UMLElementType.LanguageModel]: LanguageModelUpdate,
   [UMLRelationshipType.SwarmLink]: DefaultRelationshipPopup,
 };
