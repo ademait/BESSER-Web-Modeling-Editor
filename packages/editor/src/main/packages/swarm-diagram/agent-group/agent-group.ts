@@ -14,18 +14,32 @@ export interface IAgentGroup extends IUMLElement {
   role: string;
 }
 
+/**
+ * AgentGroup - Abstract base class for all agent types in a Swarm diagram.
+ * 
+ * This class should NOT be instantiated directly. Use one of the concrete subclasses:
+ * - Evaluator
+ * - Solver
+ * - Supervisor
+ * - Dispatcher
+ * 
+ * AgentGroup provides common properties and behavior for all agent types.
+ */
 export class AgentGroup extends UMLElement implements IAgentGroup {
   static features: UMLElementFeatures = {
     ...UMLElement.features,
     resizable: true,
   };
   static supportedContainers = [SwarmElementType.Swarm];
+  static MIN_WIDTH = 40;
+  static MIN_HEIGHT = 60;
 
   type: UMLElementType = SwarmElementType.AgentGroup;
   numAgents: number = 1;
   framework: string = 'BESSER-BAF';
   persona: string = '';
   role: string = '';
+  
 
   constructor(values?: DeepPartial<IAgentGroup>) {
     super(values);
@@ -34,11 +48,12 @@ export class AgentGroup extends UMLElement implements IAgentGroup {
     this.framework = values?.framework ?? 'BESSER-BAF';
     this.persona = values?.persona ?? '';
     this.role = values?.role ?? '';
+    // Update default bounds for robot head icon-style rendering
     this.bounds = {
       x: 0,
       y: 0,
-      width: 150,
-      height: 80,
+      width: AgentGroup.MIN_WIDTH,
+      height: AgentGroup.MIN_HEIGHT,
       ...values?.bounds,
     };
   }
@@ -55,6 +70,13 @@ export class AgentGroup extends UMLElement implements IAgentGroup {
   }
 
   render(canvas: ILayer): ILayoutable[] {
+    // Enforce minimum dimensions
+    if (this.bounds.width < AgentGroup.MIN_WIDTH) {
+      this.bounds.width = AgentGroup.MIN_WIDTH;
+    }
+    if (this.bounds.height < AgentGroup.MIN_HEIGHT) {
+      this.bounds.height = AgentGroup.MIN_HEIGHT;
+    }
     return [this];
   }
 }

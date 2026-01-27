@@ -9,10 +9,5 @@ interface Props {
 
 // Color: Blue (#3b82f6) for dispatchers
 export const DispatcherComponent: FunctionComponent<Props> = ({ element, fillColor }) => {
-  return (
-    <AgentGroupComponent
-      element={element}
-      fillColor={fillColor} 
-    />
-  );
+  return <AgentGroupComponent element={element} fillColor={fillColor} />;
 };

@@ -9,10 +9,5 @@ interface Props {
 
 // Color: Gray (#6b7280) for supervisors
 export const SupervisorComponent: FunctionComponent<Props> = ({ element, fillColor }) => {
-  return (
-    <AgentGroupComponent
-      element={element}
-      fillColor={fillColor}
-    />
-  );
+  return <AgentGroupComponent element={element} fillColor={fillColor} />;
 };

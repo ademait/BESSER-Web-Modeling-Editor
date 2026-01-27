@@ -2,7 +2,6 @@ import { ComposePreview } from '../compose-preview';
 import { UMLElement } from '../../services/uml-element/uml-element';
 import { ILayer } from '../../services/layouter/layer';
 import { Swarm } from './swarm/swarm';
-import { AgentGroup } from './agent-group/agent-group';
 import { Evaluator } from './agent-evaluator/evaluator';
 import { Solver } from './agent-solver/solver';
 import { Supervisor } from './agent-supervisor/supervisor';
@@ -24,24 +23,29 @@ export const composeSwarmPreview: ComposePreview = (
   };
   elements.push(swarm);
 
-  // Base AgentGroup (generic)
-  const agentGroup = new AgentGroup({ name: 'AgentGroup' });
-  elements.push(agentGroup);
+  // For now it is abstract. Base AgentGroup (generic)
+  // const agentGroup = new AgentGroup({ name: 'AgentGroup' });
+  // agentGroup.bounds = { ...agentGroup.bounds, width: 60, height: 80 };
+  // elements.push(agentGroup);
 
   // Evaluator (orange)
   const evaluator = new Evaluator({ name: 'Evaluator' });
+  evaluator.bounds = { ...evaluator.bounds, width: 60, height: 80 };
   elements.push(evaluator);
 
   // Solver (green)
   const solver = new Solver({ name: 'Solver' });
+  solver.bounds = { ...solver.bounds, width: 60, height: 80 };
   elements.push(solver);
 
   // Supervisor (gray)
   const supervisor = new Supervisor({ name: 'Supervisor' });
+  supervisor.bounds = { ...supervisor.bounds, width: 60, height: 80 };
   elements.push(supervisor);
 
   // Dispatcher (blue)
   const dispatcher = new Dispatcher({ name: 'Dispatcher' });
+  dispatcher.bounds = { ...dispatcher.bounds, width: 60, height: 80 };
   elements.push(dispatcher);
 
   // LanguageModel element for palette

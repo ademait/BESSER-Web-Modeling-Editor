@@ -1,7 +1,7 @@
 import React, { FunctionComponent } from 'react';
 import { Text } from '../../../components/controls/text/text';
-import { ThemedRect } from '../../../components/theme/themedComponents';
 import { AgentGroup } from './agent-group';
+import { AgentIcon } from '../common/icons';
 
 interface Props {
   element: AgentGroup;
@@ -18,40 +18,78 @@ export const AgentGroupComponent: FunctionComponent<Props> = ({ element, fillCol
   
   // Only show orphan styling for real elements (not previews)
   const isOrphan = !element.owner && !isLikelyPreview;
+
+  // Use element's fill color or prop override
+  const agentColor = fillColor || element.fillColor || '#ffffff';
   
   // Use red stroke for orphans to indicate invalid placement
-  const strokeColor = isOrphan ? '#dc3545' : element.strokeColor;  // Bootstrap danger red
+  const strokeColor = isOrphan ? '#dc3545' : darkenColor(agentColor, 0.4);  // Bootstrap danger red
   const strokeWidth = isOrphan ? 3 : 1;
+
+  // Calculate text color for contrast
+  const textColor = element.textColor || '#1f2937';
+  
+  // Icon dimensions (square aspect ratio for robot head)
+  const iconSize = Math.min(element.bounds.width, element.bounds.height - 24) * 0.9;
+  
+  // Center the icon horizontally
+  const iconX = (element.bounds.width - iconSize) / 2;
+  const iconY = 2;  // Small top padding
+  
+  // Calculate text position (below icon)
+  const textY = iconY + iconSize + 4;
 
   return (
     <g>
-      <ThemedRect
-        width="100%"
-        height="100%"
-        fillColor={fillColor || element.fillColor}
-        strokeColor={strokeColor}
-        strokeWidth={strokeWidth}
-        strokeDasharray={isOrphan ? '5,5' : undefined}  // Dashed border for orphans
-        rx={5}
+      {/* Invisible rect for selection/interaction area */}
+      <rect 
+        width={element.bounds.width} 
+        height={element.bounds.height} 
+        fill="transparent" 
       />
-      <svg height={30}>
-        <Text fill={element.textColor} fontWeight="bold">
+      {/* Robot head icon */}
+      <AgentIcon
+        x={iconX}
+        y={iconY}
+        width={iconSize}
+        height={iconSize}
+        fillColor={agentColor}
+        strokeColor={strokeColor}
+      />
+      
+      {/* Name label below icon */}
+      <svg y={textY} width={element.bounds.width} height={20}>
+        <Text 
+          fill={textColor} 
+          fontWeight="bold" 
+          fontSize="small"
+          textAnchor="middle"
+          x={element.bounds.width / 2}
+        >
           {element.name}
         </Text>
       </svg>
-      <svg y={35} height={20}>
-        <Text fill={element.textColor} fontSize="smaller">
-          {`Agents: ${element.numAgents}`}
-        </Text>
-      </svg>
-      {/* Show warning text for orphans */}
-      {isOrphan && (
-        <svg y={element.bounds.height - 20} height={20}>
-          <Text fill="#dc3545" fontSize="x-small">
-            ⚠ Place inside Swarm
-          </Text>
-        </svg>
-      )}
     </g>
   );
 };
+
+/**
+ * Helper function to darken a hex color
+ */
+function darkenColor(hex: string, factor: number): string {
+  // Remove # if present
+  const color = hex.replace('#', '');
+  
+  // Parse RGB values
+  const r = parseInt(color.substring(0, 2), 16);
+  const g = parseInt(color.substring(2, 4), 16);
+  const b = parseInt(color.substring(4, 6), 16);
+  
+  // Darken each component
+  const darken = (c: number) => Math.round(c * (1 - factor));
+  
+  // Convert back to hex
+  const toHex = (c: number) => c.toString(16).padStart(2, '0');
+  
+  return `#${toHex(darken(r))}${toHex(darken(g))}${toHex(darken(b))}`;
+}

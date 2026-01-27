@@ -13,5 +13,13 @@ export class Evaluator extends AgentGroup implements IEvaluator {
     this.name = values?.name ?? 'Evaluator';
     this.role = values?.role ?? 'evaluator';
     this.fillColor = values?.fillColor ?? '#f59e0b';
+    // Update default bounds for robot head icon-style rendering
+    this.bounds = {
+      x: 0,
+      y: 0,
+      width: 60,
+      height: 80,
+      ...values?.bounds,
+    };
   }
 }
