@@ -6,6 +6,8 @@ import { SwarmElementType } from '..';
 import { ILayoutable } from '../../../services/layouter/layoutable';
 import { ILayer } from '../../../services/layouter/layer';
 import * as Apollon from '../../../typings';
+import { SwarmRelationshipType } from '..';
+import { UMLRelationshipType } from '../../uml-relationship-type';
 
 export interface IAgentGroup extends IUMLElement {
   numAgents: number;
@@ -33,6 +35,10 @@ export class AgentGroup extends UMLElement implements IAgentGroup {
   static supportedContainers = [SwarmElementType.Swarm];
   static MIN_WIDTH = 40;
   static MIN_HEIGHT = 60;
+  // TODO: Check whether we can inherit the different supported relationships from subclasses
+  // static supportedRelationships = [
+  //   SwarmRelationshipType.SwarmLink,
+  // ];
 
   type: UMLElementType = SwarmElementType.AgentGroup;
   numAgents: number = 1;
