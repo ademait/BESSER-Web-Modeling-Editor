@@ -10,4 +10,6 @@ export const SwarmElementType = {
 
 export const SwarmRelationshipType = {
   SwarmLink: 'SwarmLink',
+  DelegationLink: 'DelegationLink',
+  SupervisionLink: 'SupervisionLink',
 } as const;

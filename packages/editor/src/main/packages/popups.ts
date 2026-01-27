@@ -55,7 +55,7 @@ import { EvaluatorUpdate } from './swarm-diagram/agent-evaluator/evaluator-updat
 import { SolverUpdate } from './swarm-diagram/agent-solver/solver-update';
 import { SupervisorUpdate } from './swarm-diagram/agent-supervisor/supervisor-update';
 import { DispatcherUpdate } from './swarm-diagram/agent-dispatcher/dispatcher-update';
-
+import { SwarmRelationshipUpdate } from './swarm-diagram/swarm-relationship-update';
 
 export type Popups = { [key in UMLElementType | UMLRelationshipType]: ComponentType<{ element: any }> | null };
 export const Popups: { [key in UMLElementType | UMLRelationshipType]: ComponentType<{ element: any }> | null } = {
@@ -176,5 +176,7 @@ export const Popups: { [key in UMLElementType | UMLRelationshipType]: ComponentT
   [UMLElementType.Supervisor]: SupervisorUpdate,
   [UMLElementType.Dispatcher]: DispatcherUpdate,
   [UMLElementType.LanguageModel]: LanguageModelUpdate,
-  [UMLRelationshipType.SwarmLink]: DefaultRelationshipPopup,
+  [UMLRelationshipType.SwarmLink]: SwarmRelationshipUpdate,
+  [UMLRelationshipType.DelegationLink]: SwarmRelationshipUpdate,
+  [UMLRelationshipType.SupervisionLink]: SwarmRelationshipUpdate,
 };

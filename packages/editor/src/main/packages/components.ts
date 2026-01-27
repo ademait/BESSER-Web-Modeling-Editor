@@ -95,6 +95,8 @@ import { EvaluatorComponent } from './swarm-diagram/agent-evaluator/evaluator-co
 import { SolverComponent } from './swarm-diagram/agent-solver/solver-component';
 import { SupervisorComponent } from './swarm-diagram/agent-supervisor/supervisor-component';
 import { DispatcherComponent } from './swarm-diagram/agent-dispatcher/dispatcher-component';
+import { DelegationLinkComponent } from './swarm-diagram/delegation-link/delegation-link-component';
+import { SupervisionLinkComponent } from './swarm-diagram/supervision-link/supervision-link-component';
 
 export const Components: {
   [key in UMLElementType | UMLRelationshipType]:
@@ -217,4 +219,6 @@ export const Components: {
   [UMLElementType.Dispatcher]: DispatcherComponent,
   [UMLElementType.LanguageModel]: LanguageModelComponent,
   [UMLRelationshipType.SwarmLink]: SwarmLinkComponent,
+  [UMLRelationshipType.DelegationLink]: DelegationLinkComponent,
+  [UMLRelationshipType.SupervisionLink]: SupervisionLinkComponent,
 };

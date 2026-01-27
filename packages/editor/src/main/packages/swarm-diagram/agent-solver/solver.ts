@@ -2,11 +2,18 @@ import { DeepPartial } from 'redux';
 import { AgentGroup, IAgentGroup } from '../agent-group/agent-group';
 import { UMLElementType } from '../../uml-element-type';
 import { SwarmElementType } from '..';
+import { SwarmRelationshipType } from '..';
+import { UMLRelationshipType } from '../../uml-relationship-type';
 
 export interface ISolver extends IAgentGroup {}
 
 export class Solver extends AgentGroup implements ISolver {
   type: UMLElementType = SwarmElementType.Solver;
+  static supportedRelationships = [
+    SwarmRelationshipType.SwarmLink,
+    SwarmRelationshipType.DelegationLink,
+    SwarmRelationshipType.SupervisionLink,
+  ];
 
   constructor(values?: DeepPartial<ISolver>) {
     super(values);

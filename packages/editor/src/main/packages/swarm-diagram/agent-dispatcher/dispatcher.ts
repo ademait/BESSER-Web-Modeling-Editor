@@ -2,11 +2,18 @@ import { DeepPartial } from 'redux';
 import { AgentGroup, IAgentGroup } from '../agent-group/agent-group';
 import { UMLElementType } from '../../uml-element-type';
 import { SwarmElementType } from '..';
+import { SwarmRelationshipType } from '..';
+import { UMLRelationshipType } from '../../uml-relationship-type';
 
 export interface IDispatcher extends IAgentGroup {}
 
 export class Dispatcher extends AgentGroup implements IDispatcher {
   type: UMLElementType = SwarmElementType.Dispatcher;
+  static supportedRelationships = [
+    SwarmRelationshipType.DelegationLink,
+    SwarmRelationshipType.SwarmLink,
+    SwarmRelationshipType.SupervisionLink,
+  ];
 
   constructor(values?: DeepPartial<IDispatcher>) {
     super(values);
