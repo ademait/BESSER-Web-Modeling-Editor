@@ -21,6 +21,8 @@ export class LanguageModel extends UMLElement implements ILanguageModel {
     ...UMLElement.features,
     resizable: true,
   };
+  static MIN_WIDTH = 140;
+  static MIN_HEIGHT = 50;
 
   type: UMLElementType = SwarmElementType.LanguageModel;
   provider: string = 'OPENAI';
@@ -62,6 +64,12 @@ export class LanguageModel extends UMLElement implements ILanguageModel {
   }
 
   render(canvas: ILayer): ILayoutable[] {
+    if (this.bounds.width < LanguageModel.MIN_WIDTH) {
+      this.bounds.width = LanguageModel.MIN_WIDTH;
+    }
+    if (this.bounds.height < LanguageModel.MIN_HEIGHT) {
+      this.bounds.height = LanguageModel.MIN_HEIGHT;
+    }
     return [this];
   }
 }

@@ -42,12 +42,6 @@ export const SwarmComponent: FunctionComponent<Props> = ({ element, children, fi
           {element.name}
         </Text>
       </svg>
-      {/* Framework label (smaller, below name) */}
-      <svg y={22} height={20}>
-        <Text fill={element.textColor} fontSize="smaller">
-          {`[${element.framework}]`}
-        </Text>
-      </svg>
       {/* Children will be rendered here by the editor */}
       {children}
     </g>
