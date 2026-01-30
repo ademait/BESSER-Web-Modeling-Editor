@@ -2,9 +2,9 @@
 
 // Main service (use this in UI)
 export { 
-  exportSwarmAsCrewAI, 
-  downloadGeneratedFiles,
-  type ExportOptions 
+  exportSwarmAsCrewAI,
+  exportSwarmAsCrewAIFromEditor,
+  type SwarmExportOptions 
 } from './swarm-export-service';
 
 // Generator class (for advanced usage)

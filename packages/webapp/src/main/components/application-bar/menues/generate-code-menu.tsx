@@ -13,6 +13,9 @@ import { StoredAgentConfiguration, StoredAgentProfileConfigurationMapping } from
 import { LocalStorageRepository } from '../../../services/local-storage/local-storage-repository';
 import { ProjectStorageRepository } from '../../../services/storage/ProjectStorageRepository';
 import { GrapesJSProjectData } from '../../../types/project';
+import { createCrewAIZip, downloadFile } from '../../../services/file-download/swarm-export-service';
+import { exportSwarmAsCrewAIFromEditor } from '@besser/wme';
+
 
 export const GenerateCodeMenu: React.FC = () => {
   // Modal for spoken language selection for agent diagrams
@@ -264,7 +267,6 @@ export const GenerateCodeMenu: React.FC = () => {
       }
       return;
     }
-
     try {
       // For quantum diagrams generating qiskit code, show config modal
       if (isQuantumDiagram && generatorType === 'qiskit') {
@@ -610,6 +612,7 @@ export const GenerateCodeMenu: React.FC = () => {
   };
 
   const isAgentDiagram = currentDiagramType === UMLDiagramType.AgentDiagram;
+  const isSwarmDiagram = currentDiagramType === UMLDiagramType.SwarmDiagram;
 
   return (
     <>
@@ -629,6 +632,9 @@ export const GenerateCodeMenu: React.FC = () => {
           <Dropdown.Item onClick={() => handleGenerateCode('agent')}>BESSER Agent</Dropdown.Item>
         ) : isUserDiagram ? (
           <Dropdown.Item onClick={handleJsonObjectGenerate}>JSON Object</Dropdown.Item>
+        ) : isSwarmDiagram ? (
+          // Swarm Diagram: Show CrewAI generation option
+          <Dropdown.Item onClick={() => handleGenerateCode('crewai')}>CrewAI Code</Dropdown.Item>
         ) : currentDiagramType === UMLDiagramType.ClassDiagram ? (
           // ...existing code...
           <>
