@@ -8,6 +8,9 @@ import { useAppSelector } from '../../store/hooks';
 import { toast } from 'react-toastify';
 import { BACKEND_URL } from '../../../constant';
 import { UMLDiagramType } from '@besser/wme';
+import { createCrewAIZip, downloadFile } from '../../../services/file-download/swarm-export-service';
+import { exportSwarmAsCrewAIFromEditor } from '@besser/wme';
+
 
 export const GenerateCodeMenu: React.FC = () => {
   // Modal for spoken language selection for agent diagrams
@@ -98,7 +101,6 @@ export const GenerateCodeMenu: React.FC = () => {
       }
       return;
     }
-
     try {
       // For quantum diagrams generating qiskit code, show config modal
       if (isQuantumDiagram && generatorType === 'qiskit') {
@@ -315,6 +317,7 @@ export const GenerateCodeMenu: React.FC = () => {
     }
   };
   const isAgentDiagram = currentDiagramType === UMLDiagramType.AgentDiagram;
+  const isSwarmDiagram = currentDiagramType === UMLDiagramType.SwarmDiagram;
 
   return (
     <>
@@ -332,6 +335,9 @@ export const GenerateCodeMenu: React.FC = () => {
         ) : isAgentDiagram ? (
           // Agent Diagram: Show agent generation option
           <Dropdown.Item onClick={() => handleGenerateCode('agent')}>BESSER Agent</Dropdown.Item>
+        ) : isSwarmDiagram ? (
+          // Swarm Diagram: Show CrewAI generation option
+          <Dropdown.Item onClick={() => handleGenerateCode('crewai')}>CrewAI Code</Dropdown.Item>
         ) : currentDiagramType === UMLDiagramType.ClassDiagram ? (
           // ...existing code...
           <>

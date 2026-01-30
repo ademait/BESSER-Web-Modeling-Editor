@@ -31,6 +31,9 @@ export * from './services/diagram-bridge';
 // Provides configuration management for standalone applications
 export * from './services/settings/settings-service';
 
+// Export the code generation services for SwarmDiagrams
+export * from './services/swarm-codegen';
+
 // Export only the Patch type (not the implementation) for type safety
 // Used when working with patching operations in TypeScript
 export type { Patch } from './services/patcher';
