@@ -1,4 +1,4 @@
-import { SwarmCodeGenerator } from './generator/swarm-generator';
+import { SwarmCodeGenerator } from './generator/crewai-generator';
 import { SwarmDiagramData } from './mappers/link-mapper';
 
 // Mock data simulating a SwarmDiagram

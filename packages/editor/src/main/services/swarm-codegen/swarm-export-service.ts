@@ -1,6 +1,8 @@
-import { SwarmCodeGenerator } from './generator/swarm-generator';
+import { CrewAIGenerator } from './generator/crewai-generator';
+import { BAFGenerator } from './generator/baf-generator';
 import { GeneratorOptions, GeneratorResult } from './types';
 import { SwarmDiagramData } from './mappers/link-mapper';
+import { SupportedFramework } from './types/common-types';
 
 // Configuration flag - set to true when backend is ready
 const USE_BACKEND_GENERATION = false;
@@ -17,8 +19,9 @@ export interface SwarmExportOptions extends Partial<GeneratorOptions> {
  * @param diagramData - The SwarmDiagramData containing swarm, agents, and relationships
  * @param options - Optional generator configuration
  */
-export async function exportSwarmAsCrewAI(
+export async function exportSwarmCode(
   diagramData: SwarmDiagramData,
+  framework: SupportedFramework = 'BESSER-BAF',
   options: SwarmExportOptions = {}
 ): Promise<GeneratorResult> {
   
@@ -28,12 +31,22 @@ export async function exportSwarmAsCrewAI(
   }
   
   // MVP: Client-side generation
-  return generateLocally(diagramData, options);
+  return generateLocally(diagramData, framework, options);
 }
 
-function generateLocally(diagramData: SwarmDiagramData, options: SwarmExportOptions): GeneratorResult {
-  const generator = new SwarmCodeGenerator(options);
+function generateLocally(diagramData: SwarmDiagramData, framework: SupportedFramework, options: SwarmExportOptions): GeneratorResult {
+  const generator = createGenerator(framework, options);
   return generator.generate(diagramData);
+}
+
+function createGenerator(framework: SupportedFramework, options: SwarmExportOptions) {
+  switch (framework) {
+    case 'CrewAI':
+      return new CrewAIGenerator(options);
+    case 'BESSER-BAF':
+    default:
+      return new BAFGenerator(options);
+  }
 }
 
 async function generateViaBackend(diagramData: SwarmDiagramData, options: SwarmExportOptions): Promise<GeneratorResult> {
@@ -55,6 +68,15 @@ async function generateViaBackend(diagramData: SwarmDiagramData, options: SwarmE
   }
   
   return await response.json();
+}
+
+// TODO: Check if we need backward compatibility function
+// Keep backward compatibility
+export async function exportSwarmAsCrewAI(
+  diagramData: SwarmDiagramData,
+  options: SwarmExportOptions = {}
+): Promise<GeneratorResult> {
+  return exportSwarmCode(diagramData, 'CrewAI', options);
 }
 
 /**

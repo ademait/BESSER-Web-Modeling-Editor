@@ -8,8 +8,6 @@ import { useAppSelector } from '../../store/hooks';
 import { toast } from 'react-toastify';
 import { BACKEND_URL } from '../../../constant';
 import { UMLDiagramType } from '@besser/wme';
-import { createCrewAIZip, downloadFile } from '../../../services/file-download/swarm-export-service';
-import { exportSwarmAsCrewAIFromEditor } from '@besser/wme';
 
 
 export const GenerateCodeMenu: React.FC = () => {
@@ -336,8 +334,8 @@ export const GenerateCodeMenu: React.FC = () => {
           // Agent Diagram: Show agent generation option
           <Dropdown.Item onClick={() => handleGenerateCode('agent')}>BESSER Agent</Dropdown.Item>
         ) : isSwarmDiagram ? (
-          // Swarm Diagram: Show CrewAI generation option
-          <Dropdown.Item onClick={() => handleGenerateCode('crewai')}>CrewAI Code</Dropdown.Item>
+          // Swarm Diagram: Generate code based on selected framework
+          <Dropdown.Item onClick={() => handleGenerateCode('swarm')}>Generate Swarm</Dropdown.Item>
         ) : currentDiagramType === UMLDiagramType.ClassDiagram ? (
           // ...existing code...
           <>

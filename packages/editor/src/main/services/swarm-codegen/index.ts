@@ -2,13 +2,14 @@
 
 // Main service (use this in UI)
 export { 
-  exportSwarmAsCrewAI,
-  exportSwarmAsCrewAIFromEditor,
+  exportSwarmCode,
   type SwarmExportOptions 
 } from './swarm-export-service';
 
 // Generator class (for advanced usage)
-export { SwarmCodeGenerator } from './generator/swarm-generator';
+export { BAFGenerator } from './generator/baf-generator';
+export { CrewAIGenerator } from './generator/crewai-generator';
+export { BaseSwarmGenerator } from './generator/base-generator';
 
 // Types
 export type { 
@@ -16,3 +17,10 @@ export type {
   GeneratorResult, 
   GeneratedFile 
 } from './types';
+
+export type { 
+  SupportedFramework, 
+  CommonAgent, 
+  CommonTask, 
+  CommonSwarm 
+} from './types/common-types';

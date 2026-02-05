@@ -64,6 +64,7 @@ class SwarmUpdateComponent extends Component<Props> {
         <section>
           <Dropdown value={element.framework} onChange={this.changeFramework(element.id)}>
             <Dropdown.Item value="BESSER-BAF">BESSER-BAF</Dropdown.Item>
+            <Dropdown.Item value="CrewAI">CrewAI</Dropdown.Item>
           </Dropdown>
       </section>
       </div>

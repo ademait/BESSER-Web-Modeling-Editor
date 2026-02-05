@@ -6,8 +6,8 @@ import { validateDiagram } from '../validation/validateDiagram';
 import { BACKEND_URL } from '../../constant';
 import { ProjectStorageRepository } from '../storage/ProjectStorageRepository';
 import { isGrapesJSProjectData } from '../../types/project';
-import { exportSwarmAsCrewAI } from '@besser/wme';
-import { createCrewAIZip } from '../file-download/swarm-export-service';
+import { exportSwarmCode } from '@besser/wme';
+import { createSwarmZip } from '../file-download/swarm-export-service';
 
 // Add type definitions
 export interface DjangoConfig {
@@ -79,10 +79,10 @@ export const useGenerateCode = () => {
         return;
       }
 
-      // CrewAI SwarmDiagram generator
-      if (generatorType === 'crewai') {
+      // SwarmDiagram generator
+      if (generatorType === 'swarm') {
         // Client-side generation for SwarmDiagram
-        return await generateCrewAICode(editor, diagramTitle);
+        return await generateSwarmCode(editor, diagramTitle);
       }
 
       // Validate diagram before generation
@@ -250,12 +250,12 @@ export const useGenerateCode = () => {
     [downloadFile],
   );
 
-  async function generateCrewAICode(editor: ApollonEditor, diagramTitle: string) {
+  async function generateSwarmCode(editor: ApollonEditor, diagramTitle: string) {
     const model = editor.model;
     const elements = model.elements || {};
     const relationships = model.relationships || {};
     
-    // Extract swarm data from editor model
+    // Extract swarm element and read framework property
     const swarm = Object.values(elements).find((el: any) => el.type === 'Swarm');
     const agentTypes = ['Dispatcher', 'Solver', 'Evaluator', 'Supervisor'];
     const agents = Object.values(elements).filter((el: any) => agentTypes.includes(el.type));
@@ -271,16 +271,19 @@ export const useGenerateCode = () => {
       return;
     }
     
+    // Read framework from swarm element
+    const framework = (swarm as any).framework || 'BESSER-BAF';
     const diagramData = { swarm, agents, relationships: links };
     
     try {
-      const result = await exportSwarmAsCrewAI(diagramData as any);
-      const blob = await createCrewAIZip(result);
-      downloadFile({ file: blob, filename: `${result.diagramName.replace(/\s+/g, '_')}_crewai.zip` });
-      toast.success(`Generated CrewAI: ${result.agentCount} agents, ${result.taskCount} tasks`);
+      // Call framework-agnostic export function
+      const result = await exportSwarmCode(diagramData as any, framework);
+      const blob = await createSwarmZip(result);
+      downloadFile({ file: blob, filename: `${result.diagramName.replace(/\s+/g, '_')}_${framework.toLowerCase().replace('-', '_')}.zip` });
+      toast.success(`Generated ${framework}: ${result.agentCount} agents, ${result.taskCount} tasks`);
     } catch (error) {
-      console.error('CrewAI generation failed:', error);
-      toast.error('CrewAI generation failed. Check console for details.');
+      console.error(`${framework} generation failed:`, error);
+      toast.error(`${framework} generation failed. Check console for details.`);
     }
   }
 
