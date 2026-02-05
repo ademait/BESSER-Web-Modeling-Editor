@@ -1,4 +1,4 @@
-import { CrewAIAgent, CrewAITask } from '../types/crewai-types';
+import { CommonAgent, CommonTask } from '../types/common-types';
 
 const ROLE_TASKS = {
   Dispatcher: {
@@ -20,8 +20,10 @@ const ROLE_TASKS = {
 };
 
 
-export function generateTaskForAgent(agent: CrewAIAgent, roleType: string): CrewAITask {
-  const taskTemplate = ROLE_TASKS[roleType as keyof typeof ROLE_TASKS] 
+export function generateTaskForCommonAgent(agent: CommonAgent, roleType?: string): CommonTask {
+  // Infer roleType from agent.role if not provided
+  const inferredRoleType = roleType || inferRoleType(agent.role);
+  const taskTemplate = ROLE_TASKS[inferredRoleType as keyof typeof ROLE_TASKS] 
     || ROLE_TASKS.Solver;
   
   return {
@@ -30,4 +32,18 @@ export function generateTaskForAgent(agent: CrewAIAgent, roleType: string): Crew
     expectedOutput: taskTemplate.expectedOutput,
     agentVariableName: agent.variableName
   };
+}
+
+// Helper to infer role type from agent role string
+function inferRoleType(role: string): string {
+  const roleLower = role.toLowerCase();
+  if (roleLower.includes('dispatch')) return 'Dispatcher';
+  if (roleLower.includes('evaluat')) return 'Evaluator';
+  if (roleLower.includes('supervis') || roleLower.includes('manager')) return 'Supervisor';
+  return 'Solver';
+}
+
+// Convenience function to generate tasks for all agents
+export function generateTasksForAgents(agents: CommonAgent[]): CommonTask[] {
+  return agents.map(agent => generateTaskForCommonAgent(agent));
 }

@@ -1,4 +1,5 @@
-import { SwarmCodeGenerator } from './generator/swarm-generator';
+import { CrewAIGenerator } from './generator/crewai-generator';
+import { BAFGenerator } from './generator/baf-generator';
 import { SwarmDiagramData } from './mappers/link-mapper';
 import { SwarmElementType, SwarmRelationshipType } from '../../packages/swarm-diagram';
 import * as fs from 'fs';
@@ -120,11 +121,22 @@ async function main() {
   }
   
   // Generate code
-  const generator = new SwarmCodeGenerator({
-    defaultLLM: 'gpt-4o',
-    verbose: true,
-    processType: 'auto'
-  });
+  let generator;
+  if (diagramData.swarm.framework === 'CrewAI') {
+    generator = new CrewAIGenerator({
+      defaultLLM: 'gpt-4o',
+      verbose: true,
+      processType: 'auto'
+    });
+  } else if (diagramData.swarm.framework === 'BESSER-BAF') {
+    generator = new BAFGenerator({
+      defaultLLM: 'gpt-4o',
+      verbose: true,
+      processType: 'auto'
+    });
+  } else {
+    throw new Error(`Unknown framework: ${diagramData.swarm.framework}`);
+  }
   
   const result = generator.generate(diagramData);
   

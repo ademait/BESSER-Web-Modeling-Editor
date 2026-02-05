@@ -17,7 +17,7 @@ export interface ISwarm extends IUMLContainer {
 export class Swarm extends UMLContainer implements ISwarm {
   static features: UMLElementFeatures = {
     ...UMLContainer.features,
-    resizable: true,  // Can resize width and height
+    resizable: true,
     droppable: true,
   };
 

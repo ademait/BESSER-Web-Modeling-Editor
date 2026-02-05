@@ -1,5 +1,5 @@
 import { GeneratorOptions } from '../types/generator-options';
-import { CrewAIAgent } from '../types/crewai-types';
+import { CommonAgent } from '../types/common-types';
 
 import { IAgentGroup } from '../../../packages/swarm-diagram/agent-group/agent-group';
 import { SwarmElementType } from '../../../packages/swarm-diagram';
@@ -36,11 +36,11 @@ const ROLE_PERSONAS = {
   }
 };
 
-export function mapAgentRoleToCrewAI(
+export function mapAgentRoleToCommon(
   agentRole: SwarmAgentRole,
   index: number,
   options: GeneratorOptions
-): CrewAIAgent {
+): CommonAgent {
   const roleType = agentRole.type as keyof typeof ROLE_PERSONAS;
   const persona = ROLE_PERSONAS[roleType] || ROLE_PERSONAS.Solver;
   
@@ -52,12 +52,12 @@ export function mapAgentRoleToCrewAI(
   
   return {
     variableName,
-    role: agentRole.name,
+    name: agentRole.name,
+    role: agentRole.type,
     goal: persona.goal,
     backstory: persona.backstory,
     llm: options.defaultLLM,
-    allowDelegation: persona.allowDelegation,
-    verbose: options.verbose
+    allowDelegation: persona.allowDelegation
   };
 }
 
@@ -81,3 +81,13 @@ export function expandAgentRoles(agentRoles: SwarmAgentRole[]): ExpandedRole[] {
 
 // Example: Solver with numAgents=3 becomes:
 // [{ role: Solver, index: 0 }, { role: Solver, index: 1 }, { role: Solver, index: 2 }]
+
+export function mapAgentRolesToCommon(
+  agentRoles: SwarmAgentRole[],
+  options: GeneratorOptions
+): CommonAgent[] {
+  const expanded = expandAgentRoles(agentRoles);
+  return expanded.map(({ role, index }) => 
+    mapAgentRoleToCommon(role, index, options)
+  );
+}

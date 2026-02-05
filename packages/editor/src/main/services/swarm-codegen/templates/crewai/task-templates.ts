@@ -1,4 +1,4 @@
-import { CrewAITask } from '../types/crewai-types';
+import { CrewAITask } from '../../types/crewai-types';
 
 
 export function generateTaskCode(task: CrewAITask): string {

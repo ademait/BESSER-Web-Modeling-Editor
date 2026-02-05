@@ -1,4 +1,4 @@
-import { CrewAICrew } from '../types/crewai-types';
+import { CrewAICrew } from '../../types/crewai-types';
 import { generateAllAgentsCode } from './agent-templates';
 import { generateAllTasksCode } from './task-templates';
 

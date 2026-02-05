@@ -1,4 +1,4 @@
-import { CrewAIAgent } from '../types/crewai-types';
+import { CrewAIAgent } from '../../types/crewai-types';
 
 
 export function generateAgentCode(agent: CrewAIAgent): string {
