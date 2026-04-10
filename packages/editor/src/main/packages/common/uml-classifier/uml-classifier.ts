@@ -12,6 +12,12 @@ import { UMLClassifierAttribute } from './uml-classifier-attribute';
 import { UMLClassifierMethod } from './uml-classifier-method';
 import { UMLClassifierMember } from './uml-classifier-member';
 
+export const CLASSIFIER_MIN_WIDTH = 80;
+export const CLASSIFIER_MAX_AUTO_WIDTH = 420;
+
+const clampClassifierWidth = (value: number) =>
+  Math.max(CLASSIFIER_MIN_WIDTH, Math.min(CLASSIFIER_MAX_AUTO_WIDTH, value));
+
 export interface IUMLClassifier extends IUMLContainer {
   italic: boolean;
   underline: boolean;
@@ -65,27 +71,33 @@ export abstract class UMLClassifier extends UMLContainer implements IUMLClassifi
     this.hasAttributes = attributes.length > 0;
     this.hasMethods = methods.length > 0;
     const radix = 10;
-    this.bounds.width = [this, ...attributes, ...methods].reduce(
-      (current, child, index) => {
-        // For attributes/methods, use displayName to get the full formatted text (visibility + name + type)
-        // For enumerations, only use the name
-        const displayText = child instanceof UMLClassifierMember
-          ? (this.stereotype === 'enumeration' ? child.name : child.displayName)
-          : child.name;
-        return Math.max(
-          current,
-          Math.round(
-            (Text.size(layer, displayText, index === 0 ? { fontWeight: 'bold' } : undefined).width + 20) / radix,
-          ) * radix,
-        );
-      },
-      Math.round(this.bounds.width / radix) * radix,
-    );
-    if (this.className) {
-      const text = this.name + (this.className ? ": " + this.className : "");
-      const textWidth = Text.size(layer, text).width + 40; // add some padding
-      this.bounds.width = Math.max(this.bounds.width, textWidth, 50);
+    const userWidth = Math.round(this.bounds.width / radix) * radix;
+
+    // Compute the minimum width needed to fit all text without clipping.
+    // This is used as a suggestion, but the user can resize smaller — text
+    // will be clipped visually instead of forcing the box wider.
+    let textFitWidth = CLASSIFIER_MIN_WIDTH;
+    for (let i = 0; i < [this, ...attributes, ...methods].length; i++) {
+      const child = [this, ...attributes, ...methods][i];
+      const displayText = child instanceof UMLClassifierMember
+        ? (this.stereotype === 'enumeration' ? child.name : child.displayName)
+        : child.name;
+      const rawWidth = Text.size(layer, displayText, i === 0 ? { fontWeight: 'bold' } : undefined).width + 20;
+      const roundedWidth = Math.round(rawWidth / radix) * radix;
+      textFitWidth = Math.max(textFitWidth, roundedWidth);
     }
+
+    if (this.className) {
+      const text = this.name + (this.className ? ': ' + this.className : '');
+      const rawClassLabelWidth = Text.size(layer, text).width + 40;
+      const roundedClassLabelWidth = Math.round(rawClassLabelWidth / radix) * radix;
+      textFitWidth = Math.max(textFitWidth, roundedClassLabelWidth);
+    }
+
+    // Use the larger of user width and min width, but DON'T force wider than
+    // the user's current width. This allows the user to resize smaller than
+    // the text — overflow is clipped visually by the SVG viewports.
+    this.bounds.width = Math.max(CLASSIFIER_MIN_WIDTH, userWidth);
 
     let y = this.headerHeight;
     for (const attribute of attributes) {
@@ -101,7 +113,6 @@ export abstract class UMLClassifier extends UMLContainer implements IUMLClassifi
       method.bounds.width = this.bounds.width - 1;
       y += method.bounds.height;
     }
-
     this.bounds.height = y;
     return [this, ...attributes, ...methods];
   }

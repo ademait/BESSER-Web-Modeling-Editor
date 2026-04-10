@@ -16,6 +16,7 @@ import { BPMNElementType } from './bpmn';
 import { StateElementType } from './uml-state-diagram';
 import { AgentElementType } from './agent-state-diagram';
 import { SwarmElementType } from './swarm-diagram';
+import { UserModelElementType } from './user-modeling';
 
 export type UMLElementType =
   | keyof typeof ClassElementType
@@ -34,7 +35,8 @@ export type UMLElementType =
   | keyof typeof BPMNElementType
   | keyof typeof StateElementType
   | keyof typeof AgentElementType
-  | keyof typeof SwarmElementType;
+  | keyof typeof SwarmElementType
+  | keyof typeof UserModelElementType;
 
 export const UMLElementType = {
   ...ClassElementType,
@@ -54,6 +56,7 @@ export const UMLElementType = {
   ...StateElementType,
   ...AgentElementType,
   ...SwarmElementType,
+  ...UserModelElementType,
 };
 
 export const UMLElementsForDiagram: { [key in UMLDiagramType]: any } = {
@@ -72,9 +75,8 @@ export const UMLElementsForDiagram: { [key in UMLDiagramType]: any } = {
     [UMLDiagramType.BPMN]: BPMNElementType,
     [UMLDiagramType.StateMachineDiagram]: StateElementType,
     [UMLDiagramType.AgentDiagram]: AgentElementType,
-    [UMLDiagramType.UserDiagram]: ObjectElementType, // Use ObjectElementType for UserDiagram as well
     [UMLDiagramType.SwarmDiagram]: SwarmElementType,
+    [UMLDiagramType.UserDiagram]: UserModelElementType,
   },
   // ...ColorLegendElementType,
-  // ...CommentsElementType,
 };

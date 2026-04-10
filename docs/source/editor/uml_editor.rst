@@ -22,7 +22,7 @@ Quick start
      enablePopups: true,
    });
 
-   await editor.nextRender;  # Wait until the internal store is ready
+   await editor.nextRender;  // Wait until the internal store is ready
 
    editor.subscribeToModelChange((model) => {
      console.log('Model updated', model);
@@ -52,12 +52,3 @@ Consumers interact only with the public API exported from
 ``src/main/index.ts``. Internal modules may change without notice, so prefer
 the documented API surface unless you are contributing to the engine itself.
 
-Further Reading
----------------
-
-.. toctree::
-   :maxdepth: 1
-
-   api
-   extending-diagrams
-   diagram-bridge

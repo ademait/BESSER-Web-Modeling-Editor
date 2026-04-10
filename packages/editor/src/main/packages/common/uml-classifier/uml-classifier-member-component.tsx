@@ -6,6 +6,7 @@ import { ThemedRect } from '../../../components/theme/themedComponents';
 import { settingsService } from '../../../services/settings/settings-service';
 import { ModelState } from '../../../components/store/model-state';
 import { ObjectElementType } from '../../uml-object-diagram';
+import { UserModelElementType } from '../../user-modeling';
 
 interface OwnProps {
   element: UMLClassifierMember;
@@ -23,10 +24,11 @@ const UMLClassifierMemberComponentUnconnected: FunctionComponent<Props> = ({ ele
   const owner = element.owner ? elements[element.owner] : null;
   const isObjectAttribute = element.type === ObjectElementType.ObjectAttribute;
   const isObjectMethod = element.type === ObjectElementType.ObjectMethod;
+  const isUserModelAttribute = element.type === UserModelElementType.UserModelAttribute;
   const shouldShowIconView = settingsService.shouldShowIconView();
 
   // Hide attributes and methods in icon view for object diagrams
-  if ((isObjectAttribute || isObjectMethod) && shouldShowIconView) {
+  if ((isObjectAttribute || isObjectMethod || isUserModelAttribute) && shouldShowIconView) {
     return null;
   }
 
@@ -37,11 +39,29 @@ const UMLClassifierMemberComponentUnconnected: FunctionComponent<Props> = ({ ele
   // For enumerations, only show the name (no visibility or type)
   const displayText = isEnumeration ? element.name : (element.displayName || element.name);
 
+  // Check if this is a string-type object attribute to add quotes
+  const isStringAttribute = isObjectAttribute &&
+    ((element as any).attributeType === 'str' || (element as any).attributeType === 'string');
+
+  // For string attributes, wrap the value part with quotes
+  let finalDisplayText = displayText;
+  if (isStringAttribute) {
+    // Parse "attributeName = value" format
+    const equalIndex = displayText.indexOf(' = ');
+    if (equalIndex !== -1) {
+      const namePart = displayText.substring(0, equalIndex + 3); // Include " = "
+      const valuePart = displayText.substring(equalIndex + 3);
+      finalDisplayText = `${namePart}"${valuePart}"`;
+    } else {
+      finalDisplayText = `${displayText}""`;
+    }
+  }
+
   return (
     <g>
       <ThemedRect fillColor={fillColor || element.fillColor} strokeColor="none" width="100%" height="100%" />
       <Text x={10} fill={element.textColor} fontWeight="normal" textAnchor="start">
-        {displayText}
+        {finalDisplayText}
       </Text>
     </g>
   );

@@ -32,7 +32,7 @@ export function getClassOptions(): { value: string; label: string }[] {
   }
 
   return Object.values(classDiagram.elements)
-    .filter((element: any) => element?.type === 'Class')
+    .filter((element: any) => (element?.type === 'Class' || element?.type === 'AbstractClass'))
     .map((element: any) => ({ value: element.id, label: element.name }));
 }
 
@@ -98,7 +98,7 @@ export function getClassMetadata(classId: string, includeInherited: boolean = tr
   }
 
   const classElement = Object.values(classDiagram.elements).find(
-    (el: any) => el?.type === 'Class' && el?.id === classId
+    (el: any) => (el?.type === 'Class' || el?.type === 'AbstractClass') && el?.id === classId
   ) as any;
 
   if (!classElement) {
@@ -158,18 +158,48 @@ export function getEndsByClassId(classId: string, includeInherited: boolean = tr
     return [];
   }
 
-  // Get direct association ends
+  // Only return association ends with navigability from the given class
   const directEnds = Object.values(classDiagram.relationships)
     .filter((relationship: any) => relationship?.type !== 'ClassInheritance')
     .map((relationship: any) => {
-      if (relationship?.source?.element === classId) {
-        return { value: relationship.target.element, label: relationship.target.role };
+      // For bidirectional, both ends are navigable
+      if (relationship.type === 'ClassBidirectional') {
+        if (relationship.source.element === classId) {
+          // Navigable from source to target
+          const otherElementId = relationship.target.element;
+          const role = relationship.target.role;
+          const otherElement = classDiagram.elements?.[otherElementId];
+          if (otherElement?.type === 'ClassOCLConstraint') return null;
+          let label = role;
+          if (!label || label.trim() === '') label = otherElement?.name || '';
+          return { value: otherElementId, label };
+        }
+        if (relationship.target.element === classId) {
+          // Navigable from target to source
+          const otherElementId = relationship.source.element;
+          const role = relationship.source.role;
+          const otherElement = classDiagram.elements?.[otherElementId];
+          if (otherElement?.type === 'ClassOCLConstraint') return null;
+          let label = role;
+          if (!label || label.trim() === '') label = otherElement?.name || '';
+          return { value: otherElementId, label };
+        }
       }
-
-      if (relationship?.target?.element === classId) {
-        return { value: relationship.source.element, label: relationship.source.role };
+      // For unidirectional, only source can navigate to target
+      if (relationship.type === 'ClassUnidirectional') {
+        if (relationship.source.element === classId) {
+          // Navigable from source to target
+          const otherElementId = relationship.target.element;
+          const role = relationship.target.role;
+          const otherElement = classDiagram.elements?.[otherElementId];
+          if (otherElement?.type === 'ClassOCLConstraint') return null;
+          let label = role;
+          if (!label || label.trim() === '') label = otherElement?.name || '';
+          return { value: otherElementId, label };
+        }
+        // If classId is target, no navigability, so skip
       }
-
+      // For other types, skip
       return null;
     })
     .filter((end): end is { value: string; label: string } => end !== null);
@@ -277,6 +307,46 @@ export function getInheritedEndsByClassId(classId: string): { value: string; lab
 }
 
 /**
+ * Get attributes from related classes via relationships (e.g., "measure.value" for Metric->Measure)
+ * Returns options like { value: "relationshipRole.attributeId", label: "relationshipRole.attributeName" }
+ */
+export function getRelatedClassAttributeOptions(classId: string): { value: string; label: string }[] {
+  const classDiagram = getClassDiagramModel();
+
+  if (!isUMLModel(classDiagram) || !classDiagram.elements || !classDiagram.relationships) {
+    return [];
+  }
+
+  const relatedOptions: { value: string; label: string }[] = [];
+  
+  // Get all relationships where this class is involved (direct and inherited)
+  const allEnds = getEndsByClassId(classId, true);
+  
+  // For each relationship end, get the attributes of the related class
+  allEnds.forEach(end => {
+    const relatedClassId = end.value;
+    const relationshipRole = end.label;
+    
+    if (!relationshipRole) return;
+    
+    // Get attributes of the related class (including inherited)
+    const relatedAttrs = getAttributeOptionsByClassId(relatedClassId);
+    const relatedInheritedAttrs = getInheritedAttributeOptionsByClassId(relatedClassId);
+    const allRelatedAttrs = [...relatedAttrs, ...relatedInheritedAttrs];
+    
+    // Create options like "measure.value"
+    allRelatedAttrs.forEach(attr => {
+      relatedOptions.push({
+        value: `${relationshipRole}.${attr.value}`,
+        label: `${relationshipRole}.${attr.label}`
+      });
+    });
+  });
+  
+  return relatedOptions;
+}
+
+/**
  * Get agent options from AgentDiagram - returns the entire diagram as an option
  */
 export function getAgentOptions(): { value: string; label: string }[] {
@@ -319,7 +389,7 @@ export function getMethodsByClassId(classId: string): MethodMetadata[] {
 
   // Find class by name (classId might be a name now)
   const classElement = Object.values(classDiagram.elements).find(
-    (element: any) => element?.type === 'Class' && (element?.id === classId || element?.name === classId)
+    (element: any) => (element?.type === 'Class' || element?.type === 'AbstractClass') && (element?.id === classId || element?.name === classId)
   );
   
   if (!classElement) {
@@ -411,26 +481,45 @@ export function getTableOptions(editor: any): { value: string; label: string }[]
     
     if (!pageWrapper) return options;
     
-    // Find all table components in the current page only
-    const tables = pageWrapper.find('[class*="table-component"]');
-    
-    if (!tables) return options;
-    
-    tables.forEach((table: any) => {
+    // Find all table components in the current page using both class selector and type check.
+    // The class selector works for manually dropped tables; the type-based walk
+    // catches auto-generated tables whose class may not survive serialization.
+    const tablesByClass = pageWrapper.find('.table-component') || [];
+    const seenIds = new Set<string>();
+
+    const processTable = (table: any) => {
       try {
         const attrs = table.getAttributes();
-        const title = attrs['chart-title'] || 'Untitled Table';
-        // Use the id attribute instead of component ID
+        const title = attrs['chart-title'] || table.get('chart-title') || 'Untitled Table';
         const tableId = attrs['id'] || table.getId();
-        
+        if (seenIds.has(tableId)) return;
+        seenIds.add(tableId);
+
         options.push({
-          value: tableId,  // Store the table's id attribute as the value
-          label: `${title} (table)`  // Display the title with "(table)" suffix
+          value: tableId,
+          label: `${title} (table)`,
         });
       } catch (err) {
         console.warn('[getTableOptions] Error processing table:', err);
       }
-    });
+    };
+
+    // 1. Tables found by CSS class
+    tablesByClass.forEach(processTable);
+
+    // 2. Walk the component tree to find tables by GrapesJS component type
+    const walkComponents = (parent: any) => {
+      const children = parent.components?.() || parent.get?.('components');
+      if (!children) return;
+      children.forEach((child: any) => {
+        if (child.get('type') === 'table') {
+          processTable(child);
+        }
+        walkComponents(child);
+      });
+    };
+    walkComponents(pageWrapper);
+
   } catch (err) {
     console.warn('[getTableOptions] Error getting page wrapper:', err);
   }

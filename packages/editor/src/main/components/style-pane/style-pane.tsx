@@ -10,7 +10,7 @@ import { localized } from '../i18n/localized';
 import { ModelState } from '../store/model-state';
 import { Textfield } from '../controls/textfield/textfield';
 import { ColorSelector } from './color-selector';
-import { Color, Container, Divider, Row, FieldRow } from './style-pane-styles';
+import { Color, Container, Divider, Row, FieldRow, CheckboxRow } from './style-pane-styles';
 
 type OwnProps = {
   open: boolean;
@@ -23,6 +23,12 @@ type OwnProps = {
   showDescription?: boolean;
   showUri?: boolean;
   showIcon?: boolean;
+  isOptional?: boolean;
+  onOptionalChange?: (checked: boolean) => void;
+  isDerived?: boolean;
+  onDerivedChange?: (checked: boolean) => void;
+  defaultValue?: any;
+  onDefaultValueChange?: (value: string) => void;
 };
 
 type StateProps = {};
@@ -123,13 +129,55 @@ class StylePaneComponent extends Component<Props, State> {
 
   render() {
     const { fillSelectOpen, strokeSelectOpen, textSelectOpen } = this.state;
-    const { open, element, fillColor, lineColor, textColor, showDescription, showUri, showIcon } = this.props;
+    const { open, element, fillColor, lineColor, textColor, showDescription, showUri, showIcon, isOptional, onOptionalChange, isDerived, onDerivedChange, defaultValue, onDefaultValueChange } = this.props;
     const noneOpen = !fillSelectOpen && !strokeSelectOpen && !textSelectOpen;
 
     if (!open) return null;
 
     return (
       <Container>
+        {onOptionalChange && (
+          <>
+            <CheckboxRow as="label" htmlFor={`optional-${element?.id}`}>
+              <span>Optional</span>
+              <input
+                id={`optional-${element?.id}`}
+                type="checkbox"
+                checked={isOptional || false}
+                onChange={(e) => onOptionalChange(e.target.checked)}
+              />
+            </CheckboxRow>
+            <Divider />
+          </>
+        )}
+        {onDerivedChange && (
+          <>
+            <CheckboxRow as="label" htmlFor={`derived-${element?.id}`}>
+              <span>Derived</span>
+              <input
+                id={`derived-${element?.id}`}
+                type="checkbox"
+                checked={isDerived || false}
+                onChange={(e) => onDerivedChange(e.target.checked)}
+              />
+            </CheckboxRow>
+            <Divider />
+          </>
+        )}
+        {onDefaultValueChange && (
+          <>
+            <FieldRow>
+              <label>Default</label>
+              <Textfield
+                value={defaultValue !== undefined && defaultValue !== null ? String(defaultValue) : ''}
+                onChange={onDefaultValueChange}
+                placeholder="Enter default value..."
+                size="sm"
+              />
+            </FieldRow>
+            <Divider />
+          </>
+        )}
         {showDescription && (
           <>
             <FieldRow>

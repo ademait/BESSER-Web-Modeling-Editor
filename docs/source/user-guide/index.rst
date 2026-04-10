@@ -7,6 +7,7 @@ Welcome to the BESSER Web Modeling Editor User Guide. This section provides deta
    :maxdepth: 2
    :caption: Contents:
 
-   interface
+   use_the_wme
    projects
+   deploy_locally
    diagrams/index

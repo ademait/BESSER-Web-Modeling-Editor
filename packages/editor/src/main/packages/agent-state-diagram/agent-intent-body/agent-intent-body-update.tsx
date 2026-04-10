@@ -17,7 +17,7 @@ type Props = {
   id: string;
   onRefChange: (instance: Textfield<any>) => void;
   value: string;
-  onChange: (id: string, values: { name?: string; fillColor?: string; textColor?: string; lineColor?: string }) => void;
+  onChange: (id: string, values: { name?: string; fillColor?: string; textColor?: string; lineColor?: string ; intent_description?: string }) => void;
   onSubmitKeyUp: () => void;
   onDelete: (id: string) => () => void;
   element: IUMLElement;
@@ -34,6 +34,10 @@ const AgentIntentUpdate = ({ id, onRefChange, value, onChange, onSubmitKeyUp, on
     onChange(id, { name: newName });
   };
 
+  const handleIntentDescriptionChange = (newDescription: string) => {
+    onChange(id, { intent_description: newDescription });
+  }
+
   const handleDelete = () => {
     onDelete(id)();
   };
@@ -44,9 +48,7 @@ const AgentIntentUpdate = ({ id, onRefChange, value, onChange, onSubmitKeyUp, on
         <Textfield ref={onRefChange} gutter value={value} onChange={handleNameChange} onSubmitKeyUp={onSubmitKeyUp} />
         <ColorButton onClick={toggleColor} />
         <Button color="link" tabIndex={-1} onClick={handleDelete}>
-          <Button color="link" tabIndex={-1} onClick={handleDelete}>
-            <TrashIcon />
-          </Button>
+          <TrashIcon />
         </Button>
       </Flex>
       <StylePane open={colorOpen} element={element} onColorChange={onChange} fillColor textColor />

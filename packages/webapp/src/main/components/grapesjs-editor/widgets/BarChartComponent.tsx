@@ -1,5 +1,4 @@
-import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import React, { useEffect, useState } from 'react';
 
 interface SeriesItem {
   name: string;
@@ -36,6 +35,16 @@ export const BarChartComponent: React.FC<BarChartComponentProps> = ({
   orientation = 'vertical',
   stacked = false,
 }) => {
+  const [Recharts, setRecharts] = useState<typeof import('recharts') | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    import('recharts').then((mod) => {
+      if (!cancelled) setRecharts(mod);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
   // Merge all data keys for the X axis
   const allNames = Array.from(new Set(series.flatMap(s => s.data.map(d => d.name))));
   // Build a merged data array for grouped/stacked bars
@@ -50,38 +59,38 @@ export const BarChartComponent: React.FC<BarChartComponentProps> = ({
 
   const isEmpty = !series || series.length === 0 || allNames.length === 0;
 
+  if (!Recharts) {
+    return (
+      <div style={{ width: '100%', height: 400, display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#888' }}>
+        Loading chart...
+      </div>
+    );
+  }
+
+  const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } = Recharts;
+
   return (
-    <div
-      className="bar-chart-container"
-      style={{
-        padding: '20px',
-        background: 'white',
-        borderRadius: '8px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-      }}
-    >
-      <h3 style={{ margin: '0 0 15px 0', color: '#333', fontFamily: 'Arial, sans-serif' }}>
-        {title}
-      </h3>
+    <div style={{ width: '100%', height: 400, marginBottom: 20 }}>
+      {title && <h3 style={{ textAlign: 'center', marginBottom: 10 }}>{title}</h3>}
       {isEmpty ? (
-        <div style={{ textAlign: 'center', padding: '120px 0', color: '#888' }}>No data available</div>
+        <div style={{ textAlign: 'center', paddingTop: 160, color: '#888' }}>No data available</div>
       ) : (
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart 
+        <ResponsiveContainer width="100%" height={360}>
+          <BarChart
             data={mergedData}
             layout={orientation === 'horizontal' ? 'vertical' : 'horizontal'}
-            margin={orientation === 'horizontal' ? 
+            margin={orientation === 'horizontal' ?
               { top: 5, right: 30, left: 50, bottom: 5 } :
               { top: 5, right: 30, left: 20, bottom: 20 }
             }
           >
             {showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />}
-            <XAxis 
+            <XAxis
               type={orientation === 'horizontal' ? 'number' : 'category'}
               dataKey={orientation === 'horizontal' ? undefined : 'name'}
-              stroke="#666" 
+              stroke="#666"
             />
-            <YAxis 
+            <YAxis
               type={orientation === 'horizontal' ? 'category' : 'number'}
               dataKey={orientation === 'horizontal' ? 'name' : undefined}
               stroke="#666"
@@ -103,15 +112,6 @@ export const BarChartComponent: React.FC<BarChartComponentProps> = ({
           </BarChart>
         </ResponsiveContainer>
       )}
-      <div style={{ marginTop: '15px', padding: '10px', background: '#f5f5f5', borderRadius: '4px' }}>
-        <p style={{ margin: 0, fontSize: '14px', color: '#666', fontFamily: 'Arial, sans-serif' }}>
-          {series.map((s, idx) => (
-            <span key={s.name || idx} style={{ color: s.color || '#3498db', fontWeight: 'bold', marginRight: 10 }}>
-              ■ {s.name}
-            </span>
-          ))}
-        </p>
-      </div>
     </div>
   );
 };

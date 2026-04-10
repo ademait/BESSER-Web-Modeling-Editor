@@ -1,4 +1,4 @@
-import { DeepPartial } from 'redux';
+﻿import { DeepPartial } from 'redux';
 import { ILayer } from '../../../services/layouter/layer';
 import { ILayoutable } from '../../../services/layouter/layoutable';
 import { IUMLElement, UMLElement } from '../../../services/uml-element/uml-element';
@@ -54,10 +54,23 @@ const SYMBOL_TO_VISIBILITY: Record<string, Visibility> = {
   '~': 'package',
 };
 
+export type MethodImplementationType =
+  | 'none'
+  | 'code'
+  | 'bal'
+  | 'state_machine'
+  | 'quantum_circuit';
+
 export interface IUMLClassifierMember extends IUMLElement {
   code?: string;
   visibility?: Visibility;
   attributeType?: string;
+  implementationType?: MethodImplementationType;
+  stateMachineId?: string;
+  quantumCircuitId?: string;
+  isOptional?: boolean;
+  isDerived?: boolean;
+  defaultValue?: any;
 }
 
 export abstract class UMLClassifierMember extends UMLElement implements IUMLClassifierMember {
@@ -76,6 +89,12 @@ export abstract class UMLClassifierMember extends UMLElement implements IUMLClas
   code: string = '';
   visibility: Visibility = 'public';
   attributeType: string = 'str';
+  implementationType: MethodImplementationType = 'none';
+  stateMachineId: string = '';
+  quantumCircuitId: string = '';
+  isOptional: boolean = false;
+  isDerived: boolean = false;
+  defaultValue: any = undefined;
 
   constructor(values?: DeepPartial<IUMLClassifierMember>) {
     super(values);
@@ -92,7 +111,12 @@ export abstract class UMLClassifierMember extends UMLElement implements IUMLClas
       if (/^[+\-#~]\s/.test(this.name)) {
         return this.name;
       }
-      return `${visSymbol} ${this.name}: ${this.attributeType}`;
+      const derivedPrefix = this.isDerived ? '/' : '';
+      const optionalMarker = this.isOptional ? '?' : '';
+      const defaultSuffix = (this.defaultValue !== undefined && this.defaultValue !== null && this.defaultValue !== '')
+        ? ` = ${this.defaultValue}`
+        : '';
+      return `${visSymbol} ${derivedPrefix}${this.name}${optionalMarker}: ${this.attributeType}${defaultSuffix}`;
     }
     // Fallback to name for backward compatibility or simple display
     return this.name;
@@ -109,27 +133,40 @@ export abstract class UMLClassifierMember extends UMLElement implements IUMLClas
     let attributeType = 'str';
 
     // Check for visibility symbol at the start
+    let afterVisibility = trimmed;
     const visibilityMatch = trimmed.match(/^([+\-#~])\s*/);
     if (visibilityMatch) {
       visibility = SYMBOL_TO_VISIBILITY[visibilityMatch[1]] || 'public';
-      const afterVisibility = trimmed.substring(visibilityMatch[0].length);
+      afterVisibility = trimmed.substring(visibilityMatch[0].length);
+    }
 
-      // Check for type (after colon)
+    // Method signatures contain '(' — split at the colon AFTER the last ')'
+    // so parameter type colons (e.g. "param: str") are not misinterpreted.
+    if (afterVisibility.includes('(')) {
+      const lastParen = afterVisibility.lastIndexOf(')');
+      if (lastParen >= 0) {
+        const signaturePart = afterVisibility.substring(0, lastParen + 1);
+        const afterParen = afterVisibility.substring(lastParen + 1).trim();
+        if (afterParen.startsWith(':')) {
+          parsedName = signaturePart.trim();
+          attributeType = normalizeType(afterParen.substring(1).trim());
+        } else {
+          parsedName = afterVisibility.trim();
+          attributeType = '';
+        }
+      } else {
+        // Has '(' but no ')' — malformed, store as-is
+        parsedName = afterVisibility.trim();
+        attributeType = '';
+      }
+    } else {
+      // Attribute format: split at first colon
       const typeMatch = afterVisibility.match(/^([^:]+):\s*(.+)$/);
       if (typeMatch) {
         parsedName = typeMatch[1].trim();
         attributeType = normalizeType(typeMatch[2].trim());
       } else {
         parsedName = afterVisibility.trim();
-      }
-    } else {
-      // No visibility symbol, check for type
-      const typeMatch = trimmed.match(/^([^:]+):\s*(.+)$/);
-      if (typeMatch) {
-        parsedName = typeMatch[1].trim();
-        attributeType = normalizeType(typeMatch[2].trim());
-      } else {
-        parsedName = trimmed;
       }
     }
 
@@ -143,6 +180,12 @@ export abstract class UMLClassifierMember extends UMLElement implements IUMLClas
       code: this.code,
       visibility: this.visibility,
       attributeType: this.attributeType,
+      implementationType: this.implementationType,
+      stateMachineId: this.stateMachineId,
+      quantumCircuitId: this.quantumCircuitId,
+      isOptional: this.isOptional,
+      isDerived: this.isDerived,
+      defaultValue: this.defaultValue,
     } as Apollon.UMLModelElement & Apollon.UMLClassifierMember;
   }
 
@@ -157,13 +200,28 @@ export abstract class UMLClassifierMember extends UMLElement implements IUMLClas
       // New format - use separate properties, name is already set by super.deserialize()
       this.visibility = memberValues.visibility || 'public';
       this.attributeType = memberValues.attributeType || 'str';
+      this.isOptional = memberValues.isOptional || false;
+      this.isDerived = memberValues.isDerived || false;
     } else {
       // Legacy format - parse from name to extract visibility and type
       const parsed = UMLClassifierMember.parseNameFormat(this.name);
       this.visibility = parsed.visibility;
       this.attributeType = parsed.attributeType;
+      this.isOptional = false;
+      this.isDerived = false;
       // Update name to just the attribute name (without visibility symbol and type)
       this.name = parsed.name;
+    }
+    this.defaultValue = memberValues.defaultValue !== undefined ? memberValues.defaultValue : undefined;
+    
+    // Deserialize implementation type fields
+    this.implementationType = memberValues.implementationType || 'none';
+    this.stateMachineId = memberValues.stateMachineId || '';
+    this.quantumCircuitId = memberValues.quantumCircuitId || '';
+    
+    // Auto-detect implementation type if not set but code exists
+    if (this.implementationType === 'none' && this.code) {
+      this.implementationType = 'code';
     }
   }
 

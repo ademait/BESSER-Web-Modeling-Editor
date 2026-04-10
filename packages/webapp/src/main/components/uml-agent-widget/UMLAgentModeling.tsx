@@ -439,14 +439,14 @@ const ConnectionStatusDot = styled.span<{ $status: ConnectionStatus }>`
   transition: background 0.2s ease;
 `;
 
-const DisclaimerModal = styled.div<{ isVisible: boolean }>`
+const DisclaimerModal = styled.div<{ $isVisible: boolean }>`
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.5);
-  display: ${props => props.isVisible ? 'flex' : 'none'};
+  display: ${props => props.$isVisible ? 'flex' : 'none'};
   align-items: center;
   justify-content: center;
   z-index: 10000;
@@ -847,9 +847,15 @@ export const UMLAgentModeling: React.FC = () => {
       }
 
       // Track vibe modeling agent usage
+      const elementsCount = modelSnapshot?.elements ? Object.keys(modelSnapshot.elements).length : 0;
+      const relationshipsCount = modelSnapshot?.relationships ? Object.keys(modelSnapshot.relationships).length : 0;
+      
       posthog.capture('vibe_modeling_agent_message', {
         diagram_type: currentDiagramType,
-        message_length: inputValue.length
+        message_length: inputValue.length,
+        elements_count: elementsCount,
+        relationships_count: relationshipsCount,
+        total_size: elementsCount + relationshipsCount
       });
 
       setInputValue('');
@@ -1107,7 +1113,7 @@ export const UMLAgentModeling: React.FC = () => {
         onDownload={handleDownloadJson}
       />
 
-      <DisclaimerModal isVisible={showDisclaimer}>
+      <DisclaimerModal $isVisible={showDisclaimer}>
         <div className="disclaimer-content">
           <div className="disclaimer-header">
             <h3>

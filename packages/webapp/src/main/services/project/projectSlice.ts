@@ -4,6 +4,9 @@ import { BesserProject, ProjectDiagram, SupportedDiagramType, QuantumCircuitData
 import { ProjectStorageRepository } from '../storage/ProjectStorageRepository';
 import { localStorageLatestProject } from '../../constant';
 
+import userMetaModel from '../../../../../editor/src/main/packages/user-modeling/usermetamodel_buml_short.json';
+
+
 // Project state interface
 export interface ProjectState {
   currentProject: BesserProject | null;
@@ -127,8 +130,11 @@ export const updateCurrentDiagramThunk = createAsyncThunk(
     const { currentProject, currentDiagramType } = state.project;
     
     if (!currentProject) {
-      throw new Error('No active project');
+      console.warn('updateCurrentDiagramThunk: No active project, skipping update');
+      return null;
     }
+    
+    // console.log('updateCurrentDiagramThunk: Saving to project', currentProject.id, 'diagram type:', currentDiagramType);
     
     const updatedDiagram: ProjectDiagram = {
       ...currentProject.diagrams[currentDiagramType],
@@ -143,9 +149,11 @@ export const updateCurrentDiagramThunk = createAsyncThunk(
     );
     
     if (!success) {
+      console.error('updateCurrentDiagramThunk: Failed to update diagram in storage');
       throw new Error('Failed to update diagram');
     }
     
+    // console.log('updateCurrentDiagramThunk: Successfully saved diagram');
     return updatedDiagram;
   }
 );
@@ -197,6 +205,7 @@ export const switchDiagramTypeThunk = createAsyncThunk(
       : toSupportedDiagramType(diagramType as UMLDiagramType);
     const diagram = ProjectStorageRepository.switchDiagramType(currentProject.id, supportedType);
     
+    
     if (!diagram) {
       throw new Error('Failed to switch diagram type');
     }
@@ -215,6 +224,17 @@ export const switchDiagramTypeThunk = createAsyncThunk(
           console.warn('Could not set class diagram reference:', error);
         }
       }
+    } else if (diagramType === UMLDiagramType.UserDiagram) {
+      // UserDiagram specific setup can go here
+
+        try {
+          const { diagramBridge } = await import('@besser/wme');
+          // Set the class diagram data in the bridge so Object Diagram can reference it
+          diagramBridge.setClassDiagramData(userMetaModel);
+          console.log('Set class diagram reference for object diagram');
+        } catch (error) {
+          console.warn('Could not set class diagram reference:', error);
+        }
     }
     
     // Also sync to diagram slice to keep Apollo editor in sync
@@ -296,9 +316,11 @@ const projectSlice = createSlice({
       
       // Update current diagram
       .addCase(updateCurrentDiagramThunk.fulfilled, (state, action) => {
-        state.currentDiagram = action.payload;
-        if (state.currentProject) {
-          state.currentProject.diagrams[state.currentDiagramType] = action.payload;
+        if (action.payload) {
+          state.currentDiagram = action.payload;
+          if (state.currentProject) {
+            state.currentProject.diagrams[state.currentDiagramType] = action.payload;
+          }
         }
       })
       .addCase(updateCurrentDiagramThunk.rejected, (state, action) => {

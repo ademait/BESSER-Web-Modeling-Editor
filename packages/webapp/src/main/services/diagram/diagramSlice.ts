@@ -77,13 +77,20 @@ const getInitialDiagram = (): Diagram => {
     console.warn('Error loading project for initial diagram:', error);
   }
 
-  // If no project found, create a default diagram
-  // This should only happen during development or if there's an issue with project creation
-  console.warn('No project found - creating default diagram. This might indicate a project setup issue.');
+  // If no project exists yet (for example in a fresh private session), bootstrap an in-memory diagram.
+  console.info('No project found yet - bootstrapping an in-memory default diagram.');
   return { 
     id: uuid(), 
     title: 'UMLClassDiagram', 
-    model: undefined, 
+    model: {
+      version: '3.0.0',
+      type: UMLDiagramType.ClassDiagram,
+      size: { width: 1400, height: 740 },
+      elements: {},
+      relationships: {},
+      interactive: { elements: {}, relationships: {} },
+      assessments: {},
+    }, 
     lastUpdate: new Date().toISOString() 
   };
 };
@@ -93,7 +100,7 @@ const initialState = {
   editorOptions: getInitialEditorOptions(),
   loading: false,
   error: null,
-  createNewEditor: true,
+  createNewEditor: false,
   displayUnpublishedVersion: true,
 };
 
@@ -102,6 +109,8 @@ export const updateDiagramThunk = createAsyncThunk(
   async (diagram: Partial<Diagram>, { getState, dispatch }) => {
     const state = getState() as any;
     const currentDiagram = state.diagram.diagram;
+    
+    // console.log('updateDiagramThunk: Called with model', diagram.model ? 'present' : 'missing');
     
     // Merge changes carefully
     const updatedDiagram = {
@@ -131,8 +140,9 @@ export const updateDiagramThunk = createAsyncThunk(
       
       // Only update project if we have something to update
       if (Object.keys(projectUpdates).length > 0) {
+        // console.log('updateDiagramThunk: Dispatching to project system');
         await dispatch(updateCurrentDiagramThunk(projectUpdates));
-        // console.log('Successfully synced to project system');
+        // console.log('updateDiagramThunk: Successfully synced to project system');
       }
     } catch (error) {
       console.error('Project sync failed:', error);

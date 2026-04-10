@@ -13,26 +13,46 @@ Use the workspace root. npm installs all packages declared in ``workspaces``.
 2. Start the appropriate dev server
 -----------------------------------
 
-* ``npm run start --workspace=webapp`` – React development server with HMR.
+* ``npm run dev`` – Vite development server for webapp2 with HMR.
 * ``npm run start:server`` – Express API serving compiled assets.
-* ``npm run dev`` – convenience script that launches both (watch out for port
-  conflicts; adjust ``webpack.dev.js`` if needed).
 
 3. Run automated checks
 -----------------------
 
-===========  ===============================================  ===============================================
-Command      Description                                      Location
-===========  ===============================================  ===============================================
-``npm run lint``          Runs ESLint for webapp + server      root workspace
-``npm run lint --workspace=editor``     Lints the editor package             editor
-``npm run lint --workspace=webapp``     Lints the React app                  webapp
-``npm run lint --workspace=server``     Lints the Express server             server
-``npm run prettier:check``              Verifies formatting                  root workspace
-``npm run build:webapp``                Production bundle for UI             webapp
-``npm run build:server``                Bundles Express server               server
-``npm run build:shared``                Builds shared DTOs                   shared
-===========  ===============================================  ===============================================
+.. list-table::
+   :header-rows: 1
+   :widths: 30 50 20
+
+   * - Command
+     - Description
+     - Location
+   * - ``npm run lint``
+     - Runs ESLint for webapp + server
+     - root workspace
+   * - ``npm run lint --workspace=editor``
+     - Lints the editor package
+     - editor
+   * - ``npm run lint --workspace=webapp2``
+     - Lints the React app
+     - webapp2
+   * - ``npm run lint --workspace=server``
+     - Lints the Express server
+     - server
+   * - ``npm run test --workspace=webapp2``
+     - Runs unit tests with Vitest
+     - webapp2
+   * - ``npm run test:e2e --workspace=webapp2``
+     - Runs end-to-end tests with Playwright
+     - webapp2
+   * - ``npm run prettier:check``
+     - Verifies formatting
+     - root workspace
+   * - ``npm run build:webapp2``
+     - Production bundle for UI
+     - webapp2
+   * - ``npm run build:server``
+     - Bundles Express server
+     - server
 
 When contributing to the editor, run package-specific checks:
 
@@ -59,12 +79,34 @@ changes they describe.
 5. Prepare your pull request
 ----------------------------
 
-* Ensure ``npm run build`` succeeds; it composes the shared, webapp, and server
-  bundles.
-* Run the relevant unit or integration tests if you added them.
-* Clean up stray debug logs and keep diffs focused.
-* Summarise the change, the motivation, and any follow-up work in your PR
-  description.
+Before opening a PR, run through this checklist:
 
-Following the checklist keeps reviews fast and helps maintainers merge your work
-without surprises.
+.. code-block:: text
+
+   [ ] npm run lint passes (no ESLint errors)
+   [ ] npm run prettier:check passes (formatting clean)
+   [ ] npm run test --workspace=webapp2 passes (unit tests green)
+   [ ] npm run build succeeds (production bundles compile)
+   [ ] Documentation updated (if you changed user-facing behavior)
+   [ ] No stray debug logs or console.log statements
+
+In your PR description, include:
+
+* **What** changed and **why**.
+* **How to test** (steps a reviewer can follow).
+* **Screenshots** if the change affects the UI.
+* **Follow-up work** if any tasks remain.
+
+6. What happens after you push
+-------------------------------
+
+CI will automatically run:
+
+* ESLint linting for webapp2 and server
+* Prettier formatting check
+* Production build (``npm run build``)
+* Unit tests (Vitest) on webapp2
+
+If CI fails, check the logs, fix the issue, and push again. Maintainers will
+review once CI is green.
+

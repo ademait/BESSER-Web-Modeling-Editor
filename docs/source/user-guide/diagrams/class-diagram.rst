@@ -1,12 +1,15 @@
 Class Diagrams
 ==============
 
-Class diagrams provide a visual representation of the :doc:`structural model <../../../buml_language/model_types/structural>` in BESSER. This diagram shows the static structure of a system by displaying classes, their attributes, methods, and the relationships between them.
+Class diagrams provide a visual representation of the
+`structural model <https://besser.readthedocs.io/en/latest/buml_language/model_types/structural.html>`_
+in BESSER. This diagram shows the static structure of a system by displaying classes, their attributes, methods, and
+the relationships between them.
 
 Palette
 -------
 
-The palette on the left side of the editor contains various shapes and elements you can use to create your class diagram. These include **Classes** (with or without methods), **Enumerations**, and **OCL Constraints**. Other elements like **Associations**, **Generalizations**, and **Association Classes** can be added directly from the canvas.
+The palette on the left side of the editor contains various shapes and elements you can use to create your class diagram. These include **Classes** (with or without methods), **Abstract Classes**, **Interfaces**, **Enumerations**, and **OCL Constraints**. Other elements like **Associations**, **Generalizations**, and **Association Classes** can be added directly from the canvas.
 
 Getting Started
 ---------------
@@ -93,7 +96,7 @@ You can add Object Constraint Language (OCL) constraints to your model:
 
 **Example:**
 
-.. code-block:: ocl
+.. code-block:: text
 
     Context "Person"
     inv: self.age >= 0 and self.age <= 120
@@ -118,8 +121,12 @@ Code Generation
 Class diagrams support generation for:
 
 *   Django
-*   SQL
+*   FastAPI Backend
+*   Full Web App (combined with a GUI diagram)
+*   SQL DDL
 *   SQLAlchemy
-*   Python (Pydantic)
-*   Java
+*   Python Classes
+*   Java Classes
+*   Pydantic Models
 *   JSON Schema
+*   Smart Data Models

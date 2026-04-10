@@ -1,4 +1,4 @@
-import { DeepPartial } from 'redux';
+﻿import { DeepPartial } from 'redux';
 import { Styles } from './components/theme/styles';
 import { UMLDiagramType } from './packages/diagram-type';
 import { UMLElementType } from './packages/uml-element-type';
@@ -67,6 +67,12 @@ export type UMLModelElement = {
 
 export interface AgentModelElement extends UMLModelElement {
   replyType: string;
+  ragDatabaseName?: string;
+  dbSelectionType?: string;
+  dbCustomName?: string;
+  dbQueryMode?: string;
+  dbOperation?: string;
+  dbSqlQuery?: string;
 }
 
 export type UMLElement = UMLModelElement & {
@@ -94,10 +100,29 @@ export type UMLClassifier = UMLElement & {
 
 export type Visibility = 'public' | 'private' | 'protected' | 'package';
 
+export type MethodImplementationType =
+  | 'none'
+  | 'code'
+  | 'bal'
+  | 'state_machine'
+  | 'quantum_circuit';
+
+export type DiagramReference = {
+  id: string;
+  name: string;
+};
+
 export type UMLClassifierMember = UMLElement & {
   code?: string;
   visibility?: Visibility;
   attributeType?: string;
+  attributeOperator?: '<' | '<=' | '==' | '>=' | '>';
+  implementationType?: MethodImplementationType;
+  stateMachineId?: string;
+  quantumCircuitId?: string;
+  isOptional?: boolean;
+  isDerived?: boolean;
+  defaultValue?: any;
 };
 
 export interface IUMLObjectName extends UMLClassifier {
@@ -128,6 +153,11 @@ export interface AgentState extends UMLElement {
 export interface AgentIntent extends UMLElement {
   type: UMLElementType;
   bodies: string[];
+  intent_description: string;
+}
+
+export interface AgentRagElement extends UMLElement {
+  type: UMLElementType;
 }
 
 export interface UMLReply extends UMLElement {
@@ -137,17 +167,61 @@ export interface UMLReply extends UMLElement {
 
 export type UMLStateTransition = UMLRelationship & {
   params?: string | string[];
+  guard?: string;
 };
 
 export type AgentStateTransition = UMLRelationship & {
   params?: string | string[];
-  condition?: string;
+  // Canonical shape: transitionType + predefined/custom nested objects
+  transitionType?: 'predefined' | 'custom';
+  predefined?: {
+    predefinedType?: string;
+    intentName?: string;
+    fileType?: string;
+    conditionValue?:
+      | string
+      | { variable: string; operator: string; targetValue: string };
+  };
+  custom?: {
+    event?:
+      | 'None'
+      | 'DummyEvent'
+      | 'WildcardEvent'
+      | 'ReceiveMessageEvent'
+      | 'ReceiveTextEvent'
+      | 'ReceiveJSONEvent'
+      | 'ReceiveFileEvent';
+    condition?: string[];
+  };
+  // Legacy flat properties — kept for backward compatibility with existing diagrams
+  predefinedType?: string;
+  event?:
+    | 'None'
+    | 'DummyEvent'
+    | 'WildcardEvent'
+    | 'ReceiveMessageEvent'
+    | 'ReceiveTextEvent'
+    | 'ReceiveJSONEvent'
+    | 'ReceiveFileEvent';
+  condition?: string | string[];
   intentName?: string;
   variable?: string;
   operator?: string;
   targetValue?: string;
-  conditionValue?: string | { variable: string; operator: string; targetValue: string }
+  conditionValue?:
+    | string
+    | { variable: string; operator: string; targetValue: string }
+    | { events: string[]; conditions: string[] };
   fileType?: string;
+  customEvent?:
+    | 'None'
+    | 'DummyEvent'
+    | 'WildcardEvent'
+    | 'ReceiveMessageEvent'
+    | 'ReceiveTextEvent'
+    | 'ReceiveJSONEvent'
+    | 'ReceiveFileEvent';
+  customConditions?: string[];
 };
 
 export type UMLDeploymentNode = UMLElement & {

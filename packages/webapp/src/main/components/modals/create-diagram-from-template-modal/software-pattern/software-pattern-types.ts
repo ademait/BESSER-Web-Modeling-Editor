@@ -7,6 +7,7 @@ export enum SoftwarePatternCategory {
   BEHAVIORAL = 'Behavioral',
   AGENT = 'Agent Diagram',
   STATE_MACHINE = 'State Machine Diagram',
+  QUANTUM_CIRCUIT = 'Quantum Circuit',
 }
 
 export enum SoftwarePatternType {
@@ -15,6 +16,7 @@ export enum SoftwarePatternType {
   TEAMOCL = 'Team Player with OCL',
   DPP = 'Digital Product Passport ',
   AISANDBOX = 'AI Sandbox',
+  NEXACRM = 'NexaCRM',
   // Behavioral pattern
   COMMAND = 'Command',
   OBSERVER = 'Observer',
@@ -22,8 +24,21 @@ export enum SoftwarePatternType {
   FACTORY = 'Factory',
   // Agent patterns
   GREET_AGENT = 'Greeting Agent',
+  DB_AGENT = 'Database Agent',
+  LIBRARY_AGENT = 'Library Agent',
+  GYM_AGENT = 'Gym Agent',
+  FAQ_RAG_AGENT = 'FAQ RAG Agent',
   // State Machine patterns
-  TRAFIC_LIGHT = 'Traffic Light'
+  TRAFIC_LIGHT = 'Traffic Light',
+  // Quantum Circuit patterns
+  QUANTUM_EMPTY = 'Empty Circuit',
+  QUANTUM_SINGLE_GATES = 'Single Qubit Gates',
+  QUANTUM_SUPERPOSITION = 'Superposition',
+  QUANTUM_BELL_STATE = 'Bell State',
+  QUANTUM_GHZ_STATE = 'GHZ State',
+  QUANTUM_TELEPORTATION = 'Quantum Teleportation',
+  QUANTUM_GROVER = 'Grover Search',
+  QUANTUM_QFT = 'Quantum Fourier Transform',
 }
 
 export class SoftwarePatternTemplate extends Template {
