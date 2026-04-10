@@ -1,0 +1,10 @@
+import { IUMLContainer } from '../../../services/uml-container/uml-container';
+import { UMLPackage } from '../uml-package/uml-package';
+export interface IUMLComponent extends IUMLContainer {
+    stereotype: string;
+    displayStereotype: boolean;
+}
+export declare abstract class UMLComponent extends UMLPackage implements IUMLComponent {
+    stereotype: string;
+    displayStereotype: boolean;
+}

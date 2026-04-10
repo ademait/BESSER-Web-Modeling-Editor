@@ -1,0 +1,60 @@
+import { ActivityElementType } from './uml-activity-diagram';
+import { ClassElementType } from './uml-class-diagram';
+import { ComponentElementType } from './uml-component-diagram';
+import { DeploymentElementType } from './uml-deployment-diagram';
+import { ObjectElementType } from './uml-object-diagram';
+import { UseCaseElementType } from './uml-use-case-diagram';
+import { PetriNetElementType } from './uml-petri-net';
+import { CommunicationElementType } from './uml-communication-diagram';
+import { UMLDiagramType } from './diagram-type';
+import { SyntaxTreeElementType } from './syntax-tree';
+import { FlowchartElementType } from './flowchart';
+import { ColorLegendElementType } from './common/color-legend';
+import { CommentsElementType } from './common/comments';
+import { ReachabilityGraphElementType } from './uml-reachability-graph';
+import { BPMNElementType } from './bpmn';
+import { StateElementType } from './uml-state-diagram';
+import { AgentElementType } from './agent-state-diagram';
+import { SwarmElementType } from './swarm-diagram';
+export const UMLElementType = {
+    ...ClassElementType,
+    ...ObjectElementType,
+    ...ActivityElementType,
+    ...UseCaseElementType,
+    ...CommunicationElementType,
+    ...ComponentElementType,
+    ...DeploymentElementType,
+    ...PetriNetElementType,
+    ...ReachabilityGraphElementType,
+    ...SyntaxTreeElementType,
+    ...FlowchartElementType,
+    ...ColorLegendElementType,
+    ...CommentsElementType,
+    ...BPMNElementType,
+    ...StateElementType,
+    ...AgentElementType,
+    ...SwarmElementType,
+};
+export const UMLElementsForDiagram = {
+    ...{
+        [UMLDiagramType.ClassDiagram]: ClassElementType,
+        [UMLDiagramType.ObjectDiagram]: ObjectElementType,
+        [UMLDiagramType.ActivityDiagram]: ActivityElementType,
+        [UMLDiagramType.UseCaseDiagram]: UseCaseElementType,
+        [UMLDiagramType.CommunicationDiagram]: CommunicationElementType,
+        [UMLDiagramType.ComponentDiagram]: ComponentElementType,
+        [UMLDiagramType.DeploymentDiagram]: DeploymentElementType,
+        [UMLDiagramType.PetriNet]: PetriNetElementType,
+        [UMLDiagramType.ReachabilityGraph]: ReachabilityGraphElementType,
+        [UMLDiagramType.SyntaxTree]: SyntaxTreeElementType,
+        [UMLDiagramType.Flowchart]: FlowchartElementType,
+        [UMLDiagramType.BPMN]: BPMNElementType,
+        [UMLDiagramType.StateMachineDiagram]: StateElementType,
+        [UMLDiagramType.AgentDiagram]: AgentElementType,
+        [UMLDiagramType.UserDiagram]: ObjectElementType, // Use ObjectElementType for UserDiagram as well
+        [UMLDiagramType.SwarmDiagram]: SwarmElementType,
+    },
+    // ...ColorLegendElementType,
+    // ...CommentsElementType,
+};
+//# sourceMappingURL=uml-element-type.js.map
