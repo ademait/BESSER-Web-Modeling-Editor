@@ -31,7 +31,7 @@ const defaultProps = (overrides: Partial<React.ComponentProps<typeof WorkspaceSi
 // ── Tests ────────────────────────────────────────────────────────────────
 
 describe('WorkspaceSidebar', () => {
-  // There are 4 UML items (Class, Object, State, Agent) + 2 non-UML (GUI, Quantum) + 1 Settings route = 7 nav buttons
+  // There are 5 UML items (Class, Object, State, Agent, Swarm) + 2 non-UML (GUI, Quantum) + 1 Settings route = 8 nav buttons
   // Plus the collapse/expand toggle button at the bottom.
 
   it('renders navigation buttons for all diagram types and settings', () => {

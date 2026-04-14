@@ -1,12 +1,12 @@
 import { UMLDiagramType, UMLModel } from '@besser/wme';
 // Supported diagram types in projects
-export type SupportedDiagramType = 'ClassDiagram' | 'ObjectDiagram' | 'StateMachineDiagram' | 'AgentDiagram' | 'GUINoCodeDiagram' | 'QuantumCircuitDiagram';
+export type SupportedDiagramType = 'ClassDiagram' | 'ObjectDiagram' | 'StateMachineDiagram' | 'AgentDiagram' | 'GUINoCodeDiagram' | 'QuantumCircuitDiagram' | 'SwarmDiagram';
 
 export const MAX_DIAGRAMS_PER_TYPE = 5;
 export const PROJECT_SCHEMA_VERSION = 3;
 
 export const ALL_DIAGRAM_TYPES: SupportedDiagramType[] = [
-  'ClassDiagram', 'ObjectDiagram', 'StateMachineDiagram', 'AgentDiagram', 'GUINoCodeDiagram', 'QuantumCircuitDiagram',
+  'ClassDiagram', 'ObjectDiagram', 'StateMachineDiagram', 'AgentDiagram', 'GUINoCodeDiagram', 'QuantumCircuitDiagram', 'SwarmDiagram'
 ];
 
 // GrapesJS project data structure
@@ -60,6 +60,7 @@ export interface BesserProject {
     AgentDiagram: ProjectDiagram[];
     GUINoCodeDiagram: ProjectDiagram[];
     QuantumCircuitDiagram: ProjectDiagram[];
+    SwarmDiagram: ProjectDiagram[];
   };
   settings: {
     defaultDiagramType: SupportedDiagramType;
@@ -113,6 +114,7 @@ const defaultDiagramIndices = (): Record<SupportedDiagramType, number> => ({
   AgentDiagram: 0,
   GUINoCodeDiagram: 0,
   QuantumCircuitDiagram: 0,
+  SwarmDiagram: 0,
 });
 
 // Migrate v1 project (single diagram per type) to v2 (array per type)
@@ -152,6 +154,8 @@ export const toSupportedDiagramType = (type: UMLDiagramType): SupportedDiagramTy
       return 'StateMachineDiagram';
     case UMLDiagramType.AgentDiagram:
       return 'AgentDiagram';
+    case UMLDiagramType.SwarmDiagram:
+      return 'SwarmDiagram';
     default:
       return 'ClassDiagram'; // fallback
   }
@@ -172,6 +176,8 @@ export const toUMLDiagramType = (type: SupportedDiagramType): UMLDiagramType | n
       return null; // GUINoCodeDiagram doesn't have a UML diagram type
     case 'QuantumCircuitDiagram':
       return null; // QuantumCircuitDiagram doesn't have a UML diagram type
+    case 'SwarmDiagram':
+      return UMLDiagramType.SwarmDiagram;
     default:
       return null;
   }
@@ -329,6 +335,7 @@ export const createDefaultProject = (
       AgentDiagram: [createEmptyDiagram('Agent Diagram', UMLDiagramType.AgentDiagram)],
       GUINoCodeDiagram: [createEmptyDiagram('GUI Diagram', null, 'gui')],
       QuantumCircuitDiagram: [createEmptyDiagram('Quantum Circuit', null, 'quantum')],
+      SwarmDiagram: [createEmptyDiagram('Swarm Diagram', UMLDiagramType.SwarmDiagram)],
     },
     settings: {
       defaultDiagramType: 'ClassDiagram',
@@ -354,7 +361,8 @@ export const isProject = (obj: any): obj is BesserProject => {
     obj.diagrams.StateMachineDiagram &&
     obj.diagrams.AgentDiagram &&
     obj.diagrams.GUINoCodeDiagram &&
-    obj.diagrams.QuantumCircuitDiagram;
+    obj.diagrams.QuantumCircuitDiagram; // &&
+    // obj.diagrams.SwarmDiagram; //TODO: Check after implementation to require SwarmDiagram as well (or for backward compatibility)
 
   return !!hasRequiredDiagrams;
 };
@@ -364,6 +372,10 @@ export const ensureProjectMigrated = (obj: BesserProject): BesserProject => {
   // Add QuantumCircuitDiagram if missing
   if (!obj.diagrams.QuantumCircuitDiagram) {
     obj.diagrams.QuantumCircuitDiagram = [createEmptyDiagram('Quantum Circuit', null, 'quantum')];
+  }
+  // Add SwarmDiagram if missing
+  if (!obj.diagrams.SwarmDiagram) {
+    obj.diagrams.SwarmDiagram = [createEmptyDiagram('Swarm Diagram', UMLDiagramType.SwarmDiagram)];
   }
 
   // Auto-migrate v1 (single diagram per type) to v2 (array per type)
