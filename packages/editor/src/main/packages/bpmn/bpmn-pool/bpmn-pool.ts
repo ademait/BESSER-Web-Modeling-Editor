@@ -43,7 +43,23 @@ export class BPMNPool extends UMLPackage {
       return [this, ...children];
     }
 
-    // 2. The pool dictates the horizontal span. 
+    // Dynamic content-width floor. Each swimlane publishes contentRequiredWidth
+    // based on its children's positions AFTER clamping, so this floor drops
+    // when tasks are moved left — the user can then shrink the pool further.
+    // This does NOT block pool growth past the floor.
+    let maxLaneContentRequired = BPMNSwimlane.MIN_WIDTH;
+    for (const lane of swimlanes) {
+      const req = lane.contentRequiredWidth ?? BPMNSwimlane.MIN_WIDTH;
+      if (req > maxLaneContentRequired) {
+        maxLaneContentRequired = req;
+      }
+    }
+    const contentRequiredPoolWidth = BPMNPool.HEADER_WIDTH + maxLaneContentRequired;
+    if (this.bounds.width < contentRequiredPoolWidth) {
+      this.bounds.width = contentRequiredPoolWidth;
+    }
+
+    // 2. The pool dictates the horizontal span.
     // Calculate what the lane widths should be based on current pool width.
     // We also fix the reference for X and Y
     const expectedLaneWidth = this.bounds.width - BPMNPool.HEADER_WIDTH;
