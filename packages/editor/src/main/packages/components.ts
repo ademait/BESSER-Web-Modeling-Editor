@@ -68,6 +68,7 @@ import { BPMNPoolComponent } from './bpmn/bpmn-pool/bpmn-pool-component';
 import { BPMNSwimlaneComponent } from './bpmn/bpmn-swimlane/bpmn-swimlane-component';
 import { BPMNDataStoreComponent } from './bpmn/bpmn-data-store/bpmn-data-store-component';
 import { BPMNAgenticLaneComponent } from './bpmn-seaa/bpmn-agentic-lane/bpmn-agentic-lane-component';
+import { BPMNAgenticTaskComponent } from './bpmn-seaa/bpmn-agentic-task/bpmn-agentic-task-component';
 import { ClassOCLConstraintComponent } from './uml-class-diagram/uml-class-ocl/uml-class-ocl-constraint-component';
 import { UMLStateComponent } from './uml-state-diagram/uml-state/uml-state-component';
 import { UMLStateActionNodeComponent } from './uml-state-diagram/uml-state-action-node/uml-state-action-node-component';
@@ -155,6 +156,7 @@ export const Components: {
   [UMLElementType.BPMNSwimlane]: BPMNSwimlaneComponent,
   [UMLElementType.BPMNGroup]: BPMNGroupComponent,
   [UMLElementType.BPMNAgenticLane]: BPMNAgenticLaneComponent,
+  [UMLElementType.BPMNAgenticTask]: BPMNAgenticTaskComponent,
   [UMLRelationshipType.ClassAggregation]: UMLAssociationComponent,
   [UMLRelationshipType.ClassBidirectional]: UMLAssociationComponent,
   [UMLRelationshipType.ClassOCLLink]: UMLAssociationComponent,

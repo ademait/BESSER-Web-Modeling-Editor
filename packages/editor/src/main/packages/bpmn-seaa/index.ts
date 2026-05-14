@@ -3,4 +3,5 @@
 // (see uml-element-type.ts). Grows in 04D1 with the gateway / message-flow types.
 export const BPMNSeaaElementType = {
   BPMNAgenticLane: 'BPMNAgenticLane',
+  BPMNAgenticTask: 'BPMNAgenticTask',
 } as const;

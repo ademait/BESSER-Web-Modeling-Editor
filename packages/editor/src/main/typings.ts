@@ -14,7 +14,7 @@ import { BPMNIntermediateEventType } from './packages/bpmn/bpmn-intermediate-eve
 import { BPMNTaskType } from './packages/bpmn/bpmn-task/bpmn-task';
 import { BPMNFlowType } from './packages/bpmn/bpmn-flow/bpmn-flow';
 import { BPMNMarkerType } from './packages/bpmn/common/types';
-import { BPMNAgentRole } from './packages/bpmn-seaa/common/types';
+import { BPMNAgentRole, BPMNReflectionMode } from './packages/bpmn-seaa/common/types';
 
 export { UMLDiagramType, UMLElementType, UMLRelationshipType, ApollonMode, Locale };
 export type { Styles };
@@ -248,6 +248,11 @@ export type BPMNTask = UMLElement & {
 
 export type BPMNAgenticLane = UMLElement & {
   role: BPMNAgentRole;
+  trustScore: number;
+};
+
+export type BPMNAgenticTask = BPMNTask & {
+  reflectionMode: BPMNReflectionMode;
   trustScore: number;
 };
 
