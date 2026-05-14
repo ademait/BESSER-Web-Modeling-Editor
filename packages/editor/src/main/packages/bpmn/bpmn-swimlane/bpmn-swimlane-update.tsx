@@ -4,6 +4,7 @@ import { compose } from 'redux';
 import { Button } from '../../../components/controls/button/button';
 import { Divider } from '../../../components/controls/divider/divider';
 import { Dropdown } from '../../../components/controls/dropdown/dropdown';
+import { Switch } from '../../../components/controls/switch/switch';
 import { TrashIcon } from '../../../components/controls/icon/trash';
 import { Textfield } from '../../../components/controls/textfield/textfield';
 import { I18nContext } from '../../../components/i18n/i18n-context';
@@ -13,11 +14,11 @@ import { styled } from '../../../components/theme/styles';
 import { UMLElementRepository } from '../../../services/uml-element/uml-element-repository';
 import { ColorButton } from '../../../components/controls/color-button/color-button';
 import { StylePane } from '../../../components/style-pane/style-pane';
-import { BPMNAgenticLane } from './bpmn-agentic-lane';
-import { BPMNAgentRole } from '../common/types';
+import { BPMNSwimlane } from './bpmn-swimlane';
+import { BPMNAgentRole, clampTrustScore } from '../common/types';
 
 interface OwnProps {
-  element: BPMNAgenticLane;
+  element: BPMNSwimlane;
 }
 type StateProps = {};
 interface DispatchProps {
@@ -42,7 +43,9 @@ const Flex = styled.div`
 
 type State = { colorOpen: boolean };
 
-class BPMNAgenticLaneUpdateComponent extends Component<Props, State> {
+// Agentic BPMN (04D): a lane is a plain BPMNSwimlane; the "Agentic" toggle marks
+// it as an agentic lane and reveals the role / trust-score fields.
+class BPMNSwimlaneUpdateComponent extends Component<Props, State> {
   state = { colorOpen: false };
 
   private toggleColor = () => this.setState((s) => ({ colorOpen: !s.colorOpen }));
@@ -70,37 +73,52 @@ class BPMNAgenticLaneUpdateComponent extends Component<Props, State> {
         </section>
         <section>
           <Divider />
-          <Flex>
-            <span>{this.props.translate('packages.BPMN.BPMNTrustScore')}</span>
-            <Textfield value={String(element.trustScore)} onChange={this.changeTrustScore(element.id)} />
-          </Flex>
+          <Switch value={element.isAgentic ? 'agentic' : ''} onChange={this.toggleAgentic(element.id)} color="primary">
+            <Switch.Item value={'agentic'}>{this.props.translate('packages.BPMN.BPMNAgentic')}</Switch.Item>
+          </Switch>
         </section>
-        <section>
-          <Divider />
-          <Dropdown value={element.role} onChange={this.changeRole(element.id)}>
-            <Dropdown.Item value={'worker'}>{this.props.translate('packages.BPMN.BPMNAgentRoleWorker')}</Dropdown.Item>
-            <Dropdown.Item value={'manager'}>
-              {this.props.translate('packages.BPMN.BPMNAgentRoleManager')}
-            </Dropdown.Item>
-          </Dropdown>
-        </section>
+        {element.isAgentic && (
+          <>
+            <section>
+              <Divider />
+              <Dropdown value={element.role} onChange={this.changeRole(element.id)}>
+                <Dropdown.Item value={'worker'}>
+                  {this.props.translate('packages.BPMN.BPMNAgentRoleWorker')}
+                </Dropdown.Item>
+                <Dropdown.Item value={'manager'}>
+                  {this.props.translate('packages.BPMN.BPMNAgentRoleManager')}
+                </Dropdown.Item>
+              </Dropdown>
+            </section>
+            <section>
+              <Divider />
+              <Flex>
+                <span>{this.props.translate('packages.BPMN.BPMNTrustScore')}</span>
+                <Textfield value={String(element.trustScore)} onChange={this.changeTrustScore(element.id)} />
+              </Flex>
+            </section>
+          </>
+        )}
       </div>
     );
   }
 
   private rename = (id: string) => (value: string) => this.props.update(id, { name: value });
 
-  private changeTrustScore = (id: string) => (value: string) => {
-    const parsed = Number.parseInt(value, 10);
-    const clamped = Math.min(100, Math.max(0, Number.isFinite(parsed) ? parsed : 0));
-    this.props.update<BPMNAgenticLane>(id, { trustScore: clamped });
+  private toggleAgentic = (id: string) => (_value: string) => {
+    this.props.update<BPMNSwimlane>(id, { isAgentic: !this.props.element.isAgentic });
   };
 
   private changeRole = (id: string) => (value: string) => {
-    this.props.update<BPMNAgenticLane>(id, { role: value as BPMNAgentRole });
+    this.props.update<BPMNSwimlane>(id, { role: value as BPMNAgentRole });
+  };
+
+  private changeTrustScore = (id: string) => (value: string) => {
+    const parsed = Number.parseInt(value, 10);
+    this.props.update<BPMNSwimlane>(id, { trustScore: clampTrustScore(Number.isFinite(parsed) ? parsed : 0) });
   };
 
   private delete = (id: string) => () => this.props.delete(id);
 }
 
-export const BPMNAgenticLaneUpdate = enhance(BPMNAgenticLaneUpdateComponent);
+export const BPMNSwimlaneUpdate = enhance(BPMNSwimlaneUpdateComponent);

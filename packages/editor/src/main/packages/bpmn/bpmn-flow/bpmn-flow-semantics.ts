@@ -10,7 +10,6 @@ const flowNodes = new Set<UMLElementType>([
   UMLElementType.BPMNTransaction,
   UMLElementType.BPMNCallActivity,
   UMLElementType.BPMNGateway,
-  UMLElementType.BPMNAgenticTask,
 ]);
 
 const dataNodes = new Set<UMLElementType>([UMLElementType.BPMNDataObject, UMLElementType.BPMNDataStore]);
@@ -25,7 +24,6 @@ const messageEligible = new Set<UMLElementType>([
   UMLElementType.BPMNStartEvent,
   UMLElementType.BPMNIntermediateEvent,
   UMLElementType.BPMNEndEvent,
-  UMLElementType.BPMNAgenticTask,
 ]);
 
 export function getAllowedBpmnFlowTypes(source: UMLElementType, target: UMLElementType): BPMNFlowType[] {

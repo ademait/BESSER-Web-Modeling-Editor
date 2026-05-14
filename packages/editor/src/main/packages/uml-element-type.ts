@@ -13,7 +13,6 @@ import { ColorLegendElementType } from './common/color-legend';
 import { CommentsElementType } from './common/comments';
 import { ReachabilityGraphElementType } from './uml-reachability-graph';
 import { BPMNElementType } from './bpmn';
-import { BPMNSeaaElementType } from './bpmn-seaa';
 import { StateElementType } from './uml-state-diagram';
 import { AgentElementType } from './agent-state-diagram';
 import { UserModelElementType } from './user-modeling';
@@ -33,7 +32,6 @@ export type UMLElementType =
   | keyof typeof ColorLegendElementType
   | keyof typeof CommentsElementType
   | keyof typeof BPMNElementType
-  | keyof typeof BPMNSeaaElementType
   | keyof typeof StateElementType
   | keyof typeof AgentElementType
   | keyof typeof UserModelElementType;
@@ -53,7 +51,6 @@ export const UMLElementType = {
   ...ColorLegendElementType,
   ...CommentsElementType,
   ...BPMNElementType,
-  ...BPMNSeaaElementType,
   ...StateElementType,
   ...AgentElementType,
   ...UserModelElementType,
@@ -72,7 +69,7 @@ export const UMLElementsForDiagram: { [key in UMLDiagramType]: any } = {
     [UMLDiagramType.ReachabilityGraph]: ReachabilityGraphElementType,
     [UMLDiagramType.SyntaxTree]: SyntaxTreeElementType,
     [UMLDiagramType.Flowchart]: FlowchartElementType,
-    [UMLDiagramType.BPMN]: { ...BPMNElementType, ...BPMNSeaaElementType },
+    [UMLDiagramType.BPMN]: BPMNElementType,
     [UMLDiagramType.StateMachineDiagram]: StateElementType,
     [UMLDiagramType.AgentDiagram]: AgentElementType,
     [UMLDiagramType.UserDiagram]: UserModelElementType,

@@ -121,11 +121,10 @@
     },
     "BPMN": {
       "BPMNTask": "Task",
-      "BPMNAgenticLane": "Agentische Bahn",
+      "BPMNAgentic": "Agentisch",
       "BPMNTrustScore": "Vertrauenswert (0-100)",
       "BPMNAgentRoleWorker": "Arbeiter",
       "BPMNAgentRoleManager": "Manager",
-      "BPMNAgenticTask": "Agentische Aufgabe",
       "BPMNReflectionNone": "Keine Reflexion",
       "BPMNReflectionSelf": "Selbstreflexion",
       "BPMNReflectionCross": "Kreuzreflexion",

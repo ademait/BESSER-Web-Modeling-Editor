@@ -11,7 +11,6 @@ const DEFAULT_ELIGIBLE_ACTIVITY_TYPES: ReadonlySet<string> = new Set<string>([
   UMLElementType.BPMNSubprocess,
   UMLElementType.BPMNTransaction,
   UMLElementType.BPMNCallActivity,
-  UMLElementType.BPMNAgenticTask,
 ]);
 const DEFAULT_ELIGIBLE_GATEWAY_TYPES: ReadonlySet<string> = new Set<string>(['exclusive', 'inclusive', 'complex']);
 

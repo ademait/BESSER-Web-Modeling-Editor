@@ -1,9 +1,10 @@
 import React, { FunctionComponent } from 'react';
 
-// Clean-vector redraw of the paper's reflection marker (notation/reflection-*.svg
-// are raster-embedded Inkscape exports — see 04D D-D5). Paper §4.4: a marker with
-// the mode letter inside (s / c / h). Adem refines against the paper notation.
-export const ReflectionIcon: FunctionComponent<React.SVGProps<SVGSVGElement> & { letter: string }> = ({
+// Clean-vector redraw of the Agentic BPMN paper's reflection marker
+// (notation/reflection-*.svg are raster-embedded Inkscape exports). Paper §4.4:
+// a marker with the mode letter inside (s / c / h). Adem refines against the
+// paper notation.
+export const BPMNReflectionIcon: FunctionComponent<React.SVGProps<SVGSVGElement> & { letter: string }> = ({
   letter,
   ...props
 }) => (

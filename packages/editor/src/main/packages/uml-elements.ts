@@ -59,8 +59,6 @@ import { BPMNPool } from './bpmn/bpmn-pool/bpmn-pool';
 import { BPMNSwimlane } from './bpmn/bpmn-swimlane/bpmn-swimlane';
 import { BPMNGroup } from './bpmn/bpmn-group/bpmn-group';
 import { BPMNDataStore } from './bpmn/bpmn-data-store/bpmn-data-store';
-import { BPMNAgenticLane } from './bpmn-seaa/bpmn-agentic-lane/bpmn-agentic-lane';
-import { BPMNAgenticTask } from './bpmn-seaa/bpmn-agentic-task/bpmn-agentic-task';
 import { ClassOCLConstraint } from './uml-class-diagram/uml-class-ocl/uml-class-ocl-constraint';
 import { UMLState } from './uml-state-diagram/uml-state/uml-state';
 import { UMLStateBody } from './uml-state-diagram/uml-state-body/uml-state-body';
@@ -142,8 +140,6 @@ export const UMLElements = {
   [UMLElementType.BPMNPool]: BPMNPool,
   [UMLElementType.BPMNSwimlane]: BPMNSwimlane,
   [UMLElementType.BPMNGroup]: BPMNGroup,
-  [UMLElementType.BPMNAgenticLane]: BPMNAgenticLane,
-  [UMLElementType.BPMNAgenticTask]: BPMNAgenticTask,
   [UMLElementType.State]: UMLState,
   [UMLElementType.StateBody]: UMLStateBody,
   [UMLElementType.StateFallbackBody]: UMLStateFallbackBody,
