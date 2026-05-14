@@ -36,6 +36,13 @@ export * from './services/settings/settings-service';
 export * from './packages/bpmn/bpmn-flow/bpmn-flow-semantics';
 export * from './packages/bpmn/bpmn-flow/bpmn-flow-validator';
 
+// Export the SEAA'25 Agentic BPMN extension model classes + types
+// (consumed by the Phase D vitest round-trip coverage; 04D1/04D2 will
+// also need this surface for the extension serializer).
+export * from './packages/bpmn-seaa/common/types';
+export * from './packages/bpmn-seaa/bpmn-agentic-lane/bpmn-agentic-lane';
+export * from './packages/bpmn-seaa/bpmn-agentic-task/bpmn-agentic-task';
+
 // Export only the Patch type (not the implementation) for type safety
 // Used when working with patching operations in TypeScript
 export type { Patch } from './services/patcher';
