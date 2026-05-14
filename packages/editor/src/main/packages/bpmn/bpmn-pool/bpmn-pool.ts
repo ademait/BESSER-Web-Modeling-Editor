@@ -7,6 +7,10 @@ import { ResizeFrom, UMLElement } from '../../../services/uml-element/uml-elemen
 import { UMLPackage } from '../../common/uml-package/uml-package';
 import { BPMNSwimlane } from '../bpmn-swimlane/bpmn-swimlane';
 
+// D-D6 (04D): an AgenticLane (bpmn-seaa) is layout-equivalent to a Swimlane. The
+// base package cannot import bpmn-seaa, so the extension type is matched by string.
+const isPoolLaneType = (type?: string): boolean => type === BPMNElementType.BPMNSwimlane || type === 'BPMNAgenticLane';
+
 export class BPMNPool extends UMLPackage {
   static MIN_WIDTH = 80;
   static MIN_HEIGHT = 80;
@@ -25,9 +29,9 @@ export class BPMNPool extends UMLPackage {
   // Last synchronized content width (pool width minus header).
   // We use it to infer which side initiated a resize in the current frame.
   private syncedLaneContentWidth = BPMNPool.MIN_WIDTH - BPMNPool.HEADER_WIDTH;
-  
+
   hasSwimlanes = (children: ILayoutable[]): boolean =>
-    children.some((child: ILayoutable & { type?: UMLElementType }) => child.type === BPMNElementType.BPMNSwimlane);
+    children.some((child: ILayoutable & { type?: UMLElementType }) => isPoolLaneType(child.type));
 
   render(layer: ILayer, children: UMLElement[] = [], calculateWithoutChildren?: boolean): UMLElement[] {
     const MIN_POOL_WIDTH = BPMNPool.HEADER_WIDTH + BPMNSwimlane.MIN_WIDTH;
@@ -38,12 +42,12 @@ export class BPMNPool extends UMLPackage {
     //   this.bounds.height = BPMNPool.MIN_HEIGHT;
     // }
 
-    const swimlanes = children.filter((child): child is BPMNSwimlane => child.type === BPMNElementType.BPMNSwimlane);
+    const swimlanes = children.filter((child): child is BPMNSwimlane => isPoolLaneType(child.type));
     if (swimlanes.length === 0) {
       return [this, ...children];
     }
 
-    // 2. The pool dictates the horizontal span. 
+    // 2. The pool dictates the horizontal span.
     // Calculate what the lane widths should be based on current pool width.
     // We also fix the reference for X and Y
     const expectedLaneWidth = this.bounds.width - BPMNPool.HEADER_WIDTH;
@@ -63,22 +67,22 @@ export class BPMNPool extends UMLPackage {
       lane.bounds.y = currentY;
       // Lock width strictly to the pool's remaining width
       lane.bounds.width = expectedLaneWidth;
-      
+
       // Placements bounds clamping
       if (lane.bounds.height < BPMNSwimlane.MIN_HEIGHT) {
         lane.bounds.height = BPMNSwimlane.MIN_HEIGHT;
       }
-      
+
       currentY += lane.bounds.height;
-      
+
       // Override layouter logic that offsets coordinates during active dragging
-      lane.resizeFrom = ResizeFrom.BOTTOMRIGHT; 
+      lane.resizeFrom = ResizeFrom.BOTTOMRIGHT;
     }
 
     // 4. Force pool height to exactly fit lanes
     const totalHeight = currentY;
     this.bounds.height = Math.max(totalHeight, BPMNPool.MIN_HEIGHT);
 
-    return [this, ...orderedSwimlanes, ...children.filter((child) => child.type !== BPMNElementType.BPMNSwimlane)];
+    return [this, ...orderedSwimlanes, ...children.filter((child) => !isPoolLaneType(child.type))];
   }
 }

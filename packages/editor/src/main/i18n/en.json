@@ -128,6 +128,10 @@
     },
     "BPMN": {
       "BPMNTask": "Task",
+      "BPMNAgenticLane": "Agentic Lane",
+      "BPMNTrustScore": "Trust score (0-100)",
+      "BPMNAgentRoleWorker": "Worker",
+      "BPMNAgentRoleManager": "Manager",
       "BPMNUserTask": "User Task",
       "BPMNServiceTask": "Service Task",
       "BPMNSendTask": "Send Task",

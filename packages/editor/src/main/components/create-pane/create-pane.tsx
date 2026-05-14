@@ -31,6 +31,7 @@ import { ColorLegend } from '../../packages/common/color-legend/color-legend';
 import { Comments } from '../../packages/common/comments/comments';
 import { Separator } from './create-pane-styles';
 import { composeBPMNPreview } from '../../packages/bpmn/bpmn-diagram-preview';
+import { composeBpmnSeaaPreview } from '../../packages/bpmn-seaa/bpmn-seaa-preview';
 import { composeStatePreview } from '../../packages/uml-state-diagram/state-preview';
 
 import { composeBotPreview } from '../../packages/agent-state-diagram/agent-state-preview';
@@ -39,7 +40,6 @@ import { setPalette } from '../../services/palette/palette-types';
 import { settingsService } from '../../services/settings/settings-service';
 
 import { BPMNElementType } from '../../packages/bpmn';
-
 
 type OwnProps = {};
 
@@ -99,6 +99,7 @@ const getInitialState = ({ type, canvas, translate, colorEnabled }: Props) => {
       break;
     case UMLDiagramType.BPMN:
       previews.push(...composeBPMNPreview(canvas, translate));
+      previews.push(...composeBpmnSeaaPreview(canvas, translate));
       break;
     case UMLDiagramType.StateMachineDiagram:
       previews.push(...composeStatePreview(canvas, translate));

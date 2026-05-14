@@ -59,6 +59,7 @@ import { BPMNPool } from './bpmn/bpmn-pool/bpmn-pool';
 import { BPMNSwimlane } from './bpmn/bpmn-swimlane/bpmn-swimlane';
 import { BPMNGroup } from './bpmn/bpmn-group/bpmn-group';
 import { BPMNDataStore } from './bpmn/bpmn-data-store/bpmn-data-store';
+import { BPMNAgenticLane } from './bpmn-seaa/bpmn-agentic-lane/bpmn-agentic-lane';
 import { ClassOCLConstraint } from './uml-class-diagram/uml-class-ocl/uml-class-ocl-constraint';
 import { UMLState } from './uml-state-diagram/uml-state/uml-state';
 import { UMLStateBody } from './uml-state-diagram/uml-state-body/uml-state-body';
@@ -78,8 +79,6 @@ import { AgentRagElement } from './agent-state-diagram/agent-rag-element/agent-r
 import { AgentState } from './agent-state-diagram/agent-state/agent-state';
 import { AgentStateBody } from './agent-state-diagram/agent-state-body/agent-state-body';
 import { AgentStateFallbackBody } from './agent-state-diagram/agent-state-fallback-body/agent-state-fallback-body';
-
-
 
 export const UMLElements = {
   [UMLElementType.Package]: UMLClassPackage,
@@ -142,6 +141,7 @@ export const UMLElements = {
   [UMLElementType.BPMNPool]: BPMNPool,
   [UMLElementType.BPMNSwimlane]: BPMNSwimlane,
   [UMLElementType.BPMNGroup]: BPMNGroup,
+  [UMLElementType.BPMNAgenticLane]: BPMNAgenticLane,
   [UMLElementType.State]: UMLState,
   [UMLElementType.StateBody]: UMLStateBody,
   [UMLElementType.StateFallbackBody]: UMLStateFallbackBody,
