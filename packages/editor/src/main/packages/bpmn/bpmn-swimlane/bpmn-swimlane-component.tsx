@@ -24,13 +24,31 @@ export const BPMNSwimlaneComponent: FunctionComponent<Props> = ({ element, fillC
       >
         {element.name}
       </Multiline>
-      {/* Agentic BPMN (04D): the agent marker + role letter sit to the right of
-          the (vertical) lane name. Trust score is edited in the popup only. */}
+      {/* Agentic BPMN (04D): bot icon + role letter + trust score stack vertically
+          to the right of the (vertical) lane name so the header stays narrow. */}
       {element.isAgentic && (
         <>
-          <BPMNBotIcon x={34} y={element.bounds.height / 2 - 8} color={fg} />
-          <text x={56} y={element.bounds.height / 2 + 4} fontSize={11} fontWeight="bold" fill={fg} pointerEvents="none">
+          <BPMNBotIcon x={34} y={element.bounds.height / 2 - 20} color={fg} />
+          <text
+            x={42}
+            y={element.bounds.height / 2 + 4}
+            fontSize={11}
+            fontWeight="bold"
+            textAnchor="middle"
+            fill={fg}
+            pointerEvents="none"
+          >
             {element.role === 'manager' ? 'm' : 'w'}
+          </text>
+          <text
+            x={42}
+            y={element.bounds.height / 2 + 18}
+            fontSize={10}
+            textAnchor="middle"
+            fill={fg}
+            pointerEvents="none"
+          >
+            {element.trustScore}
           </text>
         </>
       )}
