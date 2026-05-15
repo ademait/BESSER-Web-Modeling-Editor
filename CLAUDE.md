@@ -250,3 +250,5 @@ When you see `M besser/utilities/web_modeling_editor/frontend` in the parent rep
 4. **Storage sync loops**: When writing to `ProjectStorageRepository` from a thunk, use `withoutNotify()` to prevent the storage listener from re-dispatching
 5. **Path aliases**: If adding new aliases, update both `tsconfig.json` and `vite.config.ts`
 6. **Backend contract changes**: If you change backend API endpoints or request/response shapes, update the corresponding API calls in `shared/api/` and any Pydantic models in the backend
+
+@.claude/CLAUDE.md

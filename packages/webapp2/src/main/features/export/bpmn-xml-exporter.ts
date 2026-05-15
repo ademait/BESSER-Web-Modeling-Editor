@@ -1,6 +1,6 @@
 import { UMLModel, UMLElement, UMLRelationship, canSourceCarryDefault } from '@besser/wme';
 
-// BPMN 2.0 XML exporter. See .adem/bpmn/bpmn-xml-export-guide.md for design decisions.
+// BPMN 2.0 XML exporter. See .claude/bpmn/bpmn-xml-export-guide.md for design decisions.
 //
 // Produces a BPMN 2.0 Collaboration + Process XML with BPMN DI (layout round-trip).
 // Elements not mapped to standard BPMN 2.0 are skipped and reported in `skipped`.

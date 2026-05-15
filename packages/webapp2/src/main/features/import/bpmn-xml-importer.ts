@@ -1,6 +1,6 @@
 import { UMLModel, UMLElement, UMLRelationship, UMLDiagramType, canSourceCarryDefault } from '@besser/wme';
 
-// Inverse of bpmn-xml-exporter.ts. See .adem/bpmn/04B-bpmn-xml-import-guide.md.
+// Inverse of bpmn-xml-exporter.ts. See .claude/bpmn/04B-bpmn-xml-import-guide.md.
 // BPMN 2.0.2 spec citations follow the convention in 04A1.
 
 export const BPMN_NS = 'http://www.omg.org/spec/BPMN/20100524/MODEL';

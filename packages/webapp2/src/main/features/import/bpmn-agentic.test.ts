@@ -5,7 +5,7 @@ import { clampTrustScore } from '@besser/wme';
 // and tasks are the base BPMNSwimlane / BPMNTask with an `isAgentic` flag (04D
 // pivot), so the model classes are exercised by the editor build's type-check;
 // the pure trust-score clamp is the unit-testable surface reachable through
-// @besser/wme (see .adem/CLAUDE.md test-infra caveats).
+// @besser/wme (see .claude/CLAUDE.md test-infra caveats).
 
 describe('clampTrustScore', () => {
   it('clamps below 0 and above 100', () => {
