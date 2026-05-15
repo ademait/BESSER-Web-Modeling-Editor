@@ -10,15 +10,44 @@ import { localized } from '../../../components/i18n/localized';
 import { ModelState } from '../../../components/store/model-state';
 import { styled } from '../../../components/theme/styles';
 import { UMLElementRepository } from '../../../services/uml-element/uml-element-repository';
-import { BPMNGateway, BPMNGatewayType } from './bpmn-gateway';
+import { AGENTIC_ELIGIBLE_GATEWAY_TYPES, BPMNGateway, BPMNGatewayType } from './bpmn-gateway';
 import { BPMNFlow } from '../bpmn-flow/bpmn-flow';
 import { Dropdown } from '../../../components/controls/dropdown/dropdown';
 import { ColorButton } from '../../../components/controls/color-button/color-button';
 import { StylePane } from '../../../components/style-pane/style-pane';
+import { Switch } from '../../../components/controls/switch/switch';
+import {
+  BPMNCollaborationMode,
+  BPMNGatewayRole,
+  BPMNMergingStrategy,
+  clampTrustScore,
+  mergingStrategiesFor,
+} from '../common/types';
 
 // BPMN 2.0.2 § 8.3.13 / §§ 10.5.4 / 10.5.6: Parallel and Event-Based gateways
 // cannot carry a default outgoing sequence flow.
 const NO_DEFAULT_GATEWAY_TYPES: ReadonlySet<BPMNGatewayType> = new Set<BPMNGatewayType>(['parallel', 'event-based']);
+
+// Map merging-strategy enum values to their i18n keys. Centralised so the
+// popup and any future strategy-rendering code stay aligned.
+const strategyKey = (s: BPMNMergingStrategy): string => {
+  switch (s) {
+    case 'majority':
+      return 'BPMNStrategyMajority';
+    case 'absolute-majority':
+      return 'BPMNStrategyAbsoluteMajority';
+    case 'minority':
+      return 'BPMNStrategyMinority';
+    case 'leader-driven':
+      return 'BPMNStrategyLeaderDriven';
+    case 'composed':
+      return 'BPMNStrategyComposed';
+    case 'fastest':
+      return 'BPMNStrategyFastest';
+    case 'most-complete':
+      return 'BPMNStrategyMostComplete';
+  }
+};
 
 interface OwnProps {
   element: BPMNGateway;
@@ -119,6 +148,72 @@ class BPMNGatewayUpdateComponent extends Component<Props, State> {
             <Dropdown.Item value={'complex'}>{this.props.translate('packages.BPMN.BPMNComplexGateway')}</Dropdown.Item>
           </Dropdown>
         </section>
+        {/* Agentic BPMN (04D1): only Parallel + Inclusive gateways are eligible
+            (paper §4.3 — Exclusive excluded; Complex / Event-Based not in the
+            paper). Toggle reveals the role / mode / strategy / trust fields. */}
+        {AGENTIC_ELIGIBLE_GATEWAY_TYPES.has(element.gatewayType) && (
+          <>
+            <section>
+              <Divider />
+              <Switch
+                value={element.isAgentic ? 'agentic' : ''}
+                onChange={this.toggleAgentic(element.id)}
+                color="primary"
+              >
+                <Switch.Item value={'agentic'}>{this.props.translate('packages.BPMN.BPMNAgentic')}</Switch.Item>
+              </Switch>
+            </section>
+            {element.isAgentic && (
+              <>
+                <section>
+                  <Divider />
+                  <Dropdown value={element.gatewayRole} onChange={this.changeGatewayRole(element.id)}>
+                    <Dropdown.Item value={'diverging'}>
+                      {this.props.translate('packages.BPMN.BPMNGatewayRoleDiverging')}
+                    </Dropdown.Item>
+                    <Dropdown.Item value={'merging'}>
+                      {this.props.translate('packages.BPMN.BPMNGatewayRoleMerging')}
+                    </Dropdown.Item>
+                  </Dropdown>
+                </section>
+                <section>
+                  <Divider />
+                  <Dropdown value={element.collaborationMode} onChange={this.changeCollaborationMode(element.id)}>
+                    <Dropdown.Item value={'voting'}>
+                      {this.props.translate('packages.BPMN.BPMNCollabVoting')}
+                    </Dropdown.Item>
+                    <Dropdown.Item value={'role'}>{this.props.translate('packages.BPMN.BPMNCollabRole')}</Dropdown.Item>
+                    <Dropdown.Item value={'debate'}>
+                      {this.props.translate('packages.BPMN.BPMNCollabDebate')}
+                    </Dropdown.Item>
+                    <Dropdown.Item value={'competition'}>
+                      {this.props.translate('packages.BPMN.BPMNCollabCompetition')}
+                    </Dropdown.Item>
+                  </Dropdown>
+                </section>
+                {element.gatewayRole === 'merging' && (
+                  <section>
+                    <Divider />
+                    <Dropdown value={element.mergingStrategy} onChange={this.changeMergingStrategy(element.id)}>
+                      {mergingStrategiesFor(element.collaborationMode).map((s) => (
+                        <Dropdown.Item key={s} value={s}>
+                          {this.props.translate(`packages.BPMN.${strategyKey(s)}`)}
+                        </Dropdown.Item>
+                      ))}
+                    </Dropdown>
+                  </section>
+                )}
+                <section>
+                  <Divider />
+                  <Flex>
+                    <span>{this.props.translate('packages.BPMN.BPMNTrustScore')}</span>
+                    <Textfield value={String(element.trustScore)} onChange={this.changeTrustScore(element.id)} />
+                  </Flex>
+                </section>
+              </>
+            )}
+          </>
+        )}
       </div>
     );
   }
@@ -134,7 +229,8 @@ class BPMNGatewayUpdateComponent extends Component<Props, State> {
   /**
    * Change the type of the gateway. If the new type cannot carry a default
    * flow (Parallel / Event-Based per BPMN 2.0.2 § 8.3.13), clear `isDefault`
-   * on every outgoing sequence flow first.
+   * on every outgoing sequence flow first. If the new type is not agentic-
+   * eligible (Exclusive / Complex / Event-Based per 04D1), clear `isAgentic`.
    * @param id The ID of the gateway whose type should be changed
    */
   private changeGatewayType = (id: string) => (value: string) => {
@@ -144,7 +240,53 @@ class BPMNGatewayUpdateComponent extends Component<Props, State> {
         this.props.update<BPMNFlow>(flowId, { isDefault: false });
       }
     }
-    this.props.update<BPMNGateway>(id, { gatewayType: newType });
+    const patch: Partial<BPMNGateway> = { gatewayType: newType };
+    if (!AGENTIC_ELIGIBLE_GATEWAY_TYPES.has(newType) && this.props.element.isAgentic) {
+      patch.isAgentic = false;
+    }
+    this.props.update<BPMNGateway>(id, patch);
+  };
+
+  /**
+   * Toggle whether the gateway is agentic (04D1).
+   */
+  private toggleAgentic = (id: string) => (_value: string) => {
+    this.props.update<BPMNGateway>(id, { isAgentic: !this.props.element.isAgentic });
+  };
+
+  /**
+   * Change the gateway role (diverging / merging — D-D2).
+   */
+  private changeGatewayRole = (id: string) => (value: string) => {
+    this.props.update<BPMNGateway>(id, { gatewayRole: value as BPMNGatewayRole });
+  };
+
+  /**
+   * Change the collaboration mode. Also snap `mergingStrategy` to a value that
+   * is valid for the new mode so the model never holds an illegal pair.
+   */
+  private changeCollaborationMode = (id: string) => (value: string) => {
+    const newMode = value as BPMNCollaborationMode;
+    const validStrategies = mergingStrategiesFor(newMode);
+    const newStrategy = validStrategies.includes(this.props.element.mergingStrategy)
+      ? this.props.element.mergingStrategy
+      : validStrategies[0];
+    this.props.update<BPMNGateway>(id, { collaborationMode: newMode, mergingStrategy: newStrategy });
+  };
+
+  /**
+   * Change the merging strategy.
+   */
+  private changeMergingStrategy = (id: string) => (value: string) => {
+    this.props.update<BPMNGateway>(id, { mergingStrategy: value as BPMNMergingStrategy });
+  };
+
+  /**
+   * Change the trust score, clamped to 0–100.
+   */
+  private changeTrustScore = (id: string) => (value: string) => {
+    const parsed = Number.parseInt(value, 10);
+    this.props.update<BPMNGateway>(id, { trustScore: clampTrustScore(Number.isFinite(parsed) ? parsed : 0) });
   };
 
   /**

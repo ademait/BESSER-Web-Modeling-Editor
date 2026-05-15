@@ -14,7 +14,13 @@ import { BPMNIntermediateEventType } from './packages/bpmn/bpmn-intermediate-eve
 import { BPMNTaskType } from './packages/bpmn/bpmn-task/bpmn-task';
 import { BPMNFlowType } from './packages/bpmn/bpmn-flow/bpmn-flow';
 import { BPMNMarkerType } from './packages/bpmn/common/types';
-import { BPMNAgentRole, BPMNReflectionMode } from './packages/bpmn/common/types';
+import {
+  BPMNAgentRole,
+  BPMNCollaborationMode,
+  BPMNGatewayRole,
+  BPMNMergingStrategy,
+  BPMNReflectionMode,
+} from './packages/bpmn/common/types';
 
 export { UMLDiagramType, UMLElementType, UMLRelationshipType, ApollonMode, Locale };
 export type { Styles };
@@ -259,6 +265,11 @@ export type BPMNTask = UMLElement & {
 
 export type BPMNGateway = UMLElement & {
   gatewayType: BPMNGatewayType;
+  isAgentic: boolean;
+  gatewayRole: BPMNGatewayRole;
+  collaborationMode: BPMNCollaborationMode;
+  mergingStrategy: BPMNMergingStrategy;
+  trustScore: number;
 };
 
 export type BPMNStartEvent = UMLElement & {
