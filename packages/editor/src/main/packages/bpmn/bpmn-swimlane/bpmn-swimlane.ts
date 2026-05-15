@@ -15,6 +15,14 @@ export class BPMNSwimlane extends UMLContainer {
   static MIN_WIDTH = 80;
   static MIN_HEIGHT = 80;
 
+  // Header strip widths (canvas coordinates within the lane). Children must
+  // have bounds.x >= lane.bounds.x + LANE_HEADER_WIDTH so the rotated lane
+  // name + (when agentic) bot icon / role letter / trust score stay readable.
+  // Right-edge anchors live in bpmn-swimlane-component.tsx — update both
+  // together if the marker layout changes.
+  static LANE_HEADER_WIDTH = 30;
+  static AGENTIC_LANE_HEADER_WIDTH = 60;
+
   // Agentic BPMN (04D): a lane is marked agentic via `isAgentic` rather than a
   // separate element type. `role` / `trustScore` are only meaningful when set.
   static defaultRole: BPMNAgentRole = 'worker';
@@ -70,6 +78,18 @@ export class BPMNSwimlane extends UMLContainer {
 
     if (this.bounds.height < BPMNSwimlane.MIN_HEIGHT) {
       this.bounds.height = BPMNSwimlane.MIN_HEIGHT;
+    }
+
+    // Keep child elements out of the header strip so the lane name + agentic
+    // markers stay readable. Children whose left edge would land inside the
+    // header are snapped to the body's left edge on next layout pass.
+    const headerWidth = this.isAgentic ? BPMNSwimlane.AGENTIC_LANE_HEADER_WIDTH : BPMNSwimlane.LANE_HEADER_WIDTH;
+    const minChildX = this.bounds.x + headerWidth;
+    for (const child of children) {
+      if (child === this) continue;
+      if (child.bounds.x < minChildX) {
+        child.bounds.x = minChildX;
+      }
     }
 
     return [this, ...children];
