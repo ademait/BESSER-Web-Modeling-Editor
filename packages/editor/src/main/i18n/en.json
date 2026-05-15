@@ -143,8 +143,6 @@
       "BPMNCollabCompetition": "Competition",
       "BPMNGatewayRoleDiverging": "Diverging",
       "BPMNGatewayRoleMerging": "Merging",
-      "BPMNFlowDirectionOutgoing": "Outgoing",
-      "BPMNFlowDirectionIncoming": "Incoming",
       "BPMNMergingStrategy": "Merging strategy",
       "BPMNStrategyMajority": "Majority",
       "BPMNStrategyAbsoluteMajority": "Absolute majority",

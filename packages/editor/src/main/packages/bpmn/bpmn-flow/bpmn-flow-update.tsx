@@ -21,13 +21,7 @@ import { UMLElement } from '../../../services/uml-element/uml-element';
 import { getAllowedBpmnFlowTypes } from './bpmn-flow-semantics';
 import { canSourceCarryDefault } from './bpmn-flow-validator';
 import { UMLElementType } from '../../uml-element-type';
-import {
-  BPMNCollaborationMode,
-  BPMNFlowDirection,
-  BPMNMergingStrategy,
-  clampTrustScore,
-  mergingStrategiesFor,
-} from '../common/types';
+import { BPMNCollaborationMode, BPMNMergingStrategy, clampTrustScore, mergingStrategiesFor } from '../common/types';
 
 // Map merging-strategy enum values to their i18n keys. Mirrors the gateway
 // popup helper of the same name (kept inline rather than shared to keep the
@@ -199,17 +193,9 @@ class BPMNFlowUpdateComponent extends Component<Props, State> {
             </section>
             {element.isAgentic && (
               <>
-                <section>
-                  <Divider />
-                  <Dropdown value={element.flowDirection} onChange={this.changeFlowDirection(element.id)}>
-                    <Dropdown.Item value={'outgoing'}>
-                      {this.props.translate('packages.BPMN.BPMNFlowDirectionOutgoing')}
-                    </Dropdown.Item>
-                    <Dropdown.Item value={'incoming'}>
-                      {this.props.translate('packages.BPMN.BPMNFlowDirectionIncoming')}
-                    </Dropdown.Item>
-                  </Dropdown>
-                </section>
+                {/* A single agentic message flow carries both collaborationMode
+                    (rendered at the source end) and mergingStrategy (rendered
+                    at the target end). Direction is encoded by source/target. */}
                 <section>
                   <Divider />
                   <Dropdown value={element.collaborationMode} onChange={this.changeCollaborationMode(element.id)}>
@@ -225,18 +211,16 @@ class BPMNFlowUpdateComponent extends Component<Props, State> {
                     </Dropdown.Item>
                   </Dropdown>
                 </section>
-                {element.flowDirection === 'incoming' && (
-                  <section>
-                    <Divider />
-                    <Dropdown value={element.mergingStrategy} onChange={this.changeMergingStrategy(element.id)}>
-                      {mergingStrategiesFor(element.collaborationMode).map((s) => (
-                        <Dropdown.Item key={s} value={s}>
-                          {this.props.translate(`packages.BPMN.${strategyKey(s)}`)}
-                        </Dropdown.Item>
-                      ))}
-                    </Dropdown>
-                  </section>
-                )}
+                <section>
+                  <Divider />
+                  <Dropdown value={element.mergingStrategy} onChange={this.changeMergingStrategy(element.id)}>
+                    {mergingStrategiesFor(element.collaborationMode).map((s) => (
+                      <Dropdown.Item key={s} value={s}>
+                        {this.props.translate(`packages.BPMN.${strategyKey(s)}`)}
+                      </Dropdown.Item>
+                    ))}
+                  </Dropdown>
+                </section>
                 <section>
                   <Divider />
                   <Flex>
@@ -284,22 +268,14 @@ class BPMNFlowUpdateComponent extends Component<Props, State> {
   };
 
   /**
-   * Change the flow direction (outgoing / incoming — D-D2 for flows).
-   */
-  private changeFlowDirection = (id: string) => (value: string) => {
-    this.props.update<BPMNFlow>(id, { flowDirection: value as BPMNFlowDirection });
-  };
-
-  /**
-   * Change the collaboration mode on a message flow. Snaps `mergingStrategy`
-   * to a valid value for the new mode — mirrors the gateway popup handler.
+   * Change the collaboration mode on a message flow. Always snap
+   * `mergingStrategy` to the first valid value of the new mode — keeps the
+   * canvas marker visually in sync with the mode (see gateway popup for the
+   * full rationale and debate-mode trade-off).
    */
   private changeCollaborationMode = (id: string) => (value: string) => {
     const newMode = value as BPMNCollaborationMode;
-    const validStrategies = mergingStrategiesFor(newMode);
-    const newStrategy = validStrategies.includes(this.props.element.mergingStrategy)
-      ? this.props.element.mergingStrategy
-      : validStrategies[0];
+    const newStrategy = mergingStrategiesFor(newMode)[0];
     this.props.update<BPMNFlow>(id, { collaborationMode: newMode, mergingStrategy: newStrategy });
   };
 

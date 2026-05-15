@@ -4,7 +4,7 @@ import { DeepPartial } from 'redux';
 import { UMLRelationshipCenteredDescription } from '../../../services/uml-relationship/uml-relationship-centered-description';
 import { UMLElement } from '../../../services/uml-element/uml-element';
 import * as Apollon from '../../../typings';
-import { BPMNCollaborationMode, BPMNFlowDirection, BPMNMergingStrategy, clampTrustScore } from '../common/types';
+import { BPMNCollaborationMode, BPMNMergingStrategy, clampTrustScore } from '../common/types';
 
 export type BPMNFlowType = 'sequence' | 'message' | 'association' | 'data association';
 
@@ -13,7 +13,12 @@ export class BPMNFlow extends UMLRelationshipCenteredDescription {
   static defaultFlowType: BPMNFlowType = 'sequence';
 
   // Agentic BPMN (04D1) defaults — only meaningful when isAgentic + message.
-  static defaultFlowDirection: BPMNFlowDirection = 'outgoing';
+  // A single agentic message flow carries both collaborationMode (rendered at
+  // the source end as the outgoing collab letter) and mergingStrategy
+  // (rendered at the target end as the two-letter merging marker). Direction
+  // is already encoded by the flow's source / target endpoints — no separate
+  // flowDirection field (paper §4.4 splits these conceptually, but a single
+  // flow naturally carries both ends).
   static defaultCollaborationMode: BPMNCollaborationMode = 'voting';
   static defaultMergingStrategy: BPMNMergingStrategy = 'majority';
   static defaultTrustScore = 0;
@@ -24,7 +29,6 @@ export class BPMNFlow extends UMLRelationshipCenteredDescription {
   flowType: BPMNFlowType;
   isDefault: boolean;
   isAgentic: boolean;
-  flowDirection: BPMNFlowDirection;
   collaborationMode: BPMNCollaborationMode;
   mergingStrategy: BPMNMergingStrategy;
   trustScore: number;
@@ -35,7 +39,6 @@ export class BPMNFlow extends UMLRelationshipCenteredDescription {
     this.flowType = values?.flowType || BPMNFlow.defaultFlowType;
     this.isDefault = values?.isDefault ?? false;
     this.isAgentic = values?.isAgentic ?? false;
-    this.flowDirection = values?.flowDirection ?? BPMNFlow.defaultFlowDirection;
     this.collaborationMode = values?.collaborationMode ?? BPMNFlow.defaultCollaborationMode;
     this.mergingStrategy = values?.mergingStrategy ?? BPMNFlow.defaultMergingStrategy;
     this.trustScore = clampTrustScore(values?.trustScore ?? BPMNFlow.defaultTrustScore);
@@ -48,7 +51,6 @@ export class BPMNFlow extends UMLRelationshipCenteredDescription {
       flowType: this.flowType,
       isDefault: this.isDefault,
       isAgentic: this.isAgentic,
-      flowDirection: this.flowDirection,
       collaborationMode: this.collaborationMode,
       mergingStrategy: this.mergingStrategy,
       trustScore: this.trustScore,
@@ -60,7 +62,6 @@ export class BPMNFlow extends UMLRelationshipCenteredDescription {
       flowType?: BPMNFlowType;
       isDefault?: boolean;
       isAgentic?: boolean;
-      flowDirection?: BPMNFlowDirection;
       collaborationMode?: BPMNCollaborationMode;
       mergingStrategy?: BPMNMergingStrategy;
       trustScore?: number;
@@ -71,7 +72,6 @@ export class BPMNFlow extends UMLRelationshipCenteredDescription {
     this.flowType = values.flowType || BPMNFlow.defaultFlowType;
     this.isDefault = values.isDefault ?? false;
     this.isAgentic = values.isAgentic ?? false;
-    this.flowDirection = values.flowDirection ?? BPMNFlow.defaultFlowDirection;
     this.collaborationMode = values.collaborationMode ?? BPMNFlow.defaultCollaborationMode;
     this.mergingStrategy = values.mergingStrategy ?? BPMNFlow.defaultMergingStrategy;
     this.trustScore = clampTrustScore(values.trustScore ?? BPMNFlow.defaultTrustScore);

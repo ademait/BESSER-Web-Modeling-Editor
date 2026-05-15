@@ -17,7 +17,6 @@ import { BPMNMarkerType } from './packages/bpmn/common/types';
 import {
   BPMNAgentRole,
   BPMNCollaborationMode,
-  BPMNFlowDirection,
   BPMNGatewayRole,
   BPMNMergingStrategy,
   BPMNReflectionMode,
@@ -290,7 +289,6 @@ export type BPMNFlow = UMLRelationship & {
   flowType: BPMNFlowType;
   isDefault?: boolean;
   isAgentic?: boolean;
-  flowDirection?: BPMNFlowDirection;
   collaborationMode?: BPMNCollaborationMode;
   mergingStrategy?: BPMNMergingStrategy;
   trustScore?: number;

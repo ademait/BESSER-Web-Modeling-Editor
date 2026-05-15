@@ -19,9 +19,10 @@ export const clampTrustScore = (n: number): number => Math.min(100, Math.max(0, 
 // Cooperation (Voting/Role/Debate) + Competition. The merging strategy is a
 // flat enum (D-D3) keyed by mode; `mergingStrategiesFor(mode)` returns the
 // valid values, matching the paper's two-letter notation (Table 2).
-// `BPMNGatewayRole` and `BPMNFlowDirection` resolve the diverging-vs-merging
-// split in the paper (§4.3): diverging carries the mode, merging carries the
-// strategy. Manual enum here; auto-detection deferred (D-D2).
+// `BPMNGatewayRole` keeps the paper's diverging-vs-merging split on the
+// agentic gateway. Message flows carry both `collaborationMode` and
+// `mergingStrategy` simultaneously (the source end is the outgoing side,
+// the target end is the incoming side — direction is already in the flow).
 export type BPMNCollaborationMode = 'voting' | 'role' | 'debate' | 'competition';
 
 export type BPMNMergingStrategy =
@@ -34,8 +35,6 @@ export type BPMNMergingStrategy =
   | 'most-complete';
 
 export type BPMNGatewayRole = 'diverging' | 'merging';
-
-export type BPMNFlowDirection = 'outgoing' | 'incoming';
 
 // Strategies valid for each collaboration mode. Debate may use either the
 // voting or role strategies (paper §4.3, last paragraph).

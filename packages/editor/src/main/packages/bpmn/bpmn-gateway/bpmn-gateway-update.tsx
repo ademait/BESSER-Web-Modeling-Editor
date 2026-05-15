@@ -262,15 +262,17 @@ class BPMNGatewayUpdateComponent extends Component<Props, State> {
   };
 
   /**
-   * Change the collaboration mode. Also snap `mergingStrategy` to a value that
-   * is valid for the new mode so the model never holds an illegal pair.
+   * Change the collaboration mode. Always snap `mergingStrategy` to the first
+   * valid value of the new mode — even when the current strategy would still
+   * be valid (e.g. `majority` is valid for both voting and debate). Snapping
+   * unconditionally keeps the merging marker visually in sync with the mode
+   * the user picked. Trade-off documented in the 04D1 guide (debate's first
+   * valid strategy is `majority` → still renders as `v-ma`, ambiguous; the
+   * diverging gateway's `d` marker disambiguates the cooperation type).
    */
   private changeCollaborationMode = (id: string) => (value: string) => {
     const newMode = value as BPMNCollaborationMode;
-    const validStrategies = mergingStrategiesFor(newMode);
-    const newStrategy = validStrategies.includes(this.props.element.mergingStrategy)
-      ? this.props.element.mergingStrategy
-      : validStrategies[0];
+    const newStrategy = mergingStrategiesFor(newMode)[0];
     this.props.update<BPMNGateway>(id, { collaborationMode: newMode, mergingStrategy: newStrategy });
   };
 

@@ -136,8 +136,6 @@
       "BPMNCollabCompetition": "Wettbewerb",
       "BPMNGatewayRoleDiverging": "Aufteilen",
       "BPMNGatewayRoleMerging": "Zusammenführen",
-      "BPMNFlowDirectionOutgoing": "Ausgehend",
-      "BPMNFlowDirectionIncoming": "Eingehend",
       "BPMNMergingStrategy": "Zusammenführungsstrategie",
       "BPMNStrategyMajority": "Mehrheit",
       "BPMNStrategyAbsoluteMajority": "Absolute Mehrheit",
