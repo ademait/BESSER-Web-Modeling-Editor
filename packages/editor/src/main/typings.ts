@@ -17,6 +17,7 @@ import { BPMNMarkerType } from './packages/bpmn/common/types';
 import {
   BPMNAgentRole,
   BPMNCollaborationMode,
+  BPMNFlowDirection,
   BPMNGatewayRole,
   BPMNMergingStrategy,
   BPMNReflectionMode,
@@ -261,6 +262,7 @@ export type BPMNTask = UMLElement & {
   isAgentic: boolean;
   reflectionMode: BPMNReflectionMode;
   trustScore: number;
+  collaborationMode: BPMNCollaborationMode;
 };
 
 export type BPMNGateway = UMLElement & {
@@ -287,6 +289,11 @@ export type BPMNEndEvent = UMLElement & {
 export type BPMNFlow = UMLRelationship & {
   flowType: BPMNFlowType;
   isDefault?: boolean;
+  isAgentic?: boolean;
+  flowDirection?: BPMNFlowDirection;
+  collaborationMode?: BPMNCollaborationMode;
+  mergingStrategy?: BPMNMergingStrategy;
+  trustScore?: number;
 };
 
 export type UMLReachabilityGraphMarking = UMLElement & {

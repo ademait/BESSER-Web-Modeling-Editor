@@ -15,7 +15,7 @@ import { BPMNTask, BPMNTaskType } from './bpmn-task';
 import { StylePane } from '../../../components/style-pane/style-pane';
 import { ColorButton } from '../../../components/controls/color-button/color-button';
 import { Switch } from '../../../components/controls/switch/switch';
-import { BPMNMarkerType, BPMNReflectionMode, clampTrustScore } from '../common/types';
+import { BPMNCollaborationMode, BPMNMarkerType, BPMNReflectionMode, clampTrustScore } from '../common/types';
 import { BpmnLoopMarkerIcon } from '../common/markers/bpmn-loop-marker-icon';
 import { BPMNParallelMarkerIcon } from '../common/markers/bpmn-parallel-marker-icon';
 import { BPMNSequentialMarkerIcon } from '../common/markers/bpmn-sequential-marker-icon';
@@ -141,6 +141,19 @@ class BPMNTaskUpdateComponent extends Component<Props, State> {
                 <Textfield value={String(element.trustScore)} onChange={this.changeTrustScore(element.id)} />
               </Flex>
             </section>
+            {/* Collaboration mode on AgenticTask — extends the paper (D-D1 of
+                guide 04D1). Popup-only; no canvas glyph for now. */}
+            <section>
+              <Divider />
+              <Dropdown value={element.collaborationMode} onChange={this.changeCollaborationMode(element.id)}>
+                <Dropdown.Item value={'voting'}>{this.props.translate('packages.BPMN.BPMNCollabVoting')}</Dropdown.Item>
+                <Dropdown.Item value={'role'}>{this.props.translate('packages.BPMN.BPMNCollabRole')}</Dropdown.Item>
+                <Dropdown.Item value={'debate'}>{this.props.translate('packages.BPMN.BPMNCollabDebate')}</Dropdown.Item>
+                <Dropdown.Item value={'competition'}>
+                  {this.props.translate('packages.BPMN.BPMNCollabCompetition')}
+                </Dropdown.Item>
+              </Dropdown>
+            </section>
           </>
         )}
       </div>
@@ -199,6 +212,13 @@ class BPMNTaskUpdateComponent extends Component<Props, State> {
   private changeTrustScore = (id: string) => (value: string) => {
     const parsed = Number.parseInt(value, 10);
     this.props.update<BPMNTask>(id, { trustScore: clampTrustScore(Number.isFinite(parsed) ? parsed : 0) });
+  };
+
+  /**
+   * Change the collaboration mode on an agentic task (04D1 — D-D1 extension).
+   */
+  private changeCollaborationMode = (id: string) => (value: string) => {
+    this.props.update<BPMNTask>(id, { collaborationMode: value as BPMNCollaborationMode });
   };
 
   /**

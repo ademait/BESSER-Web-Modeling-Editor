@@ -7,6 +7,9 @@ import {
   ThemedPathContrast,
   ThemedPolyline,
 } from '../../../components/theme/themedComponents';
+import { BPMNBotIcon } from '../common/icons/bpmn-bot-icon';
+import { BPMNReflectionIcon } from '../common/icons/bpmn-reflection-icon';
+import { COLLAB_LETTER, MERGING_TWO_LETTER } from '../bpmn-gateway/bpmn-gateway-component';
 
 export const BPMNFlowComponent: FunctionComponent<Props> = ({ element }) => {
   let position = { x: 0, y: 0 };
@@ -124,6 +127,28 @@ export const BPMNFlowComponent: FunctionComponent<Props> = ({ element }) => {
       >
         {element.name}
       </text>
+      {/* Agentic BPMN (04D1 — paper §4.4 / Table 2): bot icon near the source
+          end, collaboration / merging letter(s) near the target end. Coords
+          are first-pass per D-D5; revisit on manual review. */}
+      {element.isAgentic &&
+        element.flowType === 'message' &&
+        path.length >= 2 &&
+        (() => {
+          const srcDir = path[1].subtract(path[0]).normalize();
+          const srcAt = path[0].add(srcDir.scale(18));
+          const tgtDir = path[path.length - 2].subtract(path[path.length - 1]).normalize();
+          const tgtAt = path[path.length - 1].add(tgtDir.scale(18));
+          const markerLetter =
+            element.flowDirection === 'outgoing'
+              ? COLLAB_LETTER[element.collaborationMode]
+              : MERGING_TWO_LETTER[element.mergingStrategy];
+          return (
+            <>
+              <BPMNBotIcon x={srcAt.x - 8} y={srcAt.y - 8} color={element.strokeColor} />
+              <BPMNReflectionIcon letter={markerLetter} x={tgtAt.x - 8} y={tgtAt.y - 8} color={element.strokeColor} />
+            </>
+          );
+        })()}
       {element.isDefault &&
         element.flowType === 'sequence' &&
         path.length >= 2 &&

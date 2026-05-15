@@ -6,7 +6,7 @@ import { UMLContainer } from '../../../services/uml-container/uml-container';
 import { DeepPartial } from 'redux';
 import { assign } from '../../../utils/fx/assign';
 import * as Apollon from '../../../typings';
-import { BPMNMarkerType, BPMNReflectionMode, clampTrustScore } from '../common/types';
+import { BPMNCollaborationMode, BPMNMarkerType, BPMNReflectionMode, clampTrustScore } from '../common/types';
 
 export type BPMNTaskType = 'default' | 'user' | 'service' | 'send' | 'receive' | 'manual' | 'business-rule' | 'script';
 
@@ -18,6 +18,11 @@ export class BPMNTask extends UMLContainer {
   // when set.
   static defaultReflectionMode: BPMNReflectionMode = 'none';
   static defaultTrustScore = 0;
+  // Agentic BPMN — collaboration on the task is an extension to the paper
+  // (D-D1 of 04D1 guide). The paper's AgenticTask (Fig 3b) does NOT carry
+  // collaborationMode; we add it here as an optional attribute that future
+  // iterations may revisit.
+  static defaultCollaborationMode: BPMNCollaborationMode = 'voting';
   static supportedRelationships = [BPMNRelationshipType.BPMNFlow];
 
   type: UMLElementType = BPMNElementType.BPMNTask;
@@ -26,6 +31,7 @@ export class BPMNTask extends UMLContainer {
   isAgentic: boolean;
   reflectionMode: BPMNReflectionMode;
   trustScore: number;
+  collaborationMode: BPMNCollaborationMode;
 
   constructor(values?: DeepPartial<BPMNTask>) {
     super(values);
@@ -35,6 +41,7 @@ export class BPMNTask extends UMLContainer {
     this.isAgentic = values?.isAgentic ?? false;
     this.reflectionMode = values?.reflectionMode || BPMNTask.defaultReflectionMode;
     this.trustScore = clampTrustScore(values?.trustScore ?? BPMNTask.defaultTrustScore);
+    this.collaborationMode = values?.collaborationMode ?? BPMNTask.defaultCollaborationMode;
   }
 
   serialize(children?: UMLContainer[]): Apollon.BPMNTask {
@@ -46,6 +53,7 @@ export class BPMNTask extends UMLContainer {
       isAgentic: this.isAgentic,
       reflectionMode: this.reflectionMode,
       trustScore: this.trustScore,
+      collaborationMode: this.collaborationMode,
     };
   }
 
@@ -56,6 +64,7 @@ export class BPMNTask extends UMLContainer {
       isAgentic?: boolean;
       reflectionMode?: BPMNReflectionMode;
       trustScore?: number;
+      collaborationMode?: BPMNCollaborationMode;
     },
     children?: Apollon.UMLModelElement[],
   ): void {
@@ -65,6 +74,7 @@ export class BPMNTask extends UMLContainer {
     this.isAgentic = values.isAgentic ?? false;
     this.reflectionMode = values.reflectionMode || BPMNTask.defaultReflectionMode;
     this.trustScore = clampTrustScore(values.trustScore ?? BPMNTask.defaultTrustScore);
+    this.collaborationMode = values.collaborationMode ?? BPMNTask.defaultCollaborationMode;
   }
 
   render(canvas: ILayer): ILayoutable[] {
