@@ -10,6 +10,9 @@ import {
   UMLRelationship,
   canSourceCarryDefault,
   clampTrustScore,
+  findOrphanedMergingGateways,
+  mergingStrategiesFor,
+  resolveUpstreamCollabMode,
 } from '@besser/wme';
 
 // Inverse of bpmn-xml-exporter.ts. See .claude/bpmn/04B-bpmn-xml-import-guide.md.
@@ -643,7 +646,70 @@ export function bpmnXmlToApollon(xml: string): ImportResult {
     assessments: {},
   };
 
+  // 04D2-followup F3: derive collaborationMode for downstream constructs and
+  // surface orphaned merging gateways. The validator helpers consume a unified
+  // elements + relationships map (per 04C FB1).
+  applyCollabModeDerivation(model, ctx.warnings);
+
   return { model, warnings: ctx.warnings, skipped: ctx.skipped };
+}
+
+// Build the unified element + relationship map the validator helpers consume.
+// Same shape as `validateAllBpmnFlows`'s input after the 04C FB1 fix.
+function unifiedElementsById(
+  model: UMLModel,
+): Record<string, { id: string; type: string; [k: string]: unknown }> {
+  const out: Record<string, { id: string; type: string; [k: string]: unknown }> = {};
+  for (const id of Object.keys(model.elements)) out[id] = model.elements[id] as never;
+  for (const id of Object.keys(model.relationships)) out[id] = model.relationships[id] as never;
+  return out;
+}
+
+// 04D2-followup F3 post-pass:
+//   1. Override stale collaborationMode on every agentic merging gateway +
+//      agentic task whose stored value disagrees with the upstream-resolved
+//      mode (the diverging gateway is the source of truth per paper §4.3).
+//      Snap each merging gateway's mergingStrategy to a valid value for the
+//      derived mode if the stored one is no longer valid.
+//   2. Surface a warning for every agentic merging gateway with no upstream
+//      diverging gateway — these are orphans (e.g., from hand-edited XML or a
+//      legacy Camunda export that doesn't follow the paper's structure).
+function applyCollabModeDerivation(model: UMLModel, warnings: ParseWarning[]): void {
+  const unified = unifiedElementsById(model);
+
+  for (const id of Object.keys(model.elements)) {
+    const el = model.elements[id] as unknown as {
+      type?: string;
+      isAgentic?: boolean;
+      gatewayRole?: string;
+      collaborationMode?: BPMNCollaborationMode;
+      mergingStrategy?: BPMNMergingStrategy;
+    };
+    const isMergingGw = el.type === 'BPMNGateway' && el.isAgentic === true && el.gatewayRole === 'merging';
+    const isAgenticTask = el.type === 'BPMNTask' && el.isAgentic === true;
+    if (!isMergingGw && !isAgenticTask) continue;
+
+    const derived = resolveUpstreamCollabMode(id, unified);
+    if (derived === undefined) continue; // orphan — warning emitted below
+    if (derived === el.collaborationMode) continue;
+    el.collaborationMode = derived;
+    if (isMergingGw) {
+      const valid = mergingStrategiesFor(derived);
+      if (!el.mergingStrategy || !valid.includes(el.mergingStrategy)) {
+        el.mergingStrategy = valid[0];
+      }
+    }
+  }
+
+  const orphanIds = findOrphanedMergingGateways(unified);
+  for (const id of orphanIds) {
+    const el = model.elements[id] as unknown as { name?: string };
+    const label = el?.name && el.name.length > 0 ? `"${el.name}"` : 'unnamed';
+    warnings.push({
+      code: 'orphaned-merging-gateway',
+      message: `Agentic merging gateway ${label} has no upstream diverging gateway; collaboration mode unknown.`,
+    });
+  }
 }
 
 function centerOnOrigin(nodes: AnyBPMNElement[], edges: AnyBPMNFlow[]): void {

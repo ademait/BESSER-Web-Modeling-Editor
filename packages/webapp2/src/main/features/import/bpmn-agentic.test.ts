@@ -63,7 +63,12 @@ describe('agentic round-trip (04D2)', () => {
     const model = buildFixtureAgenticModel();
     const { xml } = apollonBpmnToXml(model);
     const { model: parsed, warnings } = bpmnXmlToApollon(xml);
-    expect(warnings).toEqual([]);
+    // The fixture intentionally has a merging gateway with no sequence-flow
+    // upstream (it's a self-contained shape-collection, not a paper-valid
+    // collaboration block). Post-04D2-followup-F3 flags it as orphaned — out
+    // of scope for this round-trip-fidelity test. Filter the warning out.
+    const filtered = warnings.filter((w) => w.code !== 'orphaned-merging-gateway');
+    expect(filtered).toEqual([]);
 
     const findEl = (name: string): Record<string, unknown> | undefined =>
       Object.values(parsed.elements).find((e) => (e as { name?: string }).name === name) as
@@ -131,6 +136,173 @@ describe('agentic round-trip (04D2)', () => {
     expect(xml).not.toContain('<agentic:agentic');
     expect(xml).not.toContain('<bpmn:extensionElements>');
   });
+});
+
+describe('importer collab-mode derivation (04D2-followup F3)', () => {
+  // Fixture: AND (diverging, role) → Task (agentic, stored debate) → OR
+  // (merging, stored voting / absolute-majority). After import, both
+  // downstream constructs should be aligned to AND's mode.
+  function buildConnectedAgenticModel(): UMLModel {
+    const bounds = (x: number, y: number, w: number, h: number) => ({ x, y, width: w, height: h });
+    return {
+      version: '3.0.0',
+      type: 'BPMN' as UMLModel['type'],
+      size: { width: 1000, height: 400 },
+      interactive: { elements: {}, relationships: {} },
+      assessments: {},
+      elements: {
+        Pool_1: {
+          id: 'Pool_1',
+          name: 'Project Repository',
+          type: 'BPMNPool',
+          owner: null,
+          bounds: bounds(0, 0, 800, 300),
+        },
+        Lane_1: {
+          id: 'Lane_1',
+          name: 'AgentLane',
+          type: 'BPMNSwimlane',
+          owner: 'Pool_1',
+          bounds: bounds(40, 0, 760, 300),
+          isAgentic: true,
+          role: 'manager',
+          trustScore: 90,
+        } as unknown as UMLModel['elements'][string],
+        Gateway_AND: {
+          id: 'Gateway_AND',
+          name: 'AND',
+          type: 'BPMNGateway',
+          owner: 'Lane_1',
+          bounds: bounds(80, 100, 40, 40),
+          gatewayType: 'parallel',
+          isAgentic: true,
+          gatewayRole: 'diverging',
+          collaborationMode: 'role',
+          mergingStrategy: 'leader-driven',
+          trustScore: 75,
+        } as unknown as UMLModel['elements'][string],
+        Task_1: {
+          id: 'Task_1',
+          name: 'Review',
+          type: 'BPMNTask',
+          owner: 'Lane_1',
+          bounds: bounds(200, 90, 100, 60),
+          taskType: 'user',
+          marker: 'none',
+          isAgentic: true,
+          reflectionMode: 'cross',
+          trustScore: 80,
+          collaborationMode: 'debate', // stale — will be overridden to 'role'
+        } as unknown as UMLModel['elements'][string],
+        Gateway_OR: {
+          id: 'Gateway_OR',
+          name: 'OR',
+          type: 'BPMNGateway',
+          owner: 'Lane_1',
+          bounds: bounds(380, 100, 40, 40),
+          gatewayType: 'inclusive',
+          isAgentic: true,
+          gatewayRole: 'merging',
+          collaborationMode: 'voting', // stale — will be overridden to 'role'
+          mergingStrategy: 'absolute-majority', // invalid for 'role' — snap to 'leader-driven'
+          trustScore: 60,
+        } as unknown as UMLModel['elements'][string],
+      },
+      relationships: {
+        SF_1: {
+          id: 'SF_1',
+          name: '',
+          type: 'BPMNFlow',
+          owner: null,
+          bounds: bounds(120, 115, 80, 10),
+          path: [
+            { x: 0, y: 0 },
+            { x: 80, y: 0 },
+          ],
+          source: { element: 'Gateway_AND', direction: 'Right' as never },
+          target: { element: 'Task_1', direction: 'Left' as never },
+          flowType: 'sequence',
+        } as unknown as UMLModel['relationships'][string],
+        SF_2: {
+          id: 'SF_2',
+          name: '',
+          type: 'BPMNFlow',
+          owner: null,
+          bounds: bounds(300, 115, 80, 10),
+          path: [
+            { x: 0, y: 0 },
+            { x: 80, y: 0 },
+          ],
+          source: { element: 'Task_1', direction: 'Right' as never },
+          target: { element: 'Gateway_OR', direction: 'Left' as never },
+          flowType: 'sequence',
+        } as unknown as UMLModel['relationships'][string],
+      },
+    } as unknown as UMLModel;
+  }
+
+  it('overrides stale downstream collaborationMode with the upstream value', () => {
+    const { xml } = apollonBpmnToXml(buildConnectedAgenticModel());
+    const { model, warnings } = bpmnXmlToApollon(xml);
+
+    const findEl = (name: string): Record<string, unknown> | undefined =>
+      Object.values(model.elements).find((e) => (e as { name?: string }).name === name) as
+        | Record<string, unknown>
+        | undefined;
+
+    const task = findEl('Review');
+    expect(task?.collaborationMode).toBe('role'); // was 'debate' in fixture
+
+    const orGw = findEl('OR');
+    expect(orGw?.collaborationMode).toBe('role'); // was 'voting'
+    expect(orGw?.mergingStrategy).toBe('leader-driven'); // snapped from 'absolute-majority'
+
+    // OR has an upstream diverging gateway → not orphaned.
+    expect(warnings.some((w) => w.code === 'orphaned-merging-gateway')).toBe(false);
+  });
+
+  it('emits orphaned-merging-gateway warning when no upstream diverging exists', () => {
+    // Fixture from buildFixtureAgenticModel — it has Gateway_2 (OR, merging)
+    // with no sequence-flow upstream. Reuse it and assert the warning fires.
+    const { xml } = apollonBpmnToXml(buildFixtureAgenticModelForOrphan());
+    const { warnings } = bpmnXmlToApollon(xml);
+    expect(warnings.some((w) => w.code === 'orphaned-merging-gateway')).toBe(true);
+  });
+
+  // Minimal fixture: one merging gateway and nothing else upstream of it.
+  function buildFixtureAgenticModelForOrphan(): UMLModel {
+    const bounds = (x: number, y: number, w: number, h: number) => ({ x, y, width: w, height: h });
+    return {
+      version: '3.0.0',
+      type: 'BPMN' as UMLModel['type'],
+      size: { width: 400, height: 200 },
+      interactive: { elements: {}, relationships: {} },
+      assessments: {},
+      elements: {
+        Pool_1: {
+          id: 'Pool_1',
+          name: 'P',
+          type: 'BPMNPool',
+          owner: null,
+          bounds: bounds(0, 0, 400, 200),
+        },
+        Gateway_OR: {
+          id: 'Gateway_OR',
+          name: 'OrphanOR',
+          type: 'BPMNGateway',
+          owner: 'Pool_1',
+          bounds: bounds(80, 80, 40, 40),
+          gatewayType: 'inclusive',
+          isAgentic: true,
+          gatewayRole: 'merging',
+          collaborationMode: 'voting',
+          mergingStrategy: 'majority',
+          trustScore: 50,
+        } as unknown as UMLModel['elements'][string],
+      },
+      relationships: {},
+    } as unknown as UMLModel;
+  }
 });
 
 // Build a minimal UMLModel with one of each agentic construct + supporting
