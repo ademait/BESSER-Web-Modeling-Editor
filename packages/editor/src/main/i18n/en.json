@@ -126,7 +126,7 @@
     "ColorLegend": {
       "ColorLegend": "Color Description"
     },
-    "BPMN": {
+    "BPMNDiagram": {
       "BPMNTask": "Task",
       "BPMNAgentic": "Agentic",
       "BPMNTrustScore": "Trust score (0-100)",

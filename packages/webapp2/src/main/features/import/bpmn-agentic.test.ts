@@ -146,7 +146,7 @@ describe('importer collab-mode derivation (04D2-followup F3)', () => {
     const bounds = (x: number, y: number, w: number, h: number) => ({ x, y, width: w, height: h });
     return {
       version: '3.0.0',
-      type: 'BPMN' as UMLModel['type'],
+      type: 'BPMNDiagram' as UMLModel['type'],
       size: { width: 1000, height: 400 },
       interactive: { elements: {}, relationships: {} },
       assessments: {},
@@ -291,7 +291,7 @@ describe('importer collab-mode derivation (04D2-followup F3)', () => {
     const bounds = (x: number, y: number, w: number, h: number) => ({ x, y, width: w, height: h });
     return {
       version: '3.0.0',
-      type: 'BPMN' as UMLModel['type'],
+      type: 'BPMNDiagram' as UMLModel['type'],
       size: { width: 400, height: 200 },
       interactive: { elements: {}, relationships: {} },
       assessments: {},
@@ -329,7 +329,7 @@ function buildFixtureAgenticModel(): UMLModel {
   const bounds = (x: number, y: number, w: number, h: number) => ({ x, y, width: w, height: h });
   return {
     version: '3.0.0',
-    type: 'BPMN' as UMLModel['type'],
+    type: 'BPMNDiagram' as UMLModel['type'],
     size: { width: 1000, height: 600 },
     interactive: { elements: {}, relationships: {} },
     assessments: {},
@@ -787,7 +787,7 @@ function buildFixtureNonAgenticModel(): UMLModel {
   const bounds = (x: number, y: number, w: number, h: number) => ({ x, y, width: w, height: h });
   return {
     version: '3.0.0',
-    type: 'BPMN' as UMLModel['type'],
+    type: 'BPMNDiagram' as UMLModel['type'],
     size: { width: 600, height: 300 },
     interactive: { elements: {}, relationships: {} },
     assessments: {},
