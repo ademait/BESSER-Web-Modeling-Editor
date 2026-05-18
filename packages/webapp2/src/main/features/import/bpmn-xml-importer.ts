@@ -1,4 +1,16 @@
-import { UMLModel, UMLElement, UMLRelationship, UMLDiagramType, canSourceCarryDefault } from '@besser/wme';
+import {
+  BPMNAgentRole,
+  BPMNCollaborationMode,
+  BPMNGatewayRole,
+  BPMNMergingStrategy,
+  BPMNReflectionMode,
+  UMLDiagramType,
+  UMLElement,
+  UMLModel,
+  UMLRelationship,
+  canSourceCarryDefault,
+  clampTrustScore,
+} from '@besser/wme';
 
 // Inverse of bpmn-xml-exporter.ts. See .claude/bpmn/04B-bpmn-xml-import-guide.md.
 // BPMN 2.0.2 spec citations follow the convention in 04A1.
@@ -122,6 +134,82 @@ function findFirstEventDefinitionChild(node: Element): Element | null {
   return null;
 }
 
+// 04D2 — find the agentic extension block on a BPMN element. Looks for a
+// `*:extensionElements` child (any namespace prefix) and, inside it, a child
+// whose localName is 'agentic' (any prefix). Returns the agentic element or
+// null. Namespace-agnostic, matching the rest of this importer.
+function findAgenticExtension(parent: Element): Element | null {
+  const ext = childByLocalName(parent, 'extensionElements');
+  if (!ext) return null;
+  for (const c of Array.from(ext.children)) {
+    if (getLocalName(c) === 'agentic') return c;
+  }
+  return null;
+}
+
+// 04D2 — parse the agentic extension into a partial-fields object. Unknown
+// enum values and bad numerics emit a warning and the field is left unset
+// (the model class's default kicks in). Returns null if no agentic extension
+// is present.
+function parseAgenticExtension(
+  parent: Element,
+  warnings: ParseWarning[],
+  elementId: string,
+): null | {
+  isAgentic: true;
+  role?: BPMNAgentRole;
+  reflectionMode?: BPMNReflectionMode;
+  gatewayRole?: BPMNGatewayRole;
+  collaborationMode?: BPMNCollaborationMode;
+  mergingStrategy?: BPMNMergingStrategy;
+  trustScore?: number;
+} {
+  const a = findAgenticExtension(parent);
+  if (!a) return null;
+  const out: Record<string, unknown> = { isAgentic: true };
+  const oneOf = <T extends string>(name: string, allowed: readonly T[]): T | undefined => {
+    const v = a.getAttribute(name);
+    if (v === null) return undefined;
+    if ((allowed as readonly string[]).includes(v)) return v as T;
+    warnings.push({
+      code: 'agentic-unknown-enum',
+      message: `Agentic attribute ${name}="${v}" on ${elementId} not recognised; ignored.`,
+    });
+    return undefined;
+  };
+  const role = oneOf('role', ['worker', 'manager'] as const);
+  if (role !== undefined) out.role = role;
+  const reflectionMode = oneOf('reflectionMode', ['none', 'self', 'cross', 'human'] as const);
+  if (reflectionMode !== undefined) out.reflectionMode = reflectionMode;
+  const gatewayRole = oneOf('gatewayRole', ['diverging', 'merging'] as const);
+  if (gatewayRole !== undefined) out.gatewayRole = gatewayRole;
+  const collaborationMode = oneOf('collaborationMode', ['voting', 'role', 'debate', 'competition'] as const);
+  if (collaborationMode !== undefined) out.collaborationMode = collaborationMode;
+  const mergingStrategy = oneOf('mergingStrategy', [
+    'majority',
+    'absolute-majority',
+    'minority',
+    'leader-driven',
+    'composed',
+    'fastest',
+    'most-complete',
+  ] as const);
+  if (mergingStrategy !== undefined) out.mergingStrategy = mergingStrategy;
+  const tsRaw = a.getAttribute('trustScore');
+  if (tsRaw !== null) {
+    const n = Number.parseInt(tsRaw, 10);
+    if (Number.isFinite(n)) {
+      out.trustScore = clampTrustScore(n);
+    } else {
+      warnings.push({
+        code: 'agentic-bad-trust-score',
+        message: `Agentic trustScore="${tsRaw}" on ${elementId} is not a number; ignored.`,
+      });
+    }
+  }
+  return out as ReturnType<typeof parseAgenticExtension>;
+}
+
 // ─── Internal types (closed-over by the parser) ─────────────────────────────
 
 interface AnyBPMNElement extends UMLElement {
@@ -183,7 +271,10 @@ function parseDefinitions(root: Element, ctx: SemanticContext): void {
     }
     // Message flows live at the collaboration level.
     for (const mf of childrenByLocalName(collab, 'messageFlow')) {
-      ctx.edges.push(makeEdge(mf, 'message'));
+      const edge = makeEdge(mf, 'message');
+      const mfExt = parseAgenticExtension(mf, ctx.warnings, edge.id);
+      if (mfExt) Object.assign(edge, mfExt);
+      ctx.edges.push(edge);
     }
   }
 
@@ -206,7 +297,10 @@ function parseProcess(proc: Element, poolId: string | null, ctx: SemanticContext
         ctx.warnings.push({ code: 'lane-without-pool', message: `Lane ${laneId} in pool-less process; ignored` });
         continue;
       }
-      ctx.nodes.push(makeNode(laneId, 'BPMNSwimlane', name, poolId));
+      const laneNode = makeNode(laneId, 'BPMNSwimlane', name, poolId);
+      const laneExt = parseAgenticExtension(lane, ctx.warnings, laneId);
+      if (laneExt) Object.assign(laneNode, laneExt);
+      ctx.nodes.push(laneNode);
       for (const ref of childrenByLocalName(lane, 'flowNodeRef')) {
         const id = (ref.textContent ?? '').trim();
         if (id) laneOf.set(id, laneId);
@@ -223,6 +317,8 @@ function parseProcess(proc: Element, poolId: string | null, ctx: SemanticContext
     const owner = laneOf.get(id) ?? poolId ?? undefined;
     const node = createFlowNode(child, tag, id, name, owner);
     if (!node) continue;
+    const nodeExt = parseAgenticExtension(child, ctx.warnings, id);
+    if (nodeExt) Object.assign(node, nodeExt);
     ctx.nodes.push(node);
 
     // Default-flow attribute (BPMN 2.0.2 § 8.3.13).
