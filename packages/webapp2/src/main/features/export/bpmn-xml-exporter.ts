@@ -426,7 +426,14 @@ function emitAgenticExtension(lines: string[], el: AnyAgentic, indent: string): 
   if (el.reflectionMode !== undefined) attrs.push(`reflectionMode="${escapeAttr(el.reflectionMode)}"`);
   if (el.gatewayRole !== undefined) attrs.push(`gatewayRole="${escapeAttr(el.gatewayRole)}"`);
   if (el.collaborationMode !== undefined) attrs.push(`collaborationMode="${escapeAttr(el.collaborationMode)}"`);
-  if (el.mergingStrategy !== undefined) attrs.push(`mergingStrategy="${escapeAttr(el.mergingStrategy)}"`);
+  // Paper §4.3: the merging strategy is set on the merging gateway, not the
+  // diverging one. The model holds the field on every gateway (single class)
+  // — skip emission for diverging gateways so the XML stays paper-faithful.
+  // Tasks / message flows have no gatewayRole and therefore keep emitting.
+  const isDivergingGateway = el.gatewayRole === 'diverging';
+  if (el.mergingStrategy !== undefined && !isDivergingGateway) {
+    attrs.push(`mergingStrategy="${escapeAttr(el.mergingStrategy)}"`);
+  }
   if (el.trustScore !== undefined) attrs.push(`trustScore="${el.trustScore}"`);
   lines.push(`${indent}<bpmn:extensionElements>`);
   lines.push(`${indent}  <agentic:agentic ${attrs.join(' ')}/>`);

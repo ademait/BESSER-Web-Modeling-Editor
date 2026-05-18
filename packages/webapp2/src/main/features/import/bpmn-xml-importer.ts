@@ -154,7 +154,7 @@ function findAgenticExtension(parent: Element): Element | null {
 function parseAgenticExtension(
   parent: Element,
   warnings: ParseWarning[],
-  elementId: string,
+  _elementId: string,
 ): null | {
   isAgentic: true;
   role?: BPMNAgentRole;
@@ -167,13 +167,15 @@ function parseAgenticExtension(
   const a = findAgenticExtension(parent);
   if (!a) return null;
   const out: Record<string, unknown> = { isAgentic: true };
+  // Toast wording is kept short — hash IDs aren't user-meaningful and the
+  // file is short enough to grep. Adem's N5 feedback during 04D2 testing.
   const oneOf = <T extends string>(name: string, allowed: readonly T[]): T | undefined => {
     const v = a.getAttribute(name);
     if (v === null) return undefined;
     if ((allowed as readonly string[]).includes(v)) return v as T;
     warnings.push({
       code: 'agentic-unknown-enum',
-      message: `Agentic attribute ${name}="${v}" on ${elementId} not recognised; ignored.`,
+      message: `Agentic ${name}="${v}" not recognised; ignored.`,
     });
     return undefined;
   };
@@ -203,7 +205,7 @@ function parseAgenticExtension(
     } else {
       warnings.push({
         code: 'agentic-bad-trust-score',
-        message: `Agentic trustScore="${tsRaw}" on ${elementId} is not a number; ignored.`,
+        message: `Agentic trustScore="${tsRaw}" is not a number; ignored.`,
       });
     }
   }

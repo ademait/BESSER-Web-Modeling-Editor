@@ -79,7 +79,9 @@ describe('agentic round-trip (04D2)', () => {
     expect(parGw?.isAgentic).toBe(true);
     expect(parGw?.gatewayRole).toBe('diverging');
     expect(parGw?.collaborationMode).toBe('role');
-    expect(parGw?.mergingStrategy).toBe('leader-driven');
+    // Paper §4.3: merging strategy belongs to the merging gateway only.
+    // Diverging gateway emits no mergingStrategy → field is at default on
+    // re-import (irrelevant for diverging — see 04D2 follow-up).
     expect(parGw?.trustScore).toBe(75);
 
     const incGw = findEl('OR');
