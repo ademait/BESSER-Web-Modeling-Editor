@@ -12,7 +12,7 @@ import {
   clampTrustScore,
   findOrphanedMergingGateways,
   mergingStrategiesFor,
-  resolveUpstreamCollabMode,
+  resolveUpstreamDivergingGateway,
 } from '@besser/wme';
 
 // Inverse of bpmn-xml-exporter.ts. See .claude/bpmn/04B-bpmn-xml-import-guide.md.
@@ -684,20 +684,37 @@ function applyCollabModeDerivation(model: UMLModel, warnings: ParseWarning[]): v
       gatewayRole?: string;
       collaborationMode?: BPMNCollaborationMode;
       mergingStrategy?: BPMNMergingStrategy;
+      gatewayType?: string;
     };
     const isMergingGw = el.type === 'BPMNGateway' && el.isAgentic === true && el.gatewayRole === 'merging';
     const isAgenticTask = el.type === 'BPMNTask' && el.isAgentic === true;
     if (!isMergingGw && !isAgenticTask) continue;
 
-    const derived = resolveUpstreamCollabMode(id, unified);
-    if (derived === undefined) continue; // orphan — warning emitted below
-    if (derived === el.collaborationMode) continue;
-    el.collaborationMode = derived;
-    if (isMergingGw) {
-      const valid = mergingStrategiesFor(derived);
-      if (!el.mergingStrategy || !valid.includes(el.mergingStrategy)) {
-        el.mergingStrategy = valid[0];
+    const upstream = resolveUpstreamDivergingGateway(id, unified) as
+      | { collaborationMode?: BPMNCollaborationMode; gatewayType?: string }
+      | undefined;
+    if (upstream === undefined) continue; // orphan — warning emitted below
+
+    const derived = upstream.collaborationMode;
+    if (derived !== undefined && derived !== el.collaborationMode) {
+      el.collaborationMode = derived;
+      if (isMergingGw) {
+        const valid = mergingStrategiesFor(derived);
+        if (!el.mergingStrategy || !valid.includes(el.mergingStrategy)) {
+          el.mergingStrategy = valid[0];
+        }
       }
+    }
+
+    // 04D2-followup O1 refinement: align merging gateway type with upstream
+    // diverging gateway. Paper §4.3: a collaboration block is enclosed by
+    // gateways of the same type (parallel or inclusive).
+    if (
+      isMergingGw &&
+      (upstream.gatewayType === 'parallel' || upstream.gatewayType === 'inclusive') &&
+      upstream.gatewayType !== el.gatewayType
+    ) {
+      el.gatewayType = upstream.gatewayType;
     }
   }
 

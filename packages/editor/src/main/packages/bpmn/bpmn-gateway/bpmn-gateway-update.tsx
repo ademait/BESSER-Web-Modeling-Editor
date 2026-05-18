@@ -284,6 +284,12 @@ class BPMNGatewayUpdateComponent extends Component<Props, State> {
    * flow (Parallel / Event-Based per BPMN 2.0.2 § 8.3.13), clear `isDefault`
    * on every outgoing sequence flow first. If the new type is not agentic-
    * eligible (Exclusive / Complex / Event-Based per 04D1), clear `isAgentic`.
+   *
+   * 04D2-followup O1 refinement: when this is an agentic diverging gateway
+   * and the new type stays agentic-eligible (parallel ↔ inclusive), forward-
+   * propagate the type to every downstream agentic merging gateway in the
+   * same collaboration block — the diverging and merging halves must agree
+   * per paper §4.3.
    * @param id The ID of the gateway whose type should be changed
    */
   private changeGatewayType = (id: string) => (value: string) => {
@@ -298,6 +304,16 @@ class BPMNGatewayUpdateComponent extends Component<Props, State> {
       patch.isAgentic = false;
     }
     this.props.update<BPMNGateway>(id, patch);
+    if (
+      this.props.element.isAgentic &&
+      this.props.element.gatewayRole === 'diverging' &&
+      AGENTIC_ELIGIBLE_GATEWAY_TYPES.has(newType)
+    ) {
+      const { mergingGatewayIds } = findDownstreamAgenticConstructs(id, this.props.elementsById);
+      for (const gwId of mergingGatewayIds) {
+        this.props.update<BPMNGateway>(gwId, { gatewayType: newType });
+      }
+    }
   };
 
   /**
