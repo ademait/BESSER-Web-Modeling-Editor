@@ -50,3 +50,10 @@ export const mergingStrategiesFor = (mode: BPMNCollaborationMode): BPMNMergingSt
       return ['majority', 'absolute-majority', 'minority', 'leader-driven', 'composed'];
   }
 };
+
+// Agentic BPMN extension (04D2 — paper §5, BPMN 2.0.2 § 8.2.3 extension
+// mechanism). Custom namespace declared at <bpmn:definitions>; each agentic
+// construct emits a `<bpmn:extensionElements><agentic:agentic .../></...>`
+// block as its first child. Flat-attribute shape per 04D2 D-D1.
+export const AGENTIC_NS_URI = 'https://www.besser-pearl.org/bpmn/agentic';
+export const AGENTIC_NS_PREFIX = 'agentic';

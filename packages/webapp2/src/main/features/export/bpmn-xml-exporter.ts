@@ -1,4 +1,11 @@
-import { UMLModel, UMLElement, UMLRelationship, canSourceCarryDefault } from '@besser/wme';
+import {
+  AGENTIC_NS_PREFIX,
+  AGENTIC_NS_URI,
+  UMLModel,
+  UMLElement,
+  UMLRelationship,
+  canSourceCarryDefault,
+} from '@besser/wme';
 
 // BPMN 2.0 XML exporter. See .claude/bpmn/bpmn-xml-export-guide.md for design decisions.
 //
@@ -216,6 +223,7 @@ export function apollonBpmnToXml(model: UMLModel, opts: ExportOptions = {}): Exp
       'xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" ' +
       'xmlns:di="http://www.omg.org/spec/DD/20100524/DI" ' +
       'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ' +
+      `xmlns:${AGENTIC_NS_PREFIX}="${AGENTIC_NS_URI}" ` +
       `id="Definitions_1" targetNamespace="${escapeAttr(targetNs)}">`,
   );
 
@@ -244,10 +252,20 @@ export function apollonBpmnToXml(model: UMLModel, opts: ExportOptions = {}): Exp
       );
     }
     for (const mf of messageFlows) {
-      lines.push(
-        `    <bpmn:messageFlow id="${xid(mf.id)}" name="${escapeAttr(mf.name || '')}" ` +
-          `sourceRef="${xid(mf.source.element)}" targetRef="${xid(mf.target.element)}" />`,
-      );
+      const isAgentic = (mf as unknown as AnyAgentic).isAgentic === true;
+      if (!isAgentic) {
+        lines.push(
+          `    <bpmn:messageFlow id="${xid(mf.id)}" name="${escapeAttr(mf.name || '')}" ` +
+            `sourceRef="${xid(mf.source.element)}" targetRef="${xid(mf.target.element)}" />`,
+        );
+      } else {
+        lines.push(
+          `    <bpmn:messageFlow id="${xid(mf.id)}" name="${escapeAttr(mf.name || '')}" ` +
+            `sourceRef="${xid(mf.source.element)}" targetRef="${xid(mf.target.element)}">`,
+        );
+        emitAgenticExtension(lines, mf as unknown as AnyAgentic, '      ');
+        lines.push(`    </bpmn:messageFlow>`);
+      }
     }
     lines.push(`  </bpmn:collaboration>`);
   }
@@ -274,6 +292,7 @@ export function apollonBpmnToXml(model: UMLModel, opts: ExportOptions = {}): Exp
       lines.push(`    <bpmn:laneSet id="LaneSet_${xid(poolId!)}">`);
       for (const lane of lanes) {
         lines.push(`      <bpmn:lane id="${xid(lane.id)}" name="${escapeAttr(lane.name)}">`);
+        emitAgenticExtension(lines, lane as AnyAgentic, '        ');
         for (const node of flowNodes) {
           if (node.owner === lane.id) {
             lines.push(`        <bpmn:flowNodeRef>${xid(node.id)}</bpmn:flowNodeRef>`);
@@ -384,6 +403,36 @@ export function apollonBpmnToXml(model: UMLModel, opts: ExportOptions = {}): Exp
 
 // ─── Emit helpers ────────────────────────────────────────────────────────────
 
+// 04D2 — every agentic-able construct exposes these optional fields. Sourced
+// from BPMNSwimlane / BPMNTask / BPMNGateway / BPMNFlow on the editor side.
+interface AnyAgentic {
+  isAgentic?: boolean;
+  role?: string;
+  reflectionMode?: string;
+  gatewayRole?: string;
+  collaborationMode?: string;
+  mergingStrategy?: string;
+  trustScore?: number;
+}
+
+// 04D2 — paper §5 / BPMN 2.0.2 § 8.2.3. Emit the agentic extensionElements
+// block (flat-attribute shape, D-D1). `indent` is the leading whitespace each
+// caller wants on the opening <extensionElements> line; inner lines inherit
+// that indent + 2 spaces.
+function emitAgenticExtension(lines: string[], el: AnyAgentic, indent: string): void {
+  if (!el.isAgentic) return;
+  const attrs: string[] = [];
+  if (el.role !== undefined) attrs.push(`role="${escapeAttr(el.role)}"`);
+  if (el.reflectionMode !== undefined) attrs.push(`reflectionMode="${escapeAttr(el.reflectionMode)}"`);
+  if (el.gatewayRole !== undefined) attrs.push(`gatewayRole="${escapeAttr(el.gatewayRole)}"`);
+  if (el.collaborationMode !== undefined) attrs.push(`collaborationMode="${escapeAttr(el.collaborationMode)}"`);
+  if (el.mergingStrategy !== undefined) attrs.push(`mergingStrategy="${escapeAttr(el.mergingStrategy)}"`);
+  if (el.trustScore !== undefined) attrs.push(`trustScore="${el.trustScore}"`);
+  lines.push(`${indent}<bpmn:extensionElements>`);
+  lines.push(`${indent}  <agentic:agentic ${attrs.join(' ')}/>`);
+  lines.push(`${indent}</bpmn:extensionElements>`);
+}
+
 function emitFlowNode(
   lines: string[],
   node: AnyBPMNElement,
@@ -399,11 +448,13 @@ function emitFlowNode(
   if (node.type === 'BPMNTask') {
     const tag = taskElementName(node.taskType ?? 'default');
     const loop = taskLoopCharacteristics(node.marker ?? 'none');
-    const hasChildren = loop !== null || dataAssociations.length > 0;
+    const isAgentic = (node as AnyAgentic).isAgentic === true;
+    const hasChildren = loop !== null || dataAssociations.length > 0 || isAgentic;
     if (!hasChildren) {
       lines.push(`    <bpmn:${tag} id="${id}" name="${name}"${defAttr} />`);
     } else {
       lines.push(`    <bpmn:${tag} id="${id}" name="${name}"${defAttr}>`);
+      emitAgenticExtension(lines, node as AnyAgentic, '      ');
       if (loop) lines.push(`      ${loop}`);
       emitDataAssociations(lines, dataAssociations, model);
       lines.push(`    </bpmn:${tag}>`);
@@ -465,7 +516,14 @@ function emitFlowNode(
 
   if (node.type === 'BPMNGateway') {
     const tag = gatewayElementName(node.gatewayType ?? 'exclusive');
-    lines.push(`    <bpmn:${tag} id="${id}" name="${name}"${defAttr} />`);
+    const isAgentic = (node as AnyAgentic).isAgentic === true;
+    if (!isAgentic) {
+      lines.push(`    <bpmn:${tag} id="${id}" name="${name}"${defAttr} />`);
+    } else {
+      lines.push(`    <bpmn:${tag} id="${id}" name="${name}"${defAttr}>`);
+      emitAgenticExtension(lines, node as AnyAgentic, '      ');
+      lines.push(`    </bpmn:${tag}>`);
+    }
     return;
   }
 }
