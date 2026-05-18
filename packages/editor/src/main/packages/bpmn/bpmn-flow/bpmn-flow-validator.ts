@@ -121,6 +121,7 @@ type AnyAgenticGateway = AnyElement & {
   isAgentic?: boolean;
   gatewayRole?: 'diverging' | 'merging';
   collaborationMode?: BPMNCollaborationMode;
+  gatewayType?: string;
 };
 
 type AnyAgenticTask = AnyElement & { isAgentic?: boolean };
@@ -130,18 +131,24 @@ type AnyAgenticTask = AnyElement & { isAgentic?: boolean };
 const MAX_COLLAB_WALK_DEPTH = 50;
 
 /**
- * Walk backwards from `elementId` via incoming sequence flows. Return the
- * `collaborationMode` of the nearest agentic diverging gateway, or undefined
- * if none is reachable.
+ * Internal: backward BFS from `elementId` via incoming sequence flows. Returns
+ * the ID of the nearest *enclosing* agentic diverging gateway, or undefined.
  *
- * BFS hop-count gives correct nested-collaboration pairing — the inner block
- * resolves to the inner diverging gateway. Cycle-safe via the visited set.
+ * Nested collaboration handling (04D2-followup post-O3 fix): when the walk
+ * encounters an agentic *merging* gateway, it recurses on that merging to
+ * find the inner block's paired diverging gateway, then resumes the walk from
+ * the predecessors of that inner diverging — effectively jumping past the
+ * inner block. This guarantees that an outer merging gateway resolves to the
+ * outer diverging gateway, not to the inner one.
+ *
+ * `visited` is shared across the recursion so each node is explored at most
+ * once per top-level resolution. Cycle-safe.
  */
-export function resolveUpstreamCollabMode(
+function findUpstreamDivergingGatewayId(
   elementId: string,
   elementsById: Record<string, AnyElement>,
-): BPMNCollaborationMode | undefined {
-  const visited = new Set<string>();
+  visited: Set<string> = new Set(),
+): string | undefined {
   let frontier: string[] = [elementId];
   for (let depth = 0; depth < MAX_COLLAB_WALK_DEPTH && frontier.length > 0; depth++) {
     const next: string[] = [];
@@ -156,8 +163,19 @@ export function resolveUpstreamCollabMode(
         const srcId = flow.source.element;
         if (visited.has(srcId)) continue;
         const src = elementsById[srcId] as AnyAgenticGateway | undefined;
-        if (src && src.type === 'BPMNGateway' && src.isAgentic === true && src.gatewayRole === 'diverging') {
-          return src.collaborationMode;
+        if (src && src.type === 'BPMNGateway' && src.isAgentic === true) {
+          if (src.gatewayRole === 'diverging') {
+            return srcId;
+          }
+          if (src.gatewayRole === 'merging') {
+            // Inner block boundary — recurse to find its paired diverging,
+            // then continue the outer walk from that diverging's predecessors.
+            const innerDiverging = findUpstreamDivergingGatewayId(srcId, elementsById, visited);
+            if (innerDiverging !== undefined && !visited.has(innerDiverging)) {
+              next.push(innerDiverging);
+              continue;
+            }
+          }
         }
         next.push(srcId);
       }
@@ -168,11 +186,89 @@ export function resolveUpstreamCollabMode(
 }
 
 /**
+ * Internal: forward BFS from `divergingGatewayId` via outgoing sequence flows.
+ * Returns the ID of the first downstream agentic *merging* gateway (the
+ * paired one in standard BPMN), or undefined. Skips past nested diverging
+ * blocks via mutual recursion. `visited` is shared across the recursion.
+ */
+function findPairedMergingGatewayId(
+  divergingGatewayId: string,
+  elementsById: Record<string, AnyElement>,
+  visited: Set<string> = new Set(),
+): string | undefined {
+  let frontier: string[] = [divergingGatewayId];
+  for (let depth = 0; depth < MAX_COLLAB_WALK_DEPTH && frontier.length > 0; depth++) {
+    const next: string[] = [];
+    for (const id of frontier) {
+      if (visited.has(id)) continue;
+      visited.add(id);
+      for (const el of Object.values(elementsById)) {
+        if (el.type !== 'BPMNFlow') continue;
+        const flow = el as AnyFlow;
+        if (flow.flowType !== 'sequence') continue;
+        if (flow.source.element !== id) continue;
+        const tgtId = flow.target.element;
+        if (visited.has(tgtId)) continue;
+        const tgt = elementsById[tgtId] as AnyAgenticGateway | undefined;
+        if (tgt && tgt.type === 'BPMNGateway' && tgt.isAgentic === true) {
+          if (tgt.gatewayRole === 'merging') {
+            return tgtId;
+          }
+          if (tgt.gatewayRole === 'diverging') {
+            const innerMerging = findPairedMergingGatewayId(tgtId, elementsById, visited);
+            if (innerMerging !== undefined && !visited.has(innerMerging)) {
+              next.push(innerMerging);
+              continue;
+            }
+          }
+        }
+        next.push(tgtId);
+      }
+    }
+    frontier = next;
+  }
+  return undefined;
+}
+
+/**
+ * Resolve the nearest *enclosing* agentic diverging gateway by walking back
+ * from `elementId` via incoming sequence flows. Returns the gateway element
+ * or undefined. Correctly handles nested collaboration blocks — the outer
+ * merging gateway resolves to the outer diverging gateway, the inner block's
+ * constructs to the inner diverging gateway.
+ */
+export function resolveUpstreamDivergingGateway(
+  elementId: string,
+  elementsById: Record<string, AnyElement>,
+): AnyElement | undefined {
+  const divergingId = findUpstreamDivergingGatewayId(elementId, elementsById);
+  if (divergingId === undefined) return undefined;
+  return elementsById[divergingId];
+}
+
+/**
+ * Return the `collaborationMode` of the upstream agentic diverging gateway
+ * resolved by `resolveUpstreamDivergingGateway`, or undefined.
+ */
+export function resolveUpstreamCollabMode(
+  elementId: string,
+  elementsById: Record<string, AnyElement>,
+): BPMNCollaborationMode | undefined {
+  const diverging = resolveUpstreamDivergingGateway(elementId, elementsById) as AnyAgenticGateway | undefined;
+  return diverging?.collaborationMode;
+}
+
+/**
  * Forward-walk from a diverging gateway via outgoing sequence flows. Collect
- * the IDs of every reachable agentic task and agentic merging gateway. Stops
- * at any other agentic diverging gateway — nested-collab boundary. Used by
- * the diverging-gateway popup to propagate `collaborationMode` changes
- * (04D2-followup F-D5).
+ * every agentic task + merging gateway *within this collaboration block*:
+ * - Skips past nested diverging blocks via their paired merging gateway
+ *   (inner block's constructs belong to the inner diverging, not this one).
+ * - Records the paired merging gateway and STOPS descending past it (anything
+ *   downstream belongs to the next enclosing block, not this one).
+ *
+ * Used by the diverging-gateway popup to propagate `collaborationMode` and
+ * `gatewayType` changes to constructs that genuinely inherit from this
+ * gateway (04D2-followup F-D5 + O1 refinement).
  */
 export function findDownstreamAgenticConstructs(
   divergingGatewayId: string,
@@ -194,20 +290,29 @@ export function findDownstreamAgenticConstructs(
       visited.add(tgtId);
       const tgt = elementsById[tgtId] as AnyAgenticGateway | AnyAgenticTask | undefined;
       if (!tgt) continue;
-      // Nested-collab boundary: stop, don't propagate past another diverging gateway.
+      // Nested-block boundary: skip past the inner diverging via its paired
+      // merging. Don't record either — the inner block belongs to the inner
+      // diverging. Continue the outer walk past the inner-merging.
       if (
         tgt.type === 'BPMNGateway' &&
         (tgt as AnyAgenticGateway).isAgentic === true &&
         (tgt as AnyAgenticGateway).gatewayRole === 'diverging'
       ) {
+        const innerMerging = findPairedMergingGatewayId(tgtId, elementsById);
+        if (innerMerging !== undefined && !visited.has(innerMerging)) {
+          visited.add(innerMerging);
+          queue.push(innerMerging);
+        }
         continue;
       }
+      // Paired merging (end of THIS block): record and STOP descending.
       if (
         tgt.type === 'BPMNGateway' &&
         (tgt as AnyAgenticGateway).isAgentic === true &&
         (tgt as AnyAgenticGateway).gatewayRole === 'merging'
       ) {
         mergingGatewayIds.push(tgtId);
+        continue;
       }
       if (tgt.type === 'BPMNTask' && (tgt as AnyAgenticTask).isAgentic === true) {
         taskIds.push(tgtId);
@@ -229,7 +334,7 @@ export function findOrphanedMergingGateways(elementsById: Record<string, AnyElem
     if (el.type !== 'BPMNGateway') continue;
     const gw = el as AnyAgenticGateway;
     if (gw.isAgentic !== true || gw.gatewayRole !== 'merging') continue;
-    if (resolveUpstreamCollabMode(gw.id, elementsById) === undefined) {
+    if (resolveUpstreamDivergingGateway(gw.id, elementsById) === undefined) {
       orphans.push(gw.id);
     }
   }

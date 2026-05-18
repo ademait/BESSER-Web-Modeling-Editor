@@ -261,6 +261,23 @@ describe('importer collab-mode derivation (04D2-followup F3)', () => {
     expect(warnings.some((w) => w.code === 'orphaned-merging-gateway')).toBe(false);
   });
 
+  it('aligns merging gateway type with upstream diverging type (O1 refinement)', () => {
+    // Build the connected fixture and corrupt the OR's gatewayType to
+    // 'inclusive' while AND stays 'parallel'. After import, the post-pass
+    // should snap OR back to 'parallel'.
+    const model = buildConnectedAgenticModel();
+    (model.elements as Record<string, { id: string }>)['Gateway_OR'] = {
+      ...(model.elements as Record<string, { id: string; type: string }>)['Gateway_OR'],
+      gatewayType: 'inclusive', // mismatched — AND is parallel
+    } as never;
+    const { xml } = apollonBpmnToXml(model);
+    const { model: parsed } = bpmnXmlToApollon(xml);
+    const orGw = Object.values(parsed.elements).find((e) => (e as { name?: string }).name === 'OR') as
+      | Record<string, unknown>
+      | undefined;
+    expect(orGw?.gatewayType).toBe('parallel');
+  });
+
   it('emits orphaned-merging-gateway warning when no upstream diverging exists', () => {
     // Fixture from buildFixtureAgenticModel — it has Gateway_2 (OR, merging)
     // with no sequence-flow upstream. Reuse it and assert the warning fires.
@@ -496,6 +513,49 @@ describe('resolveUpstreamCollabMode (04D2-followup F1)', () => {
     expect(resolveUpstreamCollabMode('GinnerMerge', elementsById)).toBe('voting');
   });
 
+  it('resolves outer merging to the OUTER diverging in nested blocks (O3 fix)', () => {
+    // Gouter (role) → A → Ginner (voting) → B → GinnerMerge → C → GouterMerge
+    // GouterMerge must inherit from Gouter (role), NOT Ginner (voting).
+    const elementsById: Record<string, AnyEl> = {
+      Gouter: el('Gouter', 'BPMNGateway', {
+        gatewayType: 'parallel',
+        isAgentic: true,
+        gatewayRole: 'diverging',
+        collaborationMode: 'role',
+      }),
+      A: el('A', 'BPMNTask'),
+      Ginner: el('Ginner', 'BPMNGateway', {
+        gatewayType: 'parallel',
+        isAgentic: true,
+        gatewayRole: 'diverging',
+        collaborationMode: 'voting',
+      }),
+      B: el('B', 'BPMNTask', { isAgentic: true }),
+      GinnerMerge: el('GinnerMerge', 'BPMNGateway', {
+        gatewayType: 'parallel',
+        isAgentic: true,
+        gatewayRole: 'merging',
+      }),
+      C: el('C', 'BPMNTask'),
+      GouterMerge: el('GouterMerge', 'BPMNGateway', {
+        gatewayType: 'parallel',
+        isAgentic: true,
+        gatewayRole: 'merging',
+      }),
+      F1: seqFlow('F1', 'Gouter', 'A'),
+      F2: seqFlow('F2', 'A', 'Ginner'),
+      F3: seqFlow('F3', 'Ginner', 'B'),
+      F4: seqFlow('F4', 'B', 'GinnerMerge'),
+      F5: seqFlow('F5', 'GinnerMerge', 'C'),
+      F6: seqFlow('F6', 'C', 'GouterMerge'),
+    };
+    expect(resolveUpstreamCollabMode('GouterMerge', elementsById)).toBe('role');
+    // Inner merging still inherits from its own block.
+    expect(resolveUpstreamCollabMode('GinnerMerge', elementsById)).toBe('voting');
+    // Inner agentic task still inherits from its own block.
+    expect(resolveUpstreamCollabMode('B', elementsById)).toBe('voting');
+  });
+
   it('returns undefined when no upstream diverging gateway exists', () => {
     const elementsById: Record<string, AnyEl> = {
       Start: el('Start', 'BPMNStartEvent'),
@@ -595,6 +655,81 @@ describe('findDownstreamAgenticConstructs (04D2-followup F1)', () => {
     // Tmid is reachable; Ginner blocks further descent; Tinner / GinnerMerge belong to inner block.
     expect(result.taskIds).toEqual(['Tmid']);
     expect(result.mergingGatewayIds).toEqual([]);
+  });
+
+  it('jumps past a nested block to reach the outer merging (O3 fix, forward)', () => {
+    // Gouter → A → Ginner → B → GinnerMerge → C → GouterMerge
+    // Propagating from Gouter must collect GouterMerge but NOT B / GinnerMerge
+    // (those belong to Ginner's block).
+    const elementsById: Record<string, AnyEl> = {
+      Gouter: el('Gouter', 'BPMNGateway', {
+        gatewayType: 'parallel',
+        isAgentic: true,
+        gatewayRole: 'diverging',
+        collaborationMode: 'role',
+      }),
+      A: el('A', 'BPMNTask'),
+      Ginner: el('Ginner', 'BPMNGateway', {
+        gatewayType: 'parallel',
+        isAgentic: true,
+        gatewayRole: 'diverging',
+        collaborationMode: 'voting',
+      }),
+      B: el('B', 'BPMNTask', { isAgentic: true }),
+      GinnerMerge: el('GinnerMerge', 'BPMNGateway', {
+        gatewayType: 'parallel',
+        isAgentic: true,
+        gatewayRole: 'merging',
+      }),
+      C: el('C', 'BPMNTask'),
+      GouterMerge: el('GouterMerge', 'BPMNGateway', {
+        gatewayType: 'parallel',
+        isAgentic: true,
+        gatewayRole: 'merging',
+      }),
+      F1: seqFlow('F1', 'Gouter', 'A'),
+      F2: seqFlow('F2', 'A', 'Ginner'),
+      F3: seqFlow('F3', 'Ginner', 'B'),
+      F4: seqFlow('F4', 'B', 'GinnerMerge'),
+      F5: seqFlow('F5', 'GinnerMerge', 'C'),
+      F6: seqFlow('F6', 'C', 'GouterMerge'),
+    };
+    const result = findDownstreamAgenticConstructs('Gouter', elementsById);
+    expect(result.taskIds).toEqual([]); // B belongs to inner block, A/C non-agentic
+    expect(result.mergingGatewayIds).toEqual(['GouterMerge']);
+  });
+
+  it('stops descending past the paired merging gateway', () => {
+    // G1 → T1 → G2 (merging) → T2 (agentic) → G3 (merging)
+    // Propagating from G1 must collect only G2 (the immediate paired merging),
+    // not T2 or G3 (which belong to the next enclosing block, or are orphans).
+    const elementsById: Record<string, AnyEl> = {
+      G1: el('G1', 'BPMNGateway', {
+        gatewayType: 'parallel',
+        isAgentic: true,
+        gatewayRole: 'diverging',
+        collaborationMode: 'role',
+      }),
+      T1: el('T1', 'BPMNTask', { isAgentic: true }),
+      G2: el('G2', 'BPMNGateway', {
+        gatewayType: 'parallel',
+        isAgentic: true,
+        gatewayRole: 'merging',
+      }),
+      T2: el('T2', 'BPMNTask', { isAgentic: true }),
+      G3: el('G3', 'BPMNGateway', {
+        gatewayType: 'parallel',
+        isAgentic: true,
+        gatewayRole: 'merging',
+      }),
+      F1: seqFlow('F1', 'G1', 'T1'),
+      F2: seqFlow('F2', 'T1', 'G2'),
+      F3: seqFlow('F3', 'G2', 'T2'),
+      F4: seqFlow('F4', 'T2', 'G3'),
+    };
+    const result = findDownstreamAgenticConstructs('G1', elementsById);
+    expect(result.taskIds).toEqual(['T1']);
+    expect(result.mergingGatewayIds).toEqual(['G2']);
   });
 });
 
