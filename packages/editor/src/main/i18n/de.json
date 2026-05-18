@@ -130,6 +130,8 @@
       "BPMNReflectionCross": "Kreuzreflexion",
       "BPMNReflectionHuman": "Menschliche Reflexion",
       "BPMNCollaborationMode": "Kollaborationsmodus",
+      "BPMNCollaborationModeInheritedLabel": "Kollaborationsmodus (vererbt)",
+      "BPMNInheritedNone": "(keine)",
       "BPMNCollabVoting": "Abstimmung",
       "BPMNCollabRole": "Rolle",
       "BPMNCollabDebate": "Debatte",

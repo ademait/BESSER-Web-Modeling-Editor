@@ -12,6 +12,8 @@ import { styled } from '../../../components/theme/styles';
 import { UMLElementRepository } from '../../../services/uml-element/uml-element-repository';
 import { AGENTIC_ELIGIBLE_GATEWAY_TYPES, BPMNGateway, BPMNGatewayType } from './bpmn-gateway';
 import { BPMNFlow } from '../bpmn-flow/bpmn-flow';
+import { findDownstreamAgenticConstructs, resolveUpstreamCollabMode } from '../bpmn-flow/bpmn-flow-validator';
+import { BPMNTask } from '../bpmn-task/bpmn-task';
 import { Dropdown } from '../../../components/controls/dropdown/dropdown';
 import { ColorButton } from '../../../components/controls/color-button/color-button';
 import { StylePane } from '../../../components/style-pane/style-pane';
@@ -49,6 +51,21 @@ const strategyKey = (s: BPMNMergingStrategy): string => {
   }
 };
 
+// Map collaboration-mode enum values to their i18n keys (04D2-followup F2 —
+// used by the read-only "inherited" label on merging gateways + agentic tasks).
+const collabKey = (m: BPMNCollaborationMode): string => {
+  switch (m) {
+    case 'voting':
+      return 'BPMNCollabVoting';
+    case 'role':
+      return 'BPMNCollabRole';
+    case 'debate':
+      return 'BPMNCollabDebate';
+    case 'competition':
+      return 'BPMNCollabCompetition';
+  }
+};
+
 interface OwnProps {
   element: BPMNGateway;
 }
@@ -58,6 +75,13 @@ type StateProps = {
   // `changeGatewayType` when the user switches to a type that may not carry
   // a default flow (Parallel / Event-Based per BPMN 2.0.2 § 8.3.13).
   outgoingDefaultFlowIds: string[];
+  // 04D2-followup F-D1: collaboration mode inherited from the nearest upstream
+  // agentic diverging gateway. Drives the read-only "inherited" label on
+  // merging gateways and the role-dropdown gating (no merging without upstream).
+  derivedUpstreamMode: BPMNCollaborationMode | undefined;
+  // 04D2-followup F-D5: snapshot of the unified element + relationship map so
+  // `changeCollaborationMode` can forward-walk downstream constructs on edit.
+  elementsById: Record<string, { id: string; type: string }>;
 };
 
 interface DispatchProps {
@@ -80,7 +104,9 @@ const enhance = compose<ComponentClass<OwnProps>>(
           return r.source?.element === myId;
         })
         .map((e) => e.id);
-      return { outgoingDefaultFlowIds };
+      const elementsById = state.elements as unknown as Record<string, { id: string; type: string }>;
+      const derivedUpstreamMode = resolveUpstreamCollabMode(myId, elementsById);
+      return { outgoingDefaultFlowIds, derivedUpstreamMode, elementsById };
     },
     {
       update: UMLElementRepository.update,
@@ -167,35 +193,62 @@ class BPMNGatewayUpdateComponent extends Component<Props, State> {
               <>
                 <section>
                   <Divider />
+                  {/* 04D2-followup F-D2: hide the `merging` role option when no
+                      upstream agentic diverging gateway exists. Prevents users
+                      from creating an orphaned merging gateway. */}
                   <Dropdown value={element.gatewayRole} onChange={this.changeGatewayRole(element.id)}>
-                    <Dropdown.Item value={'diverging'}>
-                      {this.props.translate('packages.BPMN.BPMNGatewayRoleDiverging')}
-                    </Dropdown.Item>
-                    <Dropdown.Item value={'merging'}>
-                      {this.props.translate('packages.BPMN.BPMNGatewayRoleMerging')}
-                    </Dropdown.Item>
+                    {[
+                      <Dropdown.Item key="diverging" value={'diverging'}>
+                        {this.props.translate('packages.BPMN.BPMNGatewayRoleDiverging')}
+                      </Dropdown.Item>,
+                      ...(this.props.derivedUpstreamMode !== undefined || element.gatewayRole === 'merging'
+                        ? [
+                            <Dropdown.Item key="merging" value={'merging'}>
+                              {this.props.translate('packages.BPMN.BPMNGatewayRoleMerging')}
+                            </Dropdown.Item>,
+                          ]
+                        : []),
+                    ]}
                   </Dropdown>
                 </section>
+                {/* 04D2-followup F-D3: merging gateway shows the inherited
+                    collaboration mode read-only; diverging keeps the dropdown. */}
                 <section>
                   <Divider />
-                  <Dropdown value={element.collaborationMode} onChange={this.changeCollaborationMode(element.id)}>
-                    <Dropdown.Item value={'voting'}>
-                      {this.props.translate('packages.BPMN.BPMNCollabVoting')}
-                    </Dropdown.Item>
-                    <Dropdown.Item value={'role'}>{this.props.translate('packages.BPMN.BPMNCollabRole')}</Dropdown.Item>
-                    <Dropdown.Item value={'debate'}>
-                      {this.props.translate('packages.BPMN.BPMNCollabDebate')}
-                    </Dropdown.Item>
-                    <Dropdown.Item value={'competition'}>
-                      {this.props.translate('packages.BPMN.BPMNCollabCompetition')}
-                    </Dropdown.Item>
-                  </Dropdown>
+                  {element.gatewayRole === 'merging' ? (
+                    <Flex>
+                      <span>{this.props.translate('packages.BPMN.BPMNCollaborationModeInheritedLabel')}</span>
+                      <span>
+                        {this.props.derivedUpstreamMode
+                          ? this.props.translate(`packages.BPMN.${collabKey(this.props.derivedUpstreamMode)}`)
+                          : this.props.translate('packages.BPMN.BPMNInheritedNone')}
+                      </span>
+                    </Flex>
+                  ) : (
+                    <Dropdown value={element.collaborationMode} onChange={this.changeCollaborationMode(element.id)}>
+                      <Dropdown.Item value={'voting'}>
+                        {this.props.translate('packages.BPMN.BPMNCollabVoting')}
+                      </Dropdown.Item>
+                      <Dropdown.Item value={'role'}>
+                        {this.props.translate('packages.BPMN.BPMNCollabRole')}
+                      </Dropdown.Item>
+                      <Dropdown.Item value={'debate'}>
+                        {this.props.translate('packages.BPMN.BPMNCollabDebate')}
+                      </Dropdown.Item>
+                      <Dropdown.Item value={'competition'}>
+                        {this.props.translate('packages.BPMN.BPMNCollabCompetition')}
+                      </Dropdown.Item>
+                    </Dropdown>
+                  )}
                 </section>
                 {element.gatewayRole === 'merging' && (
                   <section>
                     <Divider />
+                    {/* F-D3: filter strategies by the *inherited* mode, not
+                        the stored one — keeps the list valid even when the
+                        stored field is briefly stale after an upstream edit. */}
                     <Dropdown value={element.mergingStrategy} onChange={this.changeMergingStrategy(element.id)}>
-                      {mergingStrategiesFor(element.collaborationMode).map((s) => (
+                      {mergingStrategiesFor(this.props.derivedUpstreamMode ?? element.collaborationMode).map((s) => (
                         <Dropdown.Item key={s} value={s}>
                           {this.props.translate(`packages.BPMN.${strategyKey(s)}`)}
                         </Dropdown.Item>
@@ -269,11 +322,25 @@ class BPMNGatewayUpdateComponent extends Component<Props, State> {
    * the user picked. Trade-off documented in the 04D1 guide (debate's first
    * valid strategy is `majority` → still renders as `v-ma`, ambiguous; the
    * diverging gateway's `d` marker disambiguates the cooperation type).
+   *
+   * 04D2-followup F-D5: when the gateway is diverging, also propagate the new
+   * mode to every reachable downstream agentic task + merging gateway (forward
+   * BFS, stops at nested diverging gateways). Keeps the model field consistent
+   * with the derived value so the canvas, the exporter, and reopened popups
+   * all see the same truth.
    */
   private changeCollaborationMode = (id: string) => (value: string) => {
     const newMode = value as BPMNCollaborationMode;
     const newStrategy = mergingStrategiesFor(newMode)[0];
     this.props.update<BPMNGateway>(id, { collaborationMode: newMode, mergingStrategy: newStrategy });
+    if (this.props.element.gatewayRole !== 'diverging') return;
+    const { taskIds, mergingGatewayIds } = findDownstreamAgenticConstructs(id, this.props.elementsById);
+    for (const taskId of taskIds) {
+      this.props.update<BPMNTask>(taskId, { collaborationMode: newMode });
+    }
+    for (const gwId of mergingGatewayIds) {
+      this.props.update<BPMNGateway>(gwId, { collaborationMode: newMode, mergingStrategy: newStrategy });
+    }
   };
 
   /**

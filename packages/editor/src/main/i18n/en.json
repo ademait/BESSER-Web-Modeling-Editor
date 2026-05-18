@@ -137,6 +137,8 @@
       "BPMNReflectionCross": "Cross-reflection",
       "BPMNReflectionHuman": "Human-reflection",
       "BPMNCollaborationMode": "Collaboration mode",
+      "BPMNCollaborationModeInheritedLabel": "Collaboration mode (inherited)",
+      "BPMNInheritedNone": "(none)",
       "BPMNCollabVoting": "Voting cooperation",
       "BPMNCollabRole": "Role cooperation",
       "BPMNCollabDebate": "Debate cooperation",
