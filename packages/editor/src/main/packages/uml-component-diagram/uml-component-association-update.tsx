@@ -5,9 +5,10 @@ import { ComponentRelationshipType } from '.';
 import { Button } from '../../components/controls/button/button';
 import { Divider } from '../../components/controls/divider/divider';
 import { Dropdown } from '../../components/controls/dropdown/dropdown';
+import { Textfield } from '../../components/controls/textfield/textfield';
 import { ExchangeIcon } from '../../components/controls/icon/exchange';
 import { TrashIcon } from '../../components/controls/icon/trash';
-import { Header } from '../../components/controls/typography/typography';
+import { Body, Header } from '../../components/controls/typography/typography';
 import { I18nContext } from '../../components/i18n/i18n-context';
 import { localized } from '../../components/i18n/localized';
 import { ModelState } from '../../components/store/model-state';
@@ -37,6 +38,8 @@ class ComponentAssociationUpdate extends Component<Props, State> {
 
   render() {
     const { element } = this.props;
+    const isDependency = element.type === ComponentRelationshipType.ComponentDependency;
+    const stereotype = (element as unknown as { stereotype?: string }).stereotype ?? '';
 
     return (
       <div>
@@ -69,6 +72,21 @@ class ComponentAssociationUpdate extends Component<Props, State> {
             </Dropdown.Item>
           </Dropdown>
         </section>
+        {isDependency && (
+          <>
+            <Divider />
+            <section>
+              <Flex>
+                <Body style={{ marginRight: '0.5em' }}>Stereotype</Body>
+                <Textfield
+                  value={stereotype}
+                  onChange={this.onStereotypeChange}
+                  placeholder="e.g. delegates, has, uses"
+                />
+              </Flex>
+            </section>
+          </>
+        )}
       </div>
     );
   }
@@ -76,6 +94,11 @@ class ComponentAssociationUpdate extends Component<Props, State> {
   private onChange = (value: keyof typeof ComponentRelationshipType) => {
     const { element, update } = this.props;
     update(element.id, { type: value });
+  };
+
+  private onStereotypeChange = (value: string) => {
+    const { element, update } = this.props;
+    update(element.id, { stereotype: value } as any);
   };
 }
 

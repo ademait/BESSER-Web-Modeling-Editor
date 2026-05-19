@@ -23,6 +23,7 @@ export class UMLDeploymentComponent extends UMLComponent {
     return {
       ...super.serialize(),
       type: this.type as keyof typeof DeploymentElementType,
+      stereotype: this.stereotype,
       displayStereotype: this.displayStereotype,
     };
   }
@@ -35,6 +36,7 @@ export class UMLDeploymentComponent extends UMLComponent {
     }
 
     super.deserialize(values, children);
+    this.stereotype = values.stereotype;
     this.displayStereotype = values.displayStereotype;
   }
 }

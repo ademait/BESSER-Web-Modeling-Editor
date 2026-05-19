@@ -5,6 +5,7 @@ import { ColorButton } from '../../../components/controls/color-button/color-but
 import { Divider } from '../../../components/controls/divider/divider';
 import { TrashIcon } from '../../../components/controls/icon/trash';
 import { Textfield } from '../../../components/controls/textfield/textfield';
+import { Body } from '../../../components/controls/typography/typography';
 import { ModelState } from '../../../components/store/model-state';
 import { StylePane } from '../../../components/style-pane/style-pane';
 import { styled } from '../../../components/theme/styles';
@@ -56,7 +57,12 @@ class DeploymentNodeUpdate extends Component<Props, State> {
         <section>
           <Divider />
           <Flex>
-            <Textfield value={element.stereotype} onChange={this.onStereotypeRename} />
+            <Body style={{ marginRight: '0.5em' }}>Stereotype</Body>
+            <Textfield
+              value={element.stereotype}
+              onChange={this.onStereotypeRename}
+              placeholder="e.g. node, device, executionEnvironment"
+            />
           </Flex>
         </section>
       </div>

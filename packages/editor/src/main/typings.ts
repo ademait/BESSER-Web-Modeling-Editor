@@ -100,12 +100,7 @@ export type UMLClassifier = UMLElement & {
 
 export type Visibility = 'public' | 'private' | 'protected' | 'package';
 
-export type MethodImplementationType =
-  | 'none'
-  | 'code'
-  | 'bal'
-  | 'state_machine'
-  | 'quantum_circuit';
+export type MethodImplementationType = 'none' | 'code' | 'bal' | 'state_machine' | 'quantum_circuit';
 
 export type DiagramReference = {
   id: string;
@@ -178,9 +173,7 @@ export type AgentStateTransition = UMLRelationship & {
     predefinedType?: string;
     intentName?: string;
     fileType?: string;
-    conditionValue?:
-      | string
-      | { variable: string; operator: string; targetValue: string };
+    conditionValue?: string | { variable: string; operator: string; targetValue: string };
   };
   custom?: {
     event?:
@@ -230,6 +223,7 @@ export type UMLDeploymentNode = UMLElement & {
 };
 
 export type UMLDeploymentComponent = UMLElement & {
+  stereotype: string;
   displayStereotype: boolean;
 };
 
@@ -239,6 +233,7 @@ export type UMLComponentSubsystem = UMLElement & {
 };
 
 export type UMLComponentComponent = UMLElement & {
+  stereotype: string;
   displayStereotype: boolean;
 };
 
@@ -285,6 +280,14 @@ export type UMLAssociation = UMLRelationship & {
     multiplicity: string;
     role: string;
   };
+};
+
+export type UMLComponentDependency = UMLRelationship & {
+  stereotype?: string;
+};
+
+export type UMLDeploymentAssociation = UMLRelationship & {
+  stereotype?: string;
 };
 
 export type UMLCommunicationLink = UMLRelationship & {
