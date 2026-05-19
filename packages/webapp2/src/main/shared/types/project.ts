@@ -375,9 +375,20 @@ export const isProject = (obj: any): obj is BesserProject => {
 
 // Migrate/normalize a project object (called after isProject check, mutates in place)
 export const ensureProjectMigrated = (obj: BesserProject): BesserProject => {
-  // Add QuantumCircuitDiagram if missing
-  if (!obj.diagrams.QuantumCircuitDiagram) {
-    obj.diagrams.QuantumCircuitDiagram = [createEmptyDiagram('Quantum Circuit', null, 'quantum')];
+  // Defensive bucket-fill: any diagram type added in `ALL_DIAGRAM_TYPES` after the
+  // project was last saved gets an empty seed diagram. Catches projects from older
+  // commits without forcing a schema-version bump for every new diagram type.
+  for (const type of ALL_DIAGRAM_TYPES) {
+    if (!(obj.diagrams as any)[type]) {
+      const umlType = toUMLDiagramType(type);
+      const kind = type === 'GUINoCodeDiagram' ? 'gui' : type === 'QuantumCircuitDiagram' ? 'quantum' : undefined;
+      const title = type === 'QuantumCircuitDiagram'
+        ? 'Quantum Circuit'
+        : type === 'GUINoCodeDiagram'
+          ? 'GUI Diagram'
+          : type.replace('Diagram', ' Diagram');
+      (obj.diagrams as any)[type] = [createEmptyDiagram(title, umlType, kind)];
+    }
   }
 
   // Auto-migrate v1 (single diagram per type) to v2 (array per type)
