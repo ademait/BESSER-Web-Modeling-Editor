@@ -114,3 +114,6 @@ packages/webapp2/dist/*
 /packages/webapp2/playwright-report/
 /packages/webapp2/blob-report/
 /packages/webapp2/test-results/
+
+# Claude Code local notes / iteration guides (PhD-fork only; do not vendor upstream)
+.claude/
