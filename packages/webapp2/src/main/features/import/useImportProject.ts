@@ -56,7 +56,7 @@ function migrateOldWebappProject(data: any): BesserProject {
   const migratedDiagrams: any = {};
   const allTypes: SupportedDiagramType[] = [
     'ClassDiagram', 'ObjectDiagram', 'StateMachineDiagram',
-    'AgentDiagram', 'GUINoCodeDiagram', 'QuantumCircuitDiagram'
+    'AgentDiagram', 'ComponentDiagram', 'GUINoCodeDiagram', 'QuantumCircuitDiagram'
   ];
 
   for (const diagramType of allTypes) {
@@ -83,7 +83,7 @@ function migrateOldWebappProject(data: any): BesserProject {
 
   const currentDiagramIndices: Record<SupportedDiagramType, number> = {
     ClassDiagram: 0, ObjectDiagram: 0, StateMachineDiagram: 0,
-    AgentDiagram: 0, GUINoCodeDiagram: 0, QuantumCircuitDiagram: 0,
+    AgentDiagram: 0, ComponentDiagram: 0, GUINoCodeDiagram: 0, QuantumCircuitDiagram: 0,
   };
 
   return {
@@ -112,6 +112,7 @@ function fillMissingDiagrams(project: BesserProject): BesserProject {
     'ObjectDiagram',
     'StateMachineDiagram',
     'AgentDiagram',
+    'ComponentDiagram',
     'GUINoCodeDiagram',
     'QuantumCircuitDiagram'
   ];
@@ -121,6 +122,7 @@ function fillMissingDiagrams(project: BesserProject): BesserProject {
     ObjectDiagram: UMLDiagramType.ObjectDiagram,
     StateMachineDiagram: UMLDiagramType.StateMachineDiagram,
     AgentDiagram: UMLDiagramType.AgentDiagram,
+    ComponentDiagram: UMLDiagramType.ComponentDiagram,
     GUINoCodeDiagram: null,
     QuantumCircuitDiagram: null,
   };
@@ -130,6 +132,7 @@ function fillMissingDiagrams(project: BesserProject): BesserProject {
     ObjectDiagram: 'Object Diagram',
     StateMachineDiagram: 'State Machine Diagram',
     AgentDiagram: 'Agent Diagram',
+    ComponentDiagram: 'Component Diagram',
     GUINoCodeDiagram: 'GUI Diagram',
     QuantumCircuitDiagram: 'Quantum Circuit'
   };
@@ -347,7 +350,7 @@ export async function importProjectFromJson(file: File): Promise<BesserProject> 
 
           const allTypes: SupportedDiagramType[] = [
             'ClassDiagram', 'ObjectDiagram', 'StateMachineDiagram',
-            'AgentDiagram', 'GUINoCodeDiagram', 'QuantumCircuitDiagram'
+            'AgentDiagram', 'ComponentDiagram', 'GUINoCodeDiagram', 'QuantumCircuitDiagram'
           ];
 
           const diagrams: any = {};

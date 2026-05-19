@@ -3,6 +3,7 @@ import { UMLDiagramType } from '@besser/wme';
 import {
   Atom,
   Bot,
+  Component,
   Layers3,
   Network,
   PanelsTopLeft,
@@ -34,6 +35,10 @@ export const DIAGRAM_GENERATOR_MAP: Record<SupportedDiagramType, { generators: s
   AgentDiagram: {
     generators: ['agent'],
     label: '1 generator',
+  },
+  ComponentDiagram: {
+    generators: [],
+    label: 'No generators yet',
   },
   GUINoCodeDiagram: {
     generators: ['web_app'],
@@ -67,6 +72,7 @@ export const UML_ITEMS: Array<{ type: UMLDiagramType; label: string; icon: React
   { type: UMLDiagramType.ObjectDiagram, label: 'Object', icon: <Layers3 className="size-4" /> },
   { type: UMLDiagramType.StateMachineDiagram, label: 'State', icon: <Repeat2 className="size-4" /> },
   { type: UMLDiagramType.AgentDiagram, label: 'Agent', icon: <Bot className="size-4" /> },
+  { type: UMLDiagramType.ComponentDiagram, label: 'Component', icon: <Component className="size-4" /> },
 ];
 
 export const NON_UML_EDITOR_ITEMS: Array<{ type: SupportedDiagramType; label: string; icon: React.ReactNode }> = [

@@ -1,12 +1,12 @@
 import { UMLDiagramType, UMLModel } from '@besser/wme';
 // Supported diagram types in projects
-export type SupportedDiagramType = 'ClassDiagram' | 'ObjectDiagram' | 'StateMachineDiagram' | 'AgentDiagram' | 'GUINoCodeDiagram' | 'QuantumCircuitDiagram';
+export type SupportedDiagramType = 'ClassDiagram' | 'ObjectDiagram' | 'StateMachineDiagram' | 'AgentDiagram' | 'ComponentDiagram' | 'GUINoCodeDiagram' | 'QuantumCircuitDiagram';
 
 export const MAX_DIAGRAMS_PER_TYPE = 5;
 export const PROJECT_SCHEMA_VERSION = 3;
 
 export const ALL_DIAGRAM_TYPES: SupportedDiagramType[] = [
-  'ClassDiagram', 'ObjectDiagram', 'StateMachineDiagram', 'AgentDiagram', 'GUINoCodeDiagram', 'QuantumCircuitDiagram',
+  'ClassDiagram', 'ObjectDiagram', 'StateMachineDiagram', 'AgentDiagram', 'ComponentDiagram', 'GUINoCodeDiagram', 'QuantumCircuitDiagram',
 ];
 
 // GrapesJS project data structure
@@ -58,6 +58,7 @@ export interface BesserProject {
     ObjectDiagram: ProjectDiagram[];
     StateMachineDiagram: ProjectDiagram[];
     AgentDiagram: ProjectDiagram[];
+    ComponentDiagram: ProjectDiagram[];
     GUINoCodeDiagram: ProjectDiagram[];
     QuantumCircuitDiagram: ProjectDiagram[];
   };
@@ -111,6 +112,7 @@ const defaultDiagramIndices = (): Record<SupportedDiagramType, number> => ({
   ObjectDiagram: 0,
   StateMachineDiagram: 0,
   AgentDiagram: 0,
+  ComponentDiagram: 0,
   GUINoCodeDiagram: 0,
   QuantumCircuitDiagram: 0,
 });
@@ -152,6 +154,8 @@ export const toSupportedDiagramType = (type: UMLDiagramType): SupportedDiagramTy
       return 'StateMachineDiagram';
     case UMLDiagramType.AgentDiagram:
       return 'AgentDiagram';
+    case UMLDiagramType.ComponentDiagram:
+      return 'ComponentDiagram';
     default:
       return 'ClassDiagram'; // fallback
   }
@@ -168,6 +172,8 @@ export const toUMLDiagramType = (type: SupportedDiagramType): UMLDiagramType | n
       return UMLDiagramType.StateMachineDiagram;
     case 'AgentDiagram':
       return UMLDiagramType.AgentDiagram;
+    case 'ComponentDiagram':
+      return UMLDiagramType.ComponentDiagram;
     case 'GUINoCodeDiagram':
       return null; // GUINoCodeDiagram doesn't have a UML diagram type
     case 'QuantumCircuitDiagram':
@@ -327,6 +333,7 @@ export const createDefaultProject = (
       ObjectDiagram: [createEmptyDiagram('Object Diagram', UMLDiagramType.ObjectDiagram)],
       StateMachineDiagram: [createEmptyDiagram('State Machine Diagram', UMLDiagramType.StateMachineDiagram)],
       AgentDiagram: [createEmptyDiagram('Agent Diagram', UMLDiagramType.AgentDiagram)],
+      ComponentDiagram: [createEmptyDiagram('Component Diagram', UMLDiagramType.ComponentDiagram)],
       GUINoCodeDiagram: [createEmptyDiagram('GUI Diagram', null, 'gui')],
       QuantumCircuitDiagram: [createEmptyDiagram('Quantum Circuit', null, 'quantum')],
     },
