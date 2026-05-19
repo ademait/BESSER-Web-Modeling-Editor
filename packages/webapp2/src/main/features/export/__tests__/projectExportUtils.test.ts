@@ -270,6 +270,7 @@ describe('round-trip: export filters empty diagrams, import restores them', () =
       StateMachineDiagram: UMLDiagramType.StateMachineDiagram,
       AgentDiagram: UMLDiagramType.AgentDiagram,
       ComponentDiagram: UMLDiagramType.ComponentDiagram,
+      DeploymentDiagram: UMLDiagramType.DeploymentDiagram,
       GUINoCodeDiagram: null,
       QuantumCircuitDiagram: null,
     };
@@ -279,6 +280,7 @@ describe('round-trip: export filters empty diagrams, import restores them', () =
       StateMachineDiagram: 'State Machine Diagram',
       AgentDiagram: 'Agent Diagram',
       ComponentDiagram: 'Component Diagram',
+      DeploymentDiagram: 'Deployment Diagram',
       GUINoCodeDiagram: 'GUI Diagram',
       QuantumCircuitDiagram: 'Quantum Circuit',
     };
