@@ -18,11 +18,23 @@ import { UMLRelationshipRepository } from '../../services/uml-relationship/uml-r
 import { UMLRelationship } from '../../services/uml-relationship/uml-relationship';
 import { ColorButton } from '../../components/controls/color-button/color-button';
 import { StylePane } from '../../components/style-pane/style-pane';
+import { COMPONENT_EDGE_STEREOTYPE_PRESETS } from '../common/agentic/agentic-tokens';
 
 const Flex = styled.div`
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+`;
+
+/** Makes the editor's content-sized Dropdown fill the popup row like a
+ *  Textfield: the button stretches to 100 % and left-aligns its label. */
+const PresetField = styled.div`
+  width: 100%;
+
+  button {
+    width: 100%;
+    text-align: left;
+  }
 `;
 
 type State = { colorOpen: boolean };
@@ -77,12 +89,24 @@ class ComponentAssociationUpdate extends Component<Props, State> {
             <Divider />
             <section>
               <Flex>
-                <Body style={{ marginRight: '0.5em' }}>Stereotype</Body>
+                <Body style={{ width: '6em', flexShrink: 0, marginRight: '0.5em' }}>Stereotype</Body>
                 <Textfield
                   value={stereotype}
                   onChange={this.onStereotypeChange}
                   placeholder="e.g. delegates, has, uses"
                 />
+              </Flex>
+              <Flex>
+                <Body style={{ width: '6em', flexShrink: 0, marginRight: '0.5em' }}>Preset</Body>
+                <PresetField>
+                  <Dropdown value={stereotype} onChange={this.onStereotypeChange} placeholder="Choose a preset…">
+                    {COMPONENT_EDGE_STEREOTYPE_PRESETS.map((token) => (
+                      <Dropdown.Item key={token} value={token}>
+                        {token}
+                      </Dropdown.Item>
+                    ))}
+                  </Dropdown>
+                </PresetField>
               </Flex>
             </section>
           </>

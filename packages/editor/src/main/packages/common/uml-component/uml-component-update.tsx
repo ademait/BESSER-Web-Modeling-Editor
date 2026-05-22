@@ -13,11 +13,24 @@ import { UMLElementRepository } from '../../../services/uml-element/uml-element-
 import { AsyncDispatch } from '../../../utils/actions/actions';
 import { IUMLComponent, UMLComponent } from './uml-component';
 import { StereotypeToggle } from '../../../components/controls/stereotype-toggle/stereotype-toggle';
+import { Dropdown } from '../../../components/controls/dropdown/dropdown';
+import { COMPONENT_STEREOTYPE_PRESETS } from '../agentic/agentic-tokens';
 
 const Flex = styled.div`
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+`;
+
+/** Makes the editor's content-sized Dropdown fill the popup row like a
+ *  Textfield: the button stretches to 100 % and left-aligns its label. */
+const PresetField = styled.div`
+  width: 100%;
+
+  button {
+    width: 100%;
+    text-align: left;
+  }
 `;
 
 type State = { colorOpen: boolean };
@@ -53,12 +66,24 @@ class ComponentUpdate extends Component<Props, State> {
         <section>
           <Divider />
           <Flex>
-            <Body style={{ marginRight: '0.5em' }}>Stereotype</Body>
+            <Body style={{ width: '6em', flexShrink: 0, marginRight: '0.5em' }}>Stereotype</Body>
             <Textfield
               value={element.stereotype}
               onChange={this.onStereotypeRename}
               placeholder="e.g. solution, skill, external"
             />
+          </Flex>
+          <Flex>
+            <Body style={{ width: '6em', flexShrink: 0, marginRight: '0.5em' }}>Preset</Body>
+            <PresetField>
+              <Dropdown value={element.stereotype} onChange={this.onStereotypeRename} placeholder="Choose a preset…">
+                {COMPONENT_STEREOTYPE_PRESETS.map((token) => (
+                  <Dropdown.Item key={token} value={token}>
+                    {token}
+                  </Dropdown.Item>
+                ))}
+              </Dropdown>
+            </PresetField>
           </Flex>
         </section>
         <StylePane
