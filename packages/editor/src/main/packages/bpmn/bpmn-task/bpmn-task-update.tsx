@@ -15,16 +15,36 @@ import { BPMNTask, BPMNTaskType } from './bpmn-task';
 import { StylePane } from '../../../components/style-pane/style-pane';
 import { ColorButton } from '../../../components/controls/color-button/color-button';
 import { Switch } from '../../../components/controls/switch/switch';
-import { BPMNMarkerType } from '../common/types';
+import { BPMNCollaborationMode, BPMNMarkerType, BPMNReflectionMode, clampTrustScore } from '../common/types';
 import { BpmnLoopMarkerIcon } from '../common/markers/bpmn-loop-marker-icon';
 import { BPMNParallelMarkerIcon } from '../common/markers/bpmn-parallel-marker-icon';
 import { BPMNSequentialMarkerIcon } from '../common/markers/bpmn-sequential-marker-icon';
+import { resolveUpstreamCollabMode } from '../bpmn-flow/bpmn-flow-validator';
+
+// Map collaboration-mode enum values to their i18n keys (04D2-followup F2 —
+// used by the read-only "inherited" label on agentic tasks).
+const collabKey = (m: BPMNCollaborationMode): string => {
+  switch (m) {
+    case 'voting':
+      return 'BPMNCollabVoting';
+    case 'role':
+      return 'BPMNCollabRole';
+    case 'debate':
+      return 'BPMNCollabDebate';
+    case 'competition':
+      return 'BPMNCollabCompetition';
+  }
+};
 
 interface OwnProps {
   element: BPMNTask;
 }
 
-type StateProps = {};
+type StateProps = {
+  // 04D2-followup F-D4: collaboration mode inherited from the nearest upstream
+  // agentic diverging gateway. Drives the read-only "inherited" label.
+  derivedUpstreamMode: BPMNCollaborationMode | undefined;
+};
 
 interface DispatchProps {
   update: typeof UMLElementRepository.update;
@@ -35,10 +55,16 @@ type Props = OwnProps & StateProps & DispatchProps & I18nContext;
 
 const enhance = compose<ComponentClass<OwnProps>>(
   localized,
-  connect<StateProps, DispatchProps, OwnProps, ModelState>(null, {
-    update: UMLElementRepository.update,
-    delete: UMLElementRepository.delete,
-  }),
+  connect<StateProps, DispatchProps, OwnProps, ModelState>(
+    (state, ownProps) => {
+      const elementsById = state.elements as unknown as Record<string, { id: string; type: string }>;
+      return { derivedUpstreamMode: resolveUpstreamCollabMode(ownProps.element.id, elementsById) };
+    },
+    {
+      update: UMLElementRepository.update,
+      delete: UMLElementRepository.delete,
+    },
+  ),
 );
 
 const Flex = styled.div`
@@ -87,6 +113,7 @@ class BPMNTaskUpdateComponent extends Component<Props, State> {
           <Dropdown value={element.taskType} onChange={this.changeTaskType(element.id)}>
             <Dropdown.Item value={'default'}>{this.props.translate('packages.BPMN.BPMNTask')}</Dropdown.Item>
             <Dropdown.Item value={'user'}>{this.props.translate('packages.BPMN.BPMNUserTask')}</Dropdown.Item>
+            <Dropdown.Item value={'service'}>{this.props.translate('packages.BPMN.BPMNServiceTask')}</Dropdown.Item>
             <Dropdown.Item value={'send'}>{this.props.translate('packages.BPMN.BPMNSendTask')}</Dropdown.Item>
             <Dropdown.Item value={'receive'}>{this.props.translate('packages.BPMN.BPMNReceiveTask')}</Dropdown.Item>
             <Dropdown.Item value={'manual'}>{this.props.translate('packages.BPMN.BPMNManualTask')}</Dropdown.Item>
@@ -110,6 +137,53 @@ class BPMNTaskUpdateComponent extends Component<Props, State> {
             </Switch.Item>
           </Switch>
         </section>
+        {/* Agentic BPMN (04D): the "Agentic" toggle marks the task as agentic
+            and reveals the reflection-mode / trust-score fields. */}
+        <section>
+          <Divider />
+          <Switch value={element.isAgentic ? 'agentic' : ''} onChange={this.toggleAgentic(element.id)} color="primary">
+            <Switch.Item value={'agentic'}>{this.props.translate('packages.BPMN.BPMNAgentic')}</Switch.Item>
+          </Switch>
+        </section>
+        {element.isAgentic && (
+          <>
+            <section>
+              <Divider />
+              <Dropdown value={element.reflectionMode} onChange={this.changeReflectionMode(element.id)}>
+                <Dropdown.Item value={'none'}>{this.props.translate('packages.BPMN.BPMNReflectionNone')}</Dropdown.Item>
+                <Dropdown.Item value={'self'}>{this.props.translate('packages.BPMN.BPMNReflectionSelf')}</Dropdown.Item>
+                <Dropdown.Item value={'cross'}>
+                  {this.props.translate('packages.BPMN.BPMNReflectionCross')}
+                </Dropdown.Item>
+                <Dropdown.Item value={'human'}>
+                  {this.props.translate('packages.BPMN.BPMNReflectionHuman')}
+                </Dropdown.Item>
+              </Dropdown>
+            </section>
+            <section>
+              <Divider />
+              <Flex>
+                <span>{this.props.translate('packages.BPMN.BPMNTrustScore')}</span>
+                <Textfield value={String(element.trustScore)} onChange={this.changeTrustScore(element.id)} />
+              </Flex>
+            </section>
+            {/* Collaboration mode on AgenticTask (04D2-followup F-D4): read-only,
+                inherited from the nearest upstream agentic diverging gateway.
+                Stored field is auto-maintained by the diverging gateway's
+                popup forward-walk (F-D5) and the importer's post-pass (F3). */}
+            <section>
+              <Divider />
+              <Flex>
+                <span>{this.props.translate('packages.BPMN.BPMNCollaborationModeInheritedLabel')}</span>
+                <span>
+                  {this.props.derivedUpstreamMode
+                    ? this.props.translate(`packages.BPMN.${collabKey(this.props.derivedUpstreamMode)}`)
+                    : this.props.translate('packages.BPMN.BPMNInheritedNone')}
+                </span>
+              </Flex>
+            </section>
+          </>
+        )}
       </div>
     );
   }
@@ -141,6 +215,38 @@ class BPMNTaskUpdateComponent extends Component<Props, State> {
     }
 
     this.props.update<BPMNTask>(id, { marker: value as BPMNMarkerType });
+  };
+
+  /**
+   * Toggle whether the task is agentic (Agentic BPMN — 04D)
+   * @param id The ID of the task to toggle
+   */
+  private toggleAgentic = (id: string) => (_value: string) => {
+    this.props.update<BPMNTask>(id, { isAgentic: !this.props.element.isAgentic });
+  };
+
+  /**
+   * Change the reflection mode of an agentic task
+   * @param id The ID of the task whose reflection mode should be changed
+   */
+  private changeReflectionMode = (id: string) => (value: string) => {
+    this.props.update<BPMNTask>(id, { reflectionMode: value as BPMNReflectionMode });
+  };
+
+  /**
+   * Change the trust score of an agentic task (clamped to 0–100)
+   * @param id The ID of the task whose trust score should be changed
+   */
+  private changeTrustScore = (id: string) => (value: string) => {
+    const parsed = Number.parseInt(value, 10);
+    this.props.update<BPMNTask>(id, { trustScore: clampTrustScore(Number.isFinite(parsed) ? parsed : 0) });
+  };
+
+  /**
+   * Change the collaboration mode on an agentic task (04D1 — D-D1 extension).
+   */
+  private changeCollaborationMode = (id: string) => (value: string) => {
+    this.props.update<BPMNTask>(id, { collaborationMode: value as BPMNCollaborationMode });
   };
 
   /**

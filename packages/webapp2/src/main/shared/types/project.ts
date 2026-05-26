@@ -1,12 +1,12 @@
 import { UMLDiagramType, UMLModel } from '@besser/wme';
 // Supported diagram types in projects
-export type SupportedDiagramType = 'ClassDiagram' | 'ObjectDiagram' | 'StateMachineDiagram' | 'AgentDiagram' | 'ComponentDiagram' | 'DeploymentDiagram' | 'GUINoCodeDiagram' | 'QuantumCircuitDiagram';
+export type SupportedDiagramType = 'ClassDiagram' | 'ObjectDiagram' | 'StateMachineDiagram' | 'AgentDiagram' | 'ComponentDiagram' | 'DeploymentDiagram' | 'GUINoCodeDiagram' | 'QuantumCircuitDiagram' | 'BPMN';
 
 export const MAX_DIAGRAMS_PER_TYPE = 5;
 export const PROJECT_SCHEMA_VERSION = 3;
 
 export const ALL_DIAGRAM_TYPES: SupportedDiagramType[] = [
-  'ClassDiagram', 'ObjectDiagram', 'StateMachineDiagram', 'AgentDiagram', 'ComponentDiagram', 'DeploymentDiagram', 'GUINoCodeDiagram', 'QuantumCircuitDiagram',
+  'ClassDiagram', 'ObjectDiagram', 'StateMachineDiagram', 'AgentDiagram', 'ComponentDiagram', 'DeploymentDiagram', 'GUINoCodeDiagram', 'QuantumCircuitDiagram', 'BPMN',
 ];
 
 // GrapesJS project data structure
@@ -62,6 +62,7 @@ export interface BesserProject {
     DeploymentDiagram: ProjectDiagram[];
     GUINoCodeDiagram: ProjectDiagram[];
     QuantumCircuitDiagram: ProjectDiagram[];
+    BPMN: ProjectDiagram[];
   };
   settings: {
     defaultDiagramType: SupportedDiagramType;
@@ -117,6 +118,7 @@ const defaultDiagramIndices = (): Record<SupportedDiagramType, number> => ({
   DeploymentDiagram: 0,
   GUINoCodeDiagram: 0,
   QuantumCircuitDiagram: 0,
+  BPMN: 0,
 });
 
 // Migrate v1 project (single diagram per type) to v2 (array per type)
@@ -160,6 +162,8 @@ export const toSupportedDiagramType = (type: UMLDiagramType): SupportedDiagramTy
       return 'ComponentDiagram';
     case UMLDiagramType.DeploymentDiagram:
       return 'DeploymentDiagram';
+    case UMLDiagramType.BPMN:
+      return 'BPMN';
     default:
       return 'ClassDiagram'; // fallback
   }
@@ -184,6 +188,8 @@ export const toUMLDiagramType = (type: SupportedDiagramType): UMLDiagramType | n
       return null; // GUINoCodeDiagram doesn't have a UML diagram type
     case 'QuantumCircuitDiagram':
       return null; // QuantumCircuitDiagram doesn't have a UML diagram type
+    case 'BPMN':
+      return UMLDiagramType.BPMN; 
     default:
       return null;
   }
@@ -343,6 +349,7 @@ export const createDefaultProject = (
       DeploymentDiagram: [createEmptyDiagram('Deployment Diagram', UMLDiagramType.DeploymentDiagram)],
       GUINoCodeDiagram: [createEmptyDiagram('GUI Diagram', null, 'gui')],
       QuantumCircuitDiagram: [createEmptyDiagram('Quantum Circuit', null, 'quantum')],
+      BPMN: [createEmptyDiagram('BPMN Diagram', UMLDiagramType.BPMN)], 
     },
     settings: {
       defaultDiagramType: 'ClassDiagram',
@@ -391,6 +398,11 @@ export const ensureProjectMigrated = (obj: BesserProject): BesserProject => {
     }
   }
 
+  // Add BPMN diagram if missing
+  if (!obj.diagrams.BPMN) {
+    obj.diagrams.BPMN = [createEmptyDiagram('BPMN Diagram', UMLDiagramType.BPMN)];
+  }
+
   // Auto-migrate v1 (single diagram per type) to v2 (array per type)
   if (!obj.schemaVersion || obj.schemaVersion < 2) {
     obj = migrateProjectToV2(obj);
@@ -399,6 +411,16 @@ export const ensureProjectMigrated = (obj: BesserProject): BesserProject => {
   // Migrate v2 → v3: convert index-based references to ID-based and populate defaults
   if (!obj.schemaVersion || obj.schemaVersion < 3) {
     obj = migrateReferencesToIds(obj);
+  }
+
+  // Back-compat: pre-`BPMNDiagram` BPMN diagrams stored `model.type === 'BPMN'`.
+  // Normalize to the new wire value so the diagram round-trips against the
+  // BESSER backend's `"<Name>Diagram"` convention.
+  for (const diagram of obj.diagrams.BPMN ?? []) {
+    const model = diagram.model as { type?: string } | undefined;
+    if (model && model.type === 'BPMN') {
+      model.type = UMLDiagramType.BPMN;
+    }
   }
 
   return obj;

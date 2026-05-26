@@ -13,6 +13,7 @@ import {
   Repeat2,
   Settings,
   SlidersHorizontal,
+  Workflow,
 } from 'lucide-react';
 import { SHOW_AGENT_PERSONALIZATION_BUTTON } from '../../shared/constants/constant';
 import type { SupportedDiagramType, BesserProject, ProjectDiagram } from '../../shared/types/project';
@@ -52,6 +53,10 @@ export const DIAGRAM_GENERATOR_MAP: Record<SupportedDiagramType, { generators: s
     generators: ['qiskit'],
     label: '1 generator',
   },
+  BPMN: {
+    generators: [],
+    label: 'In development',
+  }
 };
 
 // Re-export for backwards compatibility
@@ -78,6 +83,7 @@ export const UML_ITEMS: Array<{ type: UMLDiagramType; label: string; icon: React
   { type: UMLDiagramType.AgentDiagram, label: 'Agent', icon: <Bot className="size-4" /> },
   { type: UMLDiagramType.ComponentDiagram, label: 'Component', icon: <Component className="size-4" /> },
   { type: UMLDiagramType.DeploymentDiagram, label: 'Deployment', icon: <PackageOpen className="size-4" /> },
+  { type: UMLDiagramType.BPMN, label: 'BPMN', icon: <Workflow className="size-4" /> },
 ];
 
 export const NON_UML_EDITOR_ITEMS: Array<{ type: SupportedDiagramType; label: string; icon: React.ReactNode }> = [

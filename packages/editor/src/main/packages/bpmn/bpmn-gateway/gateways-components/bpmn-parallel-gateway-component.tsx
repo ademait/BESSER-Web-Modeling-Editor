@@ -1,7 +1,9 @@
 import React, { FunctionComponent } from 'react';
 import { ThemedPolyline } from '../../../../components/theme/themedComponents';
 import { Multiline } from '../../../../utils/svg/multiline';
-import { Props } from '../bpmn-gateway-component';
+import { BPMNBotIcon } from '../../common/icons/bpmn-bot-icon';
+import { BPMNReflectionIcon } from '../../common/icons/bpmn-reflection-icon';
+import { COLLAB_LETTER, MERGING_TWO_LETTER, Props } from '../bpmn-gateway-component';
 
 export const BPMNParallelGatewayComponent: FunctionComponent<Props> = ({ element, fillColor }) => (
   <g>
@@ -34,5 +36,23 @@ export const BPMNParallelGatewayComponent: FunctionComponent<Props> = ({ element
     >
       {element.name}
     </Multiline>
+    {/* Agentic BPMN (04D1 — paper Table 2): bot icon top-left, collaboration /
+        merging marker bottom-right. Coords are first-pass; D-D5 — revisit on
+        manual review. */}
+    {element.isAgentic && (
+      <>
+        <BPMNBotIcon x={-12} y={-12} color={element.strokeColor} />
+        <BPMNReflectionIcon
+          letter={
+            element.gatewayRole === 'diverging'
+              ? COLLAB_LETTER[element.collaborationMode]
+              : MERGING_TWO_LETTER[element.mergingStrategy]
+          }
+          x={element.bounds.width - 4}
+          y={element.bounds.height - 4}
+          color={element.strokeColor}
+        />
+      </>
+    )}
   </g>
 );

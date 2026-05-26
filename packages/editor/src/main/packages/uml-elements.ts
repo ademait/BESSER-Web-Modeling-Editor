@@ -79,8 +79,6 @@ import { AgentState } from './agent-state-diagram/agent-state/agent-state';
 import { AgentStateBody } from './agent-state-diagram/agent-state-body/agent-state-body';
 import { AgentStateFallbackBody } from './agent-state-diagram/agent-state-fallback-body/agent-state-fallback-body';
 
-
-
 export const UMLElements = {
   [UMLElementType.Package]: UMLClassPackage,
   [UMLElementType.Class]: UMLClass,

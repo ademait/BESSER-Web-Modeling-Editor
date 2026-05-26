@@ -52,7 +52,6 @@ import { FlowchartInputOutputComponent } from './flowchart/flowchart-input-outpu
 import { ColorLegendComponent } from './common/color-legend/color-legend-component';
 import { CommentsComponent } from './common/comments/comments-component';
 
-
 import { BPMNFlowComponent } from './bpmn/bpmn-flow/bpmn-flow-component';
 import { BPMNTaskComponent } from './bpmn/bpmn-task/bpmn-task-component';
 import { BPMNSubprocessComponent } from './bpmn/bpmn-subprocess/bpmn-subprocess-component';
