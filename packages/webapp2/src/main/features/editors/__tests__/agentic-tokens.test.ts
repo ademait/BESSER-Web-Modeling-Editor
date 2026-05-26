@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   AGENT_CATEGORY_TOKENS,
   AGENTIC_EDGE_KIND_TOKENS,
+  HUMAN_ACTOR_TOKENS,
   isAgentStereotype,
   isAgenticEdgeStereotype,
   stereotypeTokens,
@@ -30,6 +31,10 @@ describe('Phase C — agentic token vocabulary', () => {
     ]);
   });
 
+  it('HUMAN_ACTOR_TOKENS has the canonical `human` plus the `actor` alias', () => {
+    expect([...HUMAN_ACTOR_TOKENS]).toEqual(['human', 'actor']);
+  });
+
   it('stereotypeTokens splits on commas and whitespace, lowercased', () => {
     expect(stereotypeTokens('Solution, External')).toEqual(['solution', 'external']);
     expect(stereotypeTokens('  delegates   has ')).toEqual(['delegates', 'has']);
@@ -37,9 +42,12 @@ describe('Phase C — agentic token vocabulary', () => {
     expect(stereotypeTokens(undefined)).toEqual([]);
   });
 
-  it('isAgentStereotype is true only for an AgentCategory token', () => {
+  it('isAgentStereotype is true for an AgentCategory or human-actor token', () => {
     expect(isAgentStereotype('solution')).toBe(true);
     expect(isAgentStereotype('supervision, external')).toBe(true);
+    expect(isAgentStereotype('human')).toBe(true); // canonical human-actor
+    expect(isAgentStereotype('actor')).toBe(true); // parse-side alias
+    expect(isAgentStereotype('skill, human')).toBe(true); // human alone promotes
     expect(isAgentStereotype('skill')).toBe(false); // a capability, not an agent
     expect(isAgentStereotype('external')).toBe(false); // locality, not an agent
     expect(isAgentStereotype('')).toBe(false);

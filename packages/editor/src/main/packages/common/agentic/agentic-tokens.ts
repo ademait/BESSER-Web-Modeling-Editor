@@ -16,6 +16,17 @@
  *  ("an agent, role unspecified") and is intentionally not a preset. */
 export const AGENT_CATEGORY_TOKENS = ['solution', 'supervision', 'consensus', 'collaboration'] as const;
 
+/** Human-actor tokens — mark an `AgenticComponent` as a human-in-the-loop
+ *  participant. Orthogonal to AgentCategory: a human can also be a
+ *  `solution` / `supervision` / etc. agent (e.g. stereotype
+ *  `"supervision, human"` -> `AgenticComponent(agent_category=SUPERVISION,
+ *  is_human=True)`). Mirrors BESSER `stereotype_tokens.py`
+ *  HUMAN_ACTOR_TOKENS; the literal `"actor / human"` is omitted because
+ *  it splits to `["actor", "/", "human"]` under stereotypeTokens() and
+ *  matches via `human` anyway. **Canonical wire token: `human`** —
+ *  `actor` is a parse-side alias that won't round-trip back. */
+export const HUMAN_ACTOR_TOKENS = ['human', 'actor'] as const;
+
 /** Component capability subtypes — `agentic.py` Skill / Tool. Not agents. */
 export const CAPABILITY_TOKENS = ['skill', 'tool'] as const;
 
@@ -41,6 +52,7 @@ export const AGENTIC_EDGE_KIND_TOKENS = [
 /** Suggestions offered in the Component element stereotype field. */
 export const COMPONENT_STEREOTYPE_PRESETS: readonly string[] = [
   ...AGENT_CATEGORY_TOKENS,
+  'human', // canonical human-actor token; aliases accepted but not promoted in UI
   ...CAPABILITY_TOKENS,
   ...LOCALITY_TOKENS,
 ];
@@ -57,12 +69,14 @@ export function stereotypeTokens(stereotype?: string): string[] {
     .filter(Boolean);
 }
 
-/** True when any token names an AgentCategory — i.e. the element is an
- *  agent (would convert to an `AgenticComponent`). `skill` / `tool` /
- *  locality tokens do NOT make an element an agent. */
+/** True when any token names an AgentCategory **or** a human-actor — i.e.
+ *  the element is an agent (would convert to an `AgenticComponent`).
+ *  Mirrors the BESSER converter's `stereotype_has_agentic_tokens` union
+ *  check so the WME bot icon stays in agreement with promotion.
+ *  `skill` / `tool` / locality tokens do NOT make an element an agent. */
 export function isAgentStereotype(stereotype?: string): boolean {
-  const categories = new Set<string>(AGENT_CATEGORY_TOKENS);
-  return stereotypeTokens(stereotype).some((t) => categories.has(t));
+  const agentTokens = new Set<string>([...AGENT_CATEGORY_TOKENS, ...HUMAN_ACTOR_TOKENS]);
+  return stereotypeTokens(stereotype).some((t) => agentTokens.has(t));
 }
 
 /** True when any token names an AgenticEdgeKind — i.e. the dependency
