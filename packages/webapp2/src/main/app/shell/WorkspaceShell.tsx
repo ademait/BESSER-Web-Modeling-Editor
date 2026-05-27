@@ -367,11 +367,14 @@ export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({
       // (limit reached)" when the project hits its per-type diagram
       // cap. Surface that (and any other thunk rejection) as a toast
       // instead of letting React swallow the unhandled rejection.
+      // 02-FU3 (2026-05-27): surface both the raw error message and
+      // the actionable hint, so the user knows what happened AND
+      // what to do next.
       const message = err instanceof Error ? err.message : String(err);
-      const hint = /limit reached/i.test(message)
-        ? 'Close or delete an existing Component diagram before generating a new one.'
+      const body = /limit reached/i.test(message)
+        ? `${message}. Close or delete an existing Component diagram before generating a new one.`
         : message;
-      toast.error(`Cannot derive Component diagram: ${hint}`);
+      toast.error(`Cannot derive Component diagram: ${body}`);
       console.error('[inter-diagram] derivation failed:', err);
     }
   }, [deriveComponentDiagram]);

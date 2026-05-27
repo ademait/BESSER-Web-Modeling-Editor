@@ -90,11 +90,28 @@ export function bpmnModelToComponentModel(bpmn: UMLModel): DerivationResult {
     const srcComp = componentIdByLaneId.get(srcLane.id);
     if (!srcComp) continue;
 
+    // Resolve target Component:
+    // 1) If the flow ends on a lane (or a task in a lane) → that lane's Component.
+    // 2) If it ends on the pool shape itself → the pool's first lane Component
+    //    (02-FU3 2026-05-27 — a pool with lanes is a tracked swarm; route the
+    //    edge there instead of synthesising a fresh external).
+    // 3) Otherwise (truly black-box target) → synthesise an external Component.
+    let tgtComp: string | undefined;
     const tgtLane = laneForElement(bpmn, mf.target.element);
-    const tgtCompExisting = tgtLane ? componentIdByLaneId.get(tgtLane.id) : undefined;
+    if (tgtLane) {
+      tgtComp = componentIdByLaneId.get(tgtLane.id);
+    } else {
+      const tgtEl = bpmn.elements[mf.target.element];
+      if (tgtEl && tgtEl.type === 'BPMNPool') {
+        const targetLanes = lanesByPool.get(tgtEl.id) ?? [];
+        if (targetLanes.length > 0) {
+          tgtComp = componentIdByLaneId.get(targetLanes[0].id);
+        }
+      }
+    }
 
-    if (tgtCompExisting) {
-      emitComponentDependency(out, srcComp, tgtCompExisting, 'delegates');
+    if (tgtComp) {
+      emitComponentDependency(out, srcComp, tgtComp, 'delegates');
     } else {
       const externalId = emitExternalComponent(out, mf, layout);
       emitComponentDependency(out, srcComp, externalId, 'delegates');
@@ -230,6 +247,11 @@ function collectInterPoolMessageFlows(bpmn: UMLModel): UMLRelationship[] {
 }
 
 function poolFor(bpmn: UMLModel, el: UMLElement): string | null {
+  // 02-FU3 (2026-05-27): when the element IS a pool (e.g. a message
+  // flow drawn to the pool shape itself, treating the pool as a
+  // black-box participant per BPMN 2.0.2 § 9.2.1), return its id
+  // instead of walking up to a non-existent parent.
+  if (el.type === 'BPMNPool') return el.id;
   let cur: UMLElement | null = el;
   while (cur && cur.owner) {
     const parent: UMLElement | undefined = bpmn.elements[cur.owner];
