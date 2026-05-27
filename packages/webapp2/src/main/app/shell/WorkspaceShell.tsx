@@ -14,6 +14,7 @@ import {
   useImportDiagramToProjectWorkflow,
   useImportBpmnDiagramToProjectWorkflow,
 } from '../../features/import/useImportDiagram';
+import { useGenerateComponentDiagram } from '../../features/inter-diagram';
 import { buildExportableProjectPayload } from '../../features/export/utils/projectExportUtils';
 import {
   besserLibraryRepositoryLink,
@@ -338,6 +339,29 @@ export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({
     [location.pathname, navigate, dispatch],
   );
 
+  const deriveComponentDiagram = useGenerateComponentDiagram();
+  const handleDeriveComponentDiagram = useCallback(async () => {
+    const r = await deriveComponentDiagram();
+    if (!r.ok) {
+      const msg =
+        r.reason === 'no-pools'
+          ? 'Add at least one pool with lanes to this BPMN diagram first.'
+          : r.reason === 'no-lanes-in-any-pool'
+            ? 'Add at least one lane inside a pool first.'
+            : 'This action only works on a BPMN diagram.';
+      toast.error(`Cannot derive Component diagram: ${msg}`);
+      return;
+    }
+    if (r.warnings.length > 0) {
+      toast.warning(
+        `Generated Component diagram with ${r.warnings.length} warning${r.warnings.length === 1 ? '' : 's'} — see console.`,
+      );
+      console.info('[inter-diagram] derivation warnings:', r.warnings);
+    } else {
+      toast.success('Component diagram generated — switched to the new diagram.');
+    }
+  }, [deriveComponentDiagram]);
+
   const handleSwitchUml = useCallback(
     (type: UMLDiagramType) => {
       if (location.pathname !== '/') {
@@ -534,6 +558,7 @@ export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({
         activeDiagramType={currentProject?.currentDiagramType ?? 'ClassDiagram'}
         onSwitchUml={handleSwitchUml}
         onSwitchDiagramType={handleSwitchDiagramType}
+        onDeriveComponentDiagram={handleDeriveComponentDiagram}
         onNavigate={handleNavigate}
         projectNameDraft={projectNameDraft}
         onProjectNameDraftChange={setProjectNameDraft}

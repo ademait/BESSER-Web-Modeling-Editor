@@ -1,7 +1,6 @@
 import React from 'react';
 import { FolderKanban } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { GenerateComponentDiagramButton } from '@/main/features/inter-diagram';
 import { CommunityMenu } from './menus/CommunityMenu';
 import { DeployMenu } from './menus/DeployMenu';
 import { FileMenu } from './menus/FileMenu';
@@ -52,6 +51,7 @@ const WorkspaceTopBarInner: React.FC<WorkspaceTopBarProps> = ({
   activeDiagramType,
   onSwitchUml,
   onSwitchDiagramType,
+  onDeriveComponentDiagram,
   onNavigate,
   projectNameDraft,
   onProjectNameDraftChange,
@@ -108,10 +108,11 @@ const WorkspaceTopBarInner: React.FC<WorkspaceTopBarProps> = ({
             mode={generatorMode}
             isGenerating={isGenerating}
             primaryGenerateClass={primaryGenerateClass}
+            activeDiagramType={activeDiagramType}
             onGenerate={onGenerate}
             onSwitchDiagramType={onSwitchDiagramType}
+            onDeriveComponentDiagram={onDeriveComponentDiagram}
           />
-          {activeDiagramType === 'BPMN' && <GenerateComponentDiagramButton outlineButtonClass={outlineButtonClass} />}
           <DeployMenu
             outlineButtonClass={outlineButtonClass}
             isAuthenticated={isAuthenticated}

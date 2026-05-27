@@ -20,8 +20,10 @@ interface GenerateMenuProps {
   mode: GeneratorMenuMode;
   isGenerating: boolean;
   primaryGenerateClass: string;
+  activeDiagramType: SupportedDiagramType;
   onGenerate: (type: GeneratorType) => void;
   onSwitchDiagramType?: (type: SupportedDiagramType) => void;
+  onDeriveComponentDiagram?: () => void;
 }
 
 const renderGeneratorMenuEntry = (entry: GeneratorMenuEntry, onGenerate: (type: GeneratorType) => void) => {
@@ -55,7 +57,15 @@ const renderGeneratorMenuEntry = (entry: GeneratorMenuEntry, onGenerate: (type: 
   );
 };
 
-export const GenerateMenu: React.FC<GenerateMenuProps> = ({ mode, isGenerating, primaryGenerateClass, onGenerate, onSwitchDiagramType }) => {
+export const GenerateMenu: React.FC<GenerateMenuProps> = ({
+  mode,
+  isGenerating,
+  primaryGenerateClass,
+  activeDiagramType,
+  onGenerate,
+  onSwitchDiagramType,
+  onDeriveComponentDiagram,
+}) => {
   const menuEntries = GENERATOR_MENU_CONFIG[mode];
 
   return (
@@ -74,9 +84,13 @@ export const GenerateMenu: React.FC<GenerateMenuProps> = ({ mode, isGenerating, 
         {mode === 'statemachine' && onSwitchDiagramType && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => onSwitchDiagramType('ClassDiagram')}>
-              Go to Class Diagram
-            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onSwitchDiagramType('ClassDiagram')}>Go to Class Diagram</DropdownMenuItem>
+          </>
+        )}
+        {activeDiagramType === 'BPMN' && onDeriveComponentDiagram && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onDeriveComponentDiagram}>Generate Component diagram</DropdownMenuItem>
           </>
         )}
       </DropdownMenuContent>
