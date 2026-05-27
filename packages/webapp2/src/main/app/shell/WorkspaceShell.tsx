@@ -341,24 +341,38 @@ export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({
 
   const deriveComponentDiagram = useGenerateComponentDiagram();
   const handleDeriveComponentDiagram = useCallback(async () => {
-    const r = await deriveComponentDiagram();
-    if (!r.ok) {
-      const msg =
-        r.reason === 'no-pools'
-          ? 'Add at least one pool with lanes to this BPMN diagram first.'
-          : r.reason === 'no-lanes-in-any-pool'
-            ? 'Add at least one lane inside a pool first.'
-            : 'This action only works on a BPMN diagram.';
-      toast.error(`Cannot derive Component diagram: ${msg}`);
-      return;
-    }
-    if (r.warnings.length > 0) {
-      toast.warning(
-        `Generated Component diagram with ${r.warnings.length} warning${r.warnings.length === 1 ? '' : 's'} — see console.`,
-      );
-      console.info('[inter-diagram] derivation warnings:', r.warnings);
-    } else {
-      toast.success('Component diagram generated — switched to the new diagram.');
+    try {
+      const r = await deriveComponentDiagram();
+      if (!r.ok) {
+        const msg =
+          r.reason === 'no-pools'
+            ? 'Add at least one pool with lanes to this BPMN diagram first.'
+            : r.reason === 'no-lanes-in-any-pool'
+              ? 'Add at least one lane inside a pool first.'
+              : 'This action only works on a BPMN diagram.';
+        toast.error(`Cannot derive Component diagram: ${msg}`);
+        return;
+      }
+      if (r.warnings.length > 0) {
+        toast.warning(
+          `Generated Component diagram with ${r.warnings.length} warning${r.warnings.length === 1 ? '' : 's'} — see console.`,
+        );
+        console.info('[inter-diagram] derivation warnings:', r.warnings);
+      } else {
+        toast.success('Component diagram generated — switched to the new diagram.');
+      }
+    } catch (err) {
+      // 02-FU2 (2026-05-27): the addDiagramThunk inside
+      // useGenerateComponentDiagram throws "Cannot add more diagrams
+      // (limit reached)" when the project hits its per-type diagram
+      // cap. Surface that (and any other thunk rejection) as a toast
+      // instead of letting React swallow the unhandled rejection.
+      const message = err instanceof Error ? err.message : String(err);
+      const hint = /limit reached/i.test(message)
+        ? 'Close or delete an existing Component diagram before generating a new one.'
+        : message;
+      toast.error(`Cannot derive Component diagram: ${hint}`);
+      console.error('[inter-diagram] derivation failed:', err);
     }
   }, [deriveComponentDiagram]);
 
