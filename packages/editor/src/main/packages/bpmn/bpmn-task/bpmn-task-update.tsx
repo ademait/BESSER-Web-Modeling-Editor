@@ -111,16 +111,16 @@ class BPMNTaskUpdateComponent extends Component<Props, State> {
         <section>
           <Divider />
           <Dropdown value={element.taskType} onChange={this.changeTaskType(element.id)}>
-            <Dropdown.Item value={'default'}>{this.props.translate('packages.BPMN.BPMNTask')}</Dropdown.Item>
-            <Dropdown.Item value={'user'}>{this.props.translate('packages.BPMN.BPMNUserTask')}</Dropdown.Item>
-            <Dropdown.Item value={'service'}>{this.props.translate('packages.BPMN.BPMNServiceTask')}</Dropdown.Item>
-            <Dropdown.Item value={'send'}>{this.props.translate('packages.BPMN.BPMNSendTask')}</Dropdown.Item>
-            <Dropdown.Item value={'receive'}>{this.props.translate('packages.BPMN.BPMNReceiveTask')}</Dropdown.Item>
-            <Dropdown.Item value={'manual'}>{this.props.translate('packages.BPMN.BPMNManualTask')}</Dropdown.Item>
+            <Dropdown.Item value={'default'}>{this.props.translate('packages.BPMNDiagram.BPMNTask')}</Dropdown.Item>
+            <Dropdown.Item value={'user'}>{this.props.translate('packages.BPMNDiagram.BPMNUserTask')}</Dropdown.Item>
+            <Dropdown.Item value={'service'}>{this.props.translate('packages.BPMNDiagram.BPMNServiceTask')}</Dropdown.Item>
+            <Dropdown.Item value={'send'}>{this.props.translate('packages.BPMNDiagram.BPMNSendTask')}</Dropdown.Item>
+            <Dropdown.Item value={'receive'}>{this.props.translate('packages.BPMNDiagram.BPMNReceiveTask')}</Dropdown.Item>
+            <Dropdown.Item value={'manual'}>{this.props.translate('packages.BPMNDiagram.BPMNManualTask')}</Dropdown.Item>
             <Dropdown.Item value={'business-rule'}>
-              {this.props.translate('packages.BPMN.BPMNBusinessRuleTask')}
+              {this.props.translate('packages.BPMNDiagram.BPMNBusinessRuleTask')}
             </Dropdown.Item>
-            <Dropdown.Item value={'script'}>{this.props.translate('packages.BPMN.BPMNScriptTask')}</Dropdown.Item>
+            <Dropdown.Item value={'script'}>{this.props.translate('packages.BPMNDiagram.BPMNScriptTask')}</Dropdown.Item>
           </Dropdown>
         </section>
         <section>
@@ -142,7 +142,7 @@ class BPMNTaskUpdateComponent extends Component<Props, State> {
         <section>
           <Divider />
           <Switch value={element.isAgentic ? 'agentic' : ''} onChange={this.toggleAgentic(element.id)} color="primary">
-            <Switch.Item value={'agentic'}>{this.props.translate('packages.BPMN.BPMNAgentic')}</Switch.Item>
+            <Switch.Item value={'agentic'}>{this.props.translate('packages.BPMNDiagram.BPMNAgentic')}</Switch.Item>
           </Switch>
         </section>
         {element.isAgentic && (
@@ -150,20 +150,20 @@ class BPMNTaskUpdateComponent extends Component<Props, State> {
             <section>
               <Divider />
               <Dropdown value={element.reflectionMode} onChange={this.changeReflectionMode(element.id)}>
-                <Dropdown.Item value={'none'}>{this.props.translate('packages.BPMN.BPMNReflectionNone')}</Dropdown.Item>
-                <Dropdown.Item value={'self'}>{this.props.translate('packages.BPMN.BPMNReflectionSelf')}</Dropdown.Item>
+                <Dropdown.Item value={'none'}>{this.props.translate('packages.BPMNDiagram.BPMNReflectionNone')}</Dropdown.Item>
+                <Dropdown.Item value={'self'}>{this.props.translate('packages.BPMNDiagram.BPMNReflectionSelf')}</Dropdown.Item>
                 <Dropdown.Item value={'cross'}>
-                  {this.props.translate('packages.BPMN.BPMNReflectionCross')}
+                  {this.props.translate('packages.BPMNDiagram.BPMNReflectionCross')}
                 </Dropdown.Item>
                 <Dropdown.Item value={'human'}>
-                  {this.props.translate('packages.BPMN.BPMNReflectionHuman')}
+                  {this.props.translate('packages.BPMNDiagram.BPMNReflectionHuman')}
                 </Dropdown.Item>
               </Dropdown>
             </section>
             <section>
               <Divider />
               <Flex>
-                <span>{this.props.translate('packages.BPMN.BPMNTrustScore')}</span>
+                <span>{this.props.translate('packages.BPMNDiagram.BPMNTrustScore')}</span>
                 <Textfield value={String(element.trustScore)} onChange={this.changeTrustScore(element.id)} />
               </Flex>
             </section>
@@ -174,11 +174,11 @@ class BPMNTaskUpdateComponent extends Component<Props, State> {
             <section>
               <Divider />
               <Flex>
-                <span>{this.props.translate('packages.BPMN.BPMNCollaborationModeInheritedLabel')}</span>
+                <span>{this.props.translate('packages.BPMNDiagram.BPMNCollaborationModeInheritedLabel')}</span>
                 <span>
                   {this.props.derivedUpstreamMode
-                    ? this.props.translate(`packages.BPMN.${collabKey(this.props.derivedUpstreamMode)}`)
-                    : this.props.translate('packages.BPMN.BPMNInheritedNone')}
+                    ? this.props.translate(`packages.BPMNDiagram.${collabKey(this.props.derivedUpstreamMode)}`)
+                    : this.props.translate('packages.BPMNDiagram.BPMNInheritedNone')}
                 </span>
               </Flex>
             </section>

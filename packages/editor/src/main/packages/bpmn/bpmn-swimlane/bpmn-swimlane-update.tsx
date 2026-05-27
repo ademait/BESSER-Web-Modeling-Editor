@@ -74,7 +74,7 @@ class BPMNSwimlaneUpdateComponent extends Component<Props, State> {
         <section>
           <Divider />
           <Switch value={element.isAgentic ? 'agentic' : ''} onChange={this.toggleAgentic(element.id)} color="primary">
-            <Switch.Item value={'agentic'}>{this.props.translate('packages.BPMN.BPMNAgentic')}</Switch.Item>
+            <Switch.Item value={'agentic'}>{this.props.translate('packages.BPMNDiagram.BPMNAgentic')}</Switch.Item>
           </Switch>
         </section>
         {element.isAgentic && (
@@ -83,17 +83,17 @@ class BPMNSwimlaneUpdateComponent extends Component<Props, State> {
               <Divider />
               <Dropdown value={element.role} onChange={this.changeRole(element.id)}>
                 <Dropdown.Item value={'worker'}>
-                  {this.props.translate('packages.BPMN.BPMNAgentRoleWorker')}
+                  {this.props.translate('packages.BPMNDiagram.BPMNAgentRoleWorker')}
                 </Dropdown.Item>
                 <Dropdown.Item value={'manager'}>
-                  {this.props.translate('packages.BPMN.BPMNAgentRoleManager')}
+                  {this.props.translate('packages.BPMNDiagram.BPMNAgentRoleManager')}
                 </Dropdown.Item>
               </Dropdown>
             </section>
             <section>
               <Divider />
               <Flex>
-                <span>{this.props.translate('packages.BPMN.BPMNTrustScore')}</span>
+                <span>{this.props.translate('packages.BPMNDiagram.BPMNTrustScore')}</span>
                 <Textfield value={String(element.trustScore)} onChange={this.changeTrustScore(element.id)} />
               </Flex>
             </section>

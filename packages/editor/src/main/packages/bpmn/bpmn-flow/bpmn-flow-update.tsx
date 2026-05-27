@@ -126,17 +126,17 @@ class BPMNFlowUpdateComponent extends Component<Props, State> {
 
     const flowTypeItems = [
       allowedTypes.includes('sequence') ? (
-        <Dropdown.Item value={'sequence'}>{this.props.translate('packages.BPMN.BPMNSequenceFlow')}</Dropdown.Item>
+        <Dropdown.Item value={'sequence'}>{this.props.translate('packages.BPMNDiagram.BPMNSequenceFlow')}</Dropdown.Item>
       ) : null,
       allowedTypes.includes('message') ? (
-        <Dropdown.Item value={'message'}>{this.props.translate('packages.BPMN.BPMNMessageFlow')}</Dropdown.Item>
+        <Dropdown.Item value={'message'}>{this.props.translate('packages.BPMNDiagram.BPMNMessageFlow')}</Dropdown.Item>
       ) : null,
       allowedTypes.includes('association') ? (
-        <Dropdown.Item value={'association'}>{this.props.translate('packages.BPMN.BPMNAssociationFlow')}</Dropdown.Item>
+        <Dropdown.Item value={'association'}>{this.props.translate('packages.BPMNDiagram.BPMNAssociationFlow')}</Dropdown.Item>
       ) : null,
       allowedTypes.includes('data association') ? (
         <Dropdown.Item value={'data association'}>
-          {this.props.translate('packages.BPMN.BPMNDataAssociationFlow')}
+          {this.props.translate('packages.BPMNDiagram.BPMNDataAssociationFlow')}
         </Dropdown.Item>
       ) : null,
     ].filter((item): item is React.ReactElement => item !== null);
@@ -171,7 +171,7 @@ class BPMNFlowUpdateComponent extends Component<Props, State> {
                 color="primary"
               >
                 <Switch.Item value={'default'}>
-                  {this.props.translate('packages.BPMN.BPMNDefaultSequenceFlow')}
+                  {this.props.translate('packages.BPMNDiagram.BPMNDefaultSequenceFlow')}
                 </Switch.Item>
               </Switch>
             </section>
@@ -188,7 +188,7 @@ class BPMNFlowUpdateComponent extends Component<Props, State> {
                 onChange={this.toggleAgentic(element.id)}
                 color="primary"
               >
-                <Switch.Item value={'agentic'}>{this.props.translate('packages.BPMN.BPMNAgentic')}</Switch.Item>
+                <Switch.Item value={'agentic'}>{this.props.translate('packages.BPMNDiagram.BPMNAgentic')}</Switch.Item>
               </Switch>
             </section>
             {element.isAgentic && (
@@ -200,14 +200,14 @@ class BPMNFlowUpdateComponent extends Component<Props, State> {
                   <Divider />
                   <Dropdown value={element.collaborationMode} onChange={this.changeCollaborationMode(element.id)}>
                     <Dropdown.Item value={'voting'}>
-                      {this.props.translate('packages.BPMN.BPMNCollabVoting')}
+                      {this.props.translate('packages.BPMNDiagram.BPMNCollabVoting')}
                     </Dropdown.Item>
-                    <Dropdown.Item value={'role'}>{this.props.translate('packages.BPMN.BPMNCollabRole')}</Dropdown.Item>
+                    <Dropdown.Item value={'role'}>{this.props.translate('packages.BPMNDiagram.BPMNCollabRole')}</Dropdown.Item>
                     <Dropdown.Item value={'debate'}>
-                      {this.props.translate('packages.BPMN.BPMNCollabDebate')}
+                      {this.props.translate('packages.BPMNDiagram.BPMNCollabDebate')}
                     </Dropdown.Item>
                     <Dropdown.Item value={'competition'}>
-                      {this.props.translate('packages.BPMN.BPMNCollabCompetition')}
+                      {this.props.translate('packages.BPMNDiagram.BPMNCollabCompetition')}
                     </Dropdown.Item>
                   </Dropdown>
                 </section>
@@ -216,7 +216,7 @@ class BPMNFlowUpdateComponent extends Component<Props, State> {
                   <Dropdown value={element.mergingStrategy} onChange={this.changeMergingStrategy(element.id)}>
                     {mergingStrategiesFor(element.collaborationMode).map((s) => (
                       <Dropdown.Item key={s} value={s}>
-                        {this.props.translate(`packages.BPMN.${strategyKey(s)}`)}
+                        {this.props.translate(`packages.BPMNDiagram.${strategyKey(s)}`)}
                       </Dropdown.Item>
                     ))}
                   </Dropdown>
@@ -224,7 +224,7 @@ class BPMNFlowUpdateComponent extends Component<Props, State> {
                 <section>
                   <Divider />
                   <Flex>
-                    <span>{this.props.translate('packages.BPMN.BPMNTrustScore')}</span>
+                    <span>{this.props.translate('packages.BPMNDiagram.BPMNTrustScore')}</span>
                     <Textfield value={String(element.trustScore)} onChange={this.changeTrustScore(element.id)} />
                   </Flex>
                 </section>

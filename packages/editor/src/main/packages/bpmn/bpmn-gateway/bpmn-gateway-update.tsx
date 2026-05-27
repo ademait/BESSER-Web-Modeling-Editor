@@ -160,18 +160,18 @@ class BPMNGatewayUpdateComponent extends Component<Props, State> {
         <section>
           <Dropdown value={element.gatewayType} onChange={this.changeGatewayType(element.id)}>
             <Dropdown.Item value={'exclusive'}>
-              {this.props.translate('packages.BPMN.BPMNExclusiveGateway')}
+              {this.props.translate('packages.BPMNDiagram.BPMNExclusiveGateway')}
             </Dropdown.Item>
             <Dropdown.Item value={'parallel'}>
-              {this.props.translate('packages.BPMN.BPMNParallelGateway')}
+              {this.props.translate('packages.BPMNDiagram.BPMNParallelGateway')}
             </Dropdown.Item>
             <Dropdown.Item value={'inclusive'}>
-              {this.props.translate('packages.BPMN.BPMNInclusiveGateway')}
+              {this.props.translate('packages.BPMNDiagram.BPMNInclusiveGateway')}
             </Dropdown.Item>
             <Dropdown.Item value={'event-based'}>
-              {this.props.translate('packages.BPMN.BPMNEventBasedGateway')}
+              {this.props.translate('packages.BPMNDiagram.BPMNEventBasedGateway')}
             </Dropdown.Item>
-            <Dropdown.Item value={'complex'}>{this.props.translate('packages.BPMN.BPMNComplexGateway')}</Dropdown.Item>
+            <Dropdown.Item value={'complex'}>{this.props.translate('packages.BPMNDiagram.BPMNComplexGateway')}</Dropdown.Item>
           </Dropdown>
         </section>
         {/* Agentic BPMN (04D1): only Parallel + Inclusive gateways are eligible
@@ -186,7 +186,7 @@ class BPMNGatewayUpdateComponent extends Component<Props, State> {
                 onChange={this.toggleAgentic(element.id)}
                 color="primary"
               >
-                <Switch.Item value={'agentic'}>{this.props.translate('packages.BPMN.BPMNAgentic')}</Switch.Item>
+                <Switch.Item value={'agentic'}>{this.props.translate('packages.BPMNDiagram.BPMNAgentic')}</Switch.Item>
               </Switch>
             </section>
             {element.isAgentic && (
@@ -199,12 +199,12 @@ class BPMNGatewayUpdateComponent extends Component<Props, State> {
                   <Dropdown value={element.gatewayRole} onChange={this.changeGatewayRole(element.id)}>
                     {[
                       <Dropdown.Item key="diverging" value={'diverging'}>
-                        {this.props.translate('packages.BPMN.BPMNGatewayRoleDiverging')}
+                        {this.props.translate('packages.BPMNDiagram.BPMNGatewayRoleDiverging')}
                       </Dropdown.Item>,
                       ...(this.props.derivedUpstreamMode !== undefined || element.gatewayRole === 'merging'
                         ? [
                             <Dropdown.Item key="merging" value={'merging'}>
-                              {this.props.translate('packages.BPMN.BPMNGatewayRoleMerging')}
+                              {this.props.translate('packages.BPMNDiagram.BPMNGatewayRoleMerging')}
                             </Dropdown.Item>,
                           ]
                         : []),
@@ -217,26 +217,26 @@ class BPMNGatewayUpdateComponent extends Component<Props, State> {
                   <Divider />
                   {element.gatewayRole === 'merging' ? (
                     <Flex>
-                      <span>{this.props.translate('packages.BPMN.BPMNCollaborationModeInheritedLabel')}</span>
+                      <span>{this.props.translate('packages.BPMNDiagram.BPMNCollaborationModeInheritedLabel')}</span>
                       <span>
                         {this.props.derivedUpstreamMode
-                          ? this.props.translate(`packages.BPMN.${collabKey(this.props.derivedUpstreamMode)}`)
-                          : this.props.translate('packages.BPMN.BPMNInheritedNone')}
+                          ? this.props.translate(`packages.BPMNDiagram.${collabKey(this.props.derivedUpstreamMode)}`)
+                          : this.props.translate('packages.BPMNDiagram.BPMNInheritedNone')}
                       </span>
                     </Flex>
                   ) : (
                     <Dropdown value={element.collaborationMode} onChange={this.changeCollaborationMode(element.id)}>
                       <Dropdown.Item value={'voting'}>
-                        {this.props.translate('packages.BPMN.BPMNCollabVoting')}
+                        {this.props.translate('packages.BPMNDiagram.BPMNCollabVoting')}
                       </Dropdown.Item>
                       <Dropdown.Item value={'role'}>
-                        {this.props.translate('packages.BPMN.BPMNCollabRole')}
+                        {this.props.translate('packages.BPMNDiagram.BPMNCollabRole')}
                       </Dropdown.Item>
                       <Dropdown.Item value={'debate'}>
-                        {this.props.translate('packages.BPMN.BPMNCollabDebate')}
+                        {this.props.translate('packages.BPMNDiagram.BPMNCollabDebate')}
                       </Dropdown.Item>
                       <Dropdown.Item value={'competition'}>
-                        {this.props.translate('packages.BPMN.BPMNCollabCompetition')}
+                        {this.props.translate('packages.BPMNDiagram.BPMNCollabCompetition')}
                       </Dropdown.Item>
                     </Dropdown>
                   )}
@@ -250,7 +250,7 @@ class BPMNGatewayUpdateComponent extends Component<Props, State> {
                     <Dropdown value={element.mergingStrategy} onChange={this.changeMergingStrategy(element.id)}>
                       {mergingStrategiesFor(this.props.derivedUpstreamMode ?? element.collaborationMode).map((s) => (
                         <Dropdown.Item key={s} value={s}>
-                          {this.props.translate(`packages.BPMN.${strategyKey(s)}`)}
+                          {this.props.translate(`packages.BPMNDiagram.${strategyKey(s)}`)}
                         </Dropdown.Item>
                       ))}
                     </Dropdown>
@@ -259,7 +259,7 @@ class BPMNGatewayUpdateComponent extends Component<Props, State> {
                 <section>
                   <Divider />
                   <Flex>
-                    <span>{this.props.translate('packages.BPMN.BPMNTrustScore')}</span>
+                    <span>{this.props.translate('packages.BPMNDiagram.BPMNTrustScore')}</span>
                     <Textfield value={String(element.trustScore)} onChange={this.changeTrustScore(element.id)} />
                   </Flex>
                 </section>
