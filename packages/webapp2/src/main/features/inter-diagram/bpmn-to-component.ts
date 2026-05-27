@@ -34,9 +34,10 @@ export function bpmnModelToComponentModel(bpmn: UMLModel): DerivationResult {
   const out = emptyComponentModel(bpmn.size);
   const layout = makeLayoutCursor();
 
-  // Phase 1: Subsystems + lane-Components + skill-Components
+  // Phase 1: Subsystems + lane-Components
+  // F-D1 (2026-05-27): tasks are not represented in the Component
+  // diagram. Only lane-to-lane swarm structure matters.
   const componentIdByLaneId = new Map<string, string>();
-  const skillIdsByLaneId = new Map<string, string[]>();
   for (const pool of pools) {
     const lanes = lanesByPool.get(pool.id) ?? [];
     if (lanes.length === 0) continue;
@@ -47,13 +48,11 @@ export function bpmnModelToComponentModel(bpmn: UMLModel): DerivationResult {
       componentIdByLaneId.set(lane.id, laneCompId);
 
       const isAgentic = (lane as unknown as { isAgentic?: boolean }).isAgentic === true;
-      const skills = isAgentic ? emitSkillComponents(out, bpmn, lane, laneCompId, layout) : [];
       if (!isAgentic) {
         for (const t of tasksInLane(bpmn, lane.id)) {
           warnings.push({ kind: 'dropped-task-in-non-agentic-lane', taskId: t.id });
         }
       }
-      skillIdsByLaneId.set(lane.id, skills);
     }
     layout.endSubsystem();
   }
@@ -79,24 +78,27 @@ export function bpmnModelToComponentModel(bpmn: UMLModel): DerivationResult {
     emitComponentDependency(out, e.srcCompId, e.tgtCompId, e.kind);
   }
 
-  // Phase 3: inter-pool message flows → external Component + delegates
+  // Phase 3: inter-pool message flows → ComponentDependency
+  // F-D4 (2026-05-27): if the message-flow target lives in a tracked
+  // lane, connect to that lane's existing Component (cleaner: no
+  // duplicated representation). Fall back to synthesising an external
+  // Component only when the target is outside any tracked lane.
   const messageFlows = collectInterPoolMessageFlows(bpmn);
   for (const mf of messageFlows) {
     const srcLane = laneForElement(bpmn, mf.source.element);
     if (!srcLane) continue;
     const srcComp = componentIdByLaneId.get(srcLane.id);
     if (!srcComp) continue;
-    const externalId = emitExternalComponent(out, mf, layout);
-    emitComponentDependency(out, srcComp, externalId, 'delegates');
-    warnings.push({ kind: 'inferred-external-component', messageFlowId: mf.id });
-  }
 
-  // Phase 4: skill ownership edges (`has`)
-  for (const [laneId, skills] of skillIdsByLaneId) {
-    const ownerCompId = componentIdByLaneId.get(laneId);
-    if (!ownerCompId) continue;
-    for (const skillId of skills) {
-      emitComponentDependency(out, ownerCompId, skillId, 'has');
+    const tgtLane = laneForElement(bpmn, mf.target.element);
+    const tgtCompExisting = tgtLane ? componentIdByLaneId.get(tgtLane.id) : undefined;
+
+    if (tgtCompExisting) {
+      emitComponentDependency(out, srcComp, tgtCompExisting, 'delegates');
+    } else {
+      const externalId = emitExternalComponent(out, mf, layout);
+      emitComponentDependency(out, srcComp, externalId, 'delegates');
+      warnings.push({ kind: 'inferred-external-component', messageFlowId: mf.id });
     }
   }
 
@@ -132,6 +134,9 @@ function tasksInLane(bpmn: UMLModel, laneId: string): UMLElement[] {
 function laneForElement(bpmn: UMLModel, elementId: string): UMLElement | null {
   const el = bpmn.elements[elementId];
   if (!el) return null;
+  // F-D4 (2026-05-27): if the element IS a lane (e.g. a message flow
+  // drawn directly to the lane shape), return it.
+  if (el.type === 'BPMNSwimlane') return el;
   const parent = el.owner ? bpmn.elements[el.owner] : null;
   if (parent && parent.type === 'BPMNSwimlane') return parent;
   return null;
@@ -298,14 +303,17 @@ interface LayoutCursor {
   endSubsystem(): void;
 }
 
+// F-D5 (2026-05-27): canvas origin is (0, 0); putting the first
+// Subsystem at (-320, -200) centers a 640x400 Subsystem on the
+// viewport. Subsequent Subsystems stack below.
 function makeLayoutCursor(): LayoutCursor {
   return {
-    subsystemX: 20,
-    subsystemY: 20,
+    subsystemX: -320,
+    subsystemY: -200,
     laneInSubsystemX: 0,
     skillRightOfLaneY: 0,
     externalRowY: 0,
-    externalX: 20,
+    externalX: -320,
     currentSubsystemBounds: null,
     endSubsystem(this: LayoutCursor) {
       if (this.currentSubsystemBounds) {
@@ -358,41 +366,6 @@ function emitLaneComponent(out: UMLModel, lane: UMLElement, subsystemId: string,
     displayStereotype: true,
   } as unknown as UMLElement;
   return id;
-}
-
-function emitSkillComponents(
-  out: UMLModel,
-  bpmn: UMLModel,
-  lane: UMLElement,
-  ownerCompId: string,
-  _layout: LayoutCursor,
-): string[] {
-  const tasks = tasksInLane(bpmn, lane.id);
-  const ownerBounds = (
-    out.elements[ownerCompId] as unknown as {
-      bounds: { x: number; y: number; width: number; height: number };
-      owner: string | null;
-    }
-  ).bounds;
-  const ownerOwner = (out.elements[ownerCompId] as unknown as { owner: string | null }).owner;
-  let y = ownerBounds.y + ownerBounds.height + 16;
-  const ids: string[] = [];
-  for (const task of tasks) {
-    const id = newId();
-    const bounds = { x: ownerBounds.x + 20, y, width: 120, height: 60 };
-    y += bounds.height + 12;
-    out.elements[id] = {
-      id,
-      name: task.name || 'Skill',
-      type: 'Component',
-      owner: ownerOwner ?? null,
-      bounds,
-      stereotype: 'skill',
-      displayStereotype: true,
-    } as unknown as UMLElement;
-    ids.push(id);
-  }
-  return ids;
 }
 
 function emitExternalComponent(out: UMLModel, mf: UMLRelationship, layout: LayoutCursor): string {

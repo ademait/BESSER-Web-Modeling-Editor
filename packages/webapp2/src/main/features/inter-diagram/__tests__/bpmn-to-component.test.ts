@@ -44,22 +44,20 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
         expect(r.model.type).toBe('ComponentDiagram');
       }
     });
-    it('emits 1 Subsystem + 2 agent-Components + 2 skill-Components', () => {
+    it('emits 1 Subsystem + 2 agent-Components (no skills, no has edges)', () => {
       if (!r.ok) throw new Error('expected ok');
       const els = Object.values(r.model.elements);
       expect(els.filter((e) => e.type === 'Subsystem')).toHaveLength(1);
       const components = els.filter((e) => e.type === 'Component');
-      expect(components).toHaveLength(4);
+      expect(components).toHaveLength(2);
       const solutions = components.filter((c) => (c as unknown as { stereotype?: string }).stereotype === 'solution');
-      const skills = components.filter((c) => (c as unknown as { stereotype?: string }).stereotype === 'skill');
       expect(solutions).toHaveLength(2);
-      expect(skills).toHaveLength(2);
     });
-    it('emits 2 `has` edges + 1 `delegates` edge', () => {
+    it('emits exactly 1 `delegates` edge (no `has` edges)', () => {
       if (!r.ok) throw new Error('expected ok');
       const rels = Object.values(r.model.relationships);
       const stereotypes = rels.map((rel) => (rel as unknown as { stereotype?: string }).stereotype).sort();
-      expect(stereotypes).toEqual(['delegates', 'has', 'has']);
+      expect(stereotypes).toEqual(['delegates']);
     });
   });
 
@@ -89,9 +87,12 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
       );
       expect(delegates.length).toBeGreaterThanOrEqual(1);
     });
-    it('surfaces an `inferred-external-component` warning', () => {
+    it('does NOT surface an `inferred-external-component` warning when target is a tracked lane', () => {
       if (!r.ok) throw new Error('expected ok');
-      expect(r.warnings.some((w) => w.kind === 'inferred-external-component')).toBe(true);
+      // F-D4 (2026-05-27): when the message-flow target resolves to a
+      // tracked lane, we connect to that lane's existing Component
+      // and do not synthesize an external (so we do not warn).
+      expect(r.warnings.some((w) => w.kind === 'inferred-external-component')).toBe(false);
     });
   });
 
