@@ -1,7 +1,12 @@
 import { useCallback } from 'react';
 import type { UMLModel } from '@besser/wme';
 import { useAppDispatch, useAppSelector } from '../../app/store/hooks';
-import { addDiagramThunk, switchDiagramTypeThunk, updateDiagramModelThunk } from '../../app/store/workspaceSlice';
+import {
+  addDiagramThunk,
+  bumpEditorRevision,
+  switchDiagramTypeThunk,
+  updateDiagramModelThunk,
+} from '../../app/store/workspaceSlice';
 import { bpmnModelToComponentModel } from './bpmn-to-component';
 import type { DerivationResult } from './types';
 
@@ -33,6 +38,11 @@ export function useGenerateComponentDiagram(): () => Promise<DerivationResult> {
     await dispatch(addDiagramThunk({ diagramType: 'ComponentDiagram', title })).unwrap();
     await dispatch(switchDiagramTypeThunk({ diagramType: 'ComponentDiagram' })).unwrap();
     await dispatch(updateDiagramModelThunk({ model: result.model })).unwrap();
+    // F-D2 (2026-05-27): updateDiagramModelThunk is intentionally
+    // silent on editorRevision (so normal editing doesn't reinit the
+    // editor on every keystroke). For a derivation we DO want the
+    // editor to pick up the populated model immediately.
+    dispatch(bumpEditorRevision());
 
     return result;
   }, [dispatch, activeDiagram, activeDiagramType]);
