@@ -18,8 +18,8 @@ export const GenerateComponentDiagramButton: React.FC<Props> = ({ outlineButtonC
         r.reason === 'no-pools'
           ? 'Add at least one pool with lanes to this BPMN diagram first.'
           : r.reason === 'no-lanes-in-any-pool'
-          ? 'Add at least one lane inside a pool first.'
-          : 'This action only works on a BPMN diagram.';
+            ? 'Add at least one lane inside a pool first.'
+            : 'This action only works on a BPMN diagram.';
       toast.error(`Cannot derive Component diagram: ${msg}`);
       return;
     }
@@ -27,7 +27,6 @@ export const GenerateComponentDiagramButton: React.FC<Props> = ({ outlineButtonC
       toast.warning(
         `Generated Component diagram with ${r.warnings.length} warning${r.warnings.length === 1 ? '' : 's'} — see console.`,
       );
-      // eslint-disable-next-line no-console
       console.info('[inter-diagram] derivation warnings:', r.warnings);
     } else {
       toast.success('Component diagram generated — switched to the new diagram.');

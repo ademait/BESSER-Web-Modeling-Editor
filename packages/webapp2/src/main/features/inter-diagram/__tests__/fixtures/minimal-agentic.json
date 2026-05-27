@@ -56,7 +56,10 @@
       "flowType": "sequence",
       "owner": null,
       "bounds": { "x": 200, "y": 160, "width": 1, "height": 70 },
-      "path": [{ "x": 200, "y": 160 }, { "x": 200, "y": 230 }],
+      "path": [
+        { "x": 200, "y": 160 },
+        { "x": 200, "y": 230 }
+      ],
       "source": { "element": "task-mgr", "direction": "Down" },
       "target": { "element": "task-wkr", "direction": "Up" }
     }

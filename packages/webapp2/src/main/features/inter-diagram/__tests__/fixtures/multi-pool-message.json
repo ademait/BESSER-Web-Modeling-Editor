@@ -60,7 +60,10 @@
       "flowType": "message",
       "owner": null,
       "bounds": { "x": 280, "y": 130, "width": 400, "height": 1 },
-      "path": [{ "x": 280, "y": 130 }, { "x": 680, "y": 130 }],
+      "path": [
+        { "x": 280, "y": 130 },
+        { "x": 680, "y": 130 }
+      ],
       "source": { "element": "task-a-mgr", "direction": "Right" },
       "target": { "element": "task-b-ext", "direction": "Left" }
     }

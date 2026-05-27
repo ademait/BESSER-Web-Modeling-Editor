@@ -47,9 +47,7 @@ export function bpmnModelToComponentModel(bpmn: UMLModel): DerivationResult {
       componentIdByLaneId.set(lane.id, laneCompId);
 
       const isAgentic = (lane as unknown as { isAgentic?: boolean }).isAgentic === true;
-      const skills = isAgentic
-        ? emitSkillComponents(out, bpmn, lane, laneCompId, layout)
-        : [];
+      const skills = isAgentic ? emitSkillComponents(out, bpmn, lane, laneCompId, layout) : [];
       if (!isAgentic) {
         for (const t of tasksInLane(bpmn, lane.id)) {
           warnings.push({ kind: 'dropped-task-in-non-agentic-lane', taskId: t.id });
@@ -128,9 +126,7 @@ function collectLanesByPool(bpmn: UMLModel, pools: UMLElement[]): Map<string, UM
 }
 
 function tasksInLane(bpmn: UMLModel, laneId: string): UMLElement[] {
-  return Object.values(bpmn.elements).filter(
-    (e) => e.type === 'BPMNTask' && e.owner === laneId,
-  );
+  return Object.values(bpmn.elements).filter((e) => e.type === 'BPMNTask' && e.owner === laneId);
 }
 
 function laneForElement(bpmn: UMLModel, elementId: string): UMLElement | null {
@@ -274,9 +270,7 @@ function resolveEdgeKind(
 
 function nonAgenticStereotype(laneName: string | undefined): 'human' | 'external' {
   const name = (laneName ?? '').toLowerCase();
-  return /(human|person|user|operator|reviewer|customer|client|actor)/.test(name)
-    ? 'human'
-    : 'external';
+  return /(human|person|user|operator|reviewer|customer|client|actor)/.test(name) ? 'human' : 'external';
 }
 
 // ── Emit helpers ────────────────────────────────────────────────────
@@ -343,12 +337,7 @@ function emitSubsystem(out: UMLModel, pool: UMLElement, layout: LayoutCursor): s
   return id;
 }
 
-function emitLaneComponent(
-  out: UMLModel,
-  lane: UMLElement,
-  subsystemId: string,
-  layout: LayoutCursor,
-): string {
+function emitLaneComponent(out: UMLModel, lane: UMLElement, subsystemId: string, layout: LayoutCursor): string {
   const id = newId();
   const isAgentic = (lane as unknown as { isAgentic?: boolean }).isAgentic === true;
   const stereotype = isAgentic ? 'solution' : nonAgenticStereotype(lane.name);
@@ -379,7 +368,12 @@ function emitSkillComponents(
   _layout: LayoutCursor,
 ): string[] {
   const tasks = tasksInLane(bpmn, lane.id);
-  const ownerBounds = (out.elements[ownerCompId] as unknown as { bounds: { x: number; y: number; width: number; height: number }; owner: string | null }).bounds;
+  const ownerBounds = (
+    out.elements[ownerCompId] as unknown as {
+      bounds: { x: number; y: number; width: number; height: number };
+      owner: string | null;
+    }
+  ).bounds;
   const ownerOwner = (out.elements[ownerCompId] as unknown as { owner: string | null }).owner;
   let y = ownerBounds.y + ownerBounds.height + 16;
   const ids: string[] = [];
@@ -401,11 +395,7 @@ function emitSkillComponents(
   return ids;
 }
 
-function emitExternalComponent(
-  out: UMLModel,
-  mf: UMLRelationship,
-  layout: LayoutCursor,
-): string {
+function emitExternalComponent(out: UMLModel, mf: UMLRelationship, layout: LayoutCursor): string {
   const id = newId();
   const bounds = { x: layout.externalX, y: layout.externalRowY, width: 140, height: 80 };
   layout.externalX += bounds.width + 24;
@@ -421,15 +411,12 @@ function emitExternalComponent(
   return id;
 }
 
-function emitComponentDependency(
-  out: UMLModel,
-  sourceId: string,
-  targetId: string,
-  stereotype: string,
-): void {
+function emitComponentDependency(out: UMLModel, sourceId: string, targetId: string, stereotype: string): void {
   const id = newId();
-  const src = (out.elements[sourceId] as unknown as { bounds: { x: number; y: number; width: number; height: number } }).bounds;
-  const tgt = (out.elements[targetId] as unknown as { bounds: { x: number; y: number; width: number; height: number } }).bounds;
+  const src = (out.elements[sourceId] as unknown as { bounds: { x: number; y: number; width: number; height: number } })
+    .bounds;
+  const tgt = (out.elements[targetId] as unknown as { bounds: { x: number; y: number; width: number; height: number } })
+    .bounds;
   out.relationships[id] = {
     id,
     name: '',

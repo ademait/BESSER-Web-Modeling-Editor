@@ -1,11 +1,7 @@
 import { useCallback } from 'react';
 import type { UMLModel } from '@besser/wme';
 import { useAppDispatch, useAppSelector } from '../../app/store/hooks';
-import {
-  addDiagramThunk,
-  switchDiagramTypeThunk,
-  updateDiagramModelThunk,
-} from '../../app/store/workspaceSlice';
+import { addDiagramThunk, switchDiagramTypeThunk, updateDiagramModelThunk } from '../../app/store/workspaceSlice';
 import { bpmnModelToComponentModel } from './bpmn-to-component';
 import type { DerivationResult } from './types';
 

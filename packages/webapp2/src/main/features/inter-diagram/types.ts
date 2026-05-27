@@ -14,10 +14,7 @@ export type DerivationResult =
   | { ok: true; model: UMLModel; warnings: DerivationWarning[] }
   | { ok: false; reason: DerivationRefusalReason; warnings: DerivationWarning[] };
 
-export type DerivationRefusalReason =
-  | 'no-pools'
-  | 'no-lanes-in-any-pool'
-  | 'not-a-bpmn-diagram';
+export type DerivationRefusalReason = 'no-pools' | 'no-lanes-in-any-pool' | 'not-a-bpmn-diagram';
 
 export type DerivationWarning =
   | { kind: 'multi-hop-gateway'; sourceTaskId: string; targetGatewayId: string }

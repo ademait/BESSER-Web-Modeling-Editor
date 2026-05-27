@@ -171,7 +171,9 @@ class BPMNGatewayUpdateComponent extends Component<Props, State> {
             <Dropdown.Item value={'event-based'}>
               {this.props.translate('packages.BPMNDiagram.BPMNEventBasedGateway')}
             </Dropdown.Item>
-            <Dropdown.Item value={'complex'}>{this.props.translate('packages.BPMNDiagram.BPMNComplexGateway')}</Dropdown.Item>
+            <Dropdown.Item value={'complex'}>
+              {this.props.translate('packages.BPMNDiagram.BPMNComplexGateway')}
+            </Dropdown.Item>
           </Dropdown>
         </section>
         {/* Agentic BPMN (04D1): only Parallel + Inclusive gateways are eligible

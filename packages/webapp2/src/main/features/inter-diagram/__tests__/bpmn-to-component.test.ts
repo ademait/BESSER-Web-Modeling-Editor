@@ -50,21 +50,15 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
       expect(els.filter((e) => e.type === 'Subsystem')).toHaveLength(1);
       const components = els.filter((e) => e.type === 'Component');
       expect(components).toHaveLength(4);
-      const solutions = components.filter(
-        (c) => (c as unknown as { stereotype?: string }).stereotype === 'solution',
-      );
-      const skills = components.filter(
-        (c) => (c as unknown as { stereotype?: string }).stereotype === 'skill',
-      );
+      const solutions = components.filter((c) => (c as unknown as { stereotype?: string }).stereotype === 'solution');
+      const skills = components.filter((c) => (c as unknown as { stereotype?: string }).stereotype === 'skill');
       expect(solutions).toHaveLength(2);
       expect(skills).toHaveLength(2);
     });
     it('emits 2 `has` edges + 1 `delegates` edge', () => {
       if (!r.ok) throw new Error('expected ok');
       const rels = Object.values(r.model.relationships);
-      const stereotypes = rels
-        .map((rel) => (rel as unknown as { stereotype?: string }).stereotype)
-        .sort();
+      const stereotypes = rels.map((rel) => (rel as unknown as { stereotype?: string }).stereotype).sort();
       expect(stereotypes).toEqual(['delegates', 'has', 'has']);
     });
   });
@@ -74,9 +68,7 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
     it('emits 2 `supervises` edges (one per worker)', () => {
       if (!r.ok) throw new Error('expected ok');
       const rels = Object.values(r.model.relationships);
-      const supervises = rels.filter(
-        (rel) => (rel as unknown as { stereotype?: string }).stereotype === 'supervises',
-      );
+      const supervises = rels.filter((rel) => (rel as unknown as { stereotype?: string }).stereotype === 'supervises');
       expect(supervises).toHaveLength(2);
     });
   });

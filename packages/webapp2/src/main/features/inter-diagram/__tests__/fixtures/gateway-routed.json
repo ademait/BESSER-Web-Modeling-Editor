@@ -84,7 +84,10 @@
       "flowType": "sequence",
       "owner": null,
       "bounds": { "x": 280, "y": 130, "width": 40, "height": 1 },
-      "path": [{ "x": 280, "y": 130 }, { "x": 320, "y": 130 }],
+      "path": [
+        { "x": 280, "y": 130 },
+        { "x": 320, "y": 130 }
+      ],
       "source": { "element": "task-mgr", "direction": "Right" },
       "target": { "element": "gw-merging", "direction": "Left" }
     },
@@ -95,7 +98,10 @@
       "flowType": "sequence",
       "owner": null,
       "bounds": { "x": 360, "y": 130, "width": 40, "height": 100 },
-      "path": [{ "x": 360, "y": 130 }, { "x": 400, "y": 230 }],
+      "path": [
+        { "x": 360, "y": 130 },
+        { "x": 400, "y": 230 }
+      ],
       "source": { "element": "gw-merging", "direction": "Right" },
       "target": { "element": "task-wkr-a", "direction": "Left" }
     },
@@ -106,7 +112,10 @@
       "flowType": "sequence",
       "owner": null,
       "bounds": { "x": 360, "y": 130, "width": 40, "height": 220 },
-      "path": [{ "x": 360, "y": 130 }, { "x": 400, "y": 350 }],
+      "path": [
+        { "x": 360, "y": 130 },
+        { "x": 400, "y": 350 }
+      ],
       "source": { "element": "gw-merging", "direction": "Right" },
       "target": { "element": "task-wkr-b", "direction": "Left" }
     }

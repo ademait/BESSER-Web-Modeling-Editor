@@ -126,13 +126,17 @@ class BPMNFlowUpdateComponent extends Component<Props, State> {
 
     const flowTypeItems = [
       allowedTypes.includes('sequence') ? (
-        <Dropdown.Item value={'sequence'}>{this.props.translate('packages.BPMNDiagram.BPMNSequenceFlow')}</Dropdown.Item>
+        <Dropdown.Item value={'sequence'}>
+          {this.props.translate('packages.BPMNDiagram.BPMNSequenceFlow')}
+        </Dropdown.Item>
       ) : null,
       allowedTypes.includes('message') ? (
         <Dropdown.Item value={'message'}>{this.props.translate('packages.BPMNDiagram.BPMNMessageFlow')}</Dropdown.Item>
       ) : null,
       allowedTypes.includes('association') ? (
-        <Dropdown.Item value={'association'}>{this.props.translate('packages.BPMNDiagram.BPMNAssociationFlow')}</Dropdown.Item>
+        <Dropdown.Item value={'association'}>
+          {this.props.translate('packages.BPMNDiagram.BPMNAssociationFlow')}
+        </Dropdown.Item>
       ) : null,
       allowedTypes.includes('data association') ? (
         <Dropdown.Item value={'data association'}>
@@ -202,7 +206,9 @@ class BPMNFlowUpdateComponent extends Component<Props, State> {
                     <Dropdown.Item value={'voting'}>
                       {this.props.translate('packages.BPMNDiagram.BPMNCollabVoting')}
                     </Dropdown.Item>
-                    <Dropdown.Item value={'role'}>{this.props.translate('packages.BPMNDiagram.BPMNCollabRole')}</Dropdown.Item>
+                    <Dropdown.Item value={'role'}>
+                      {this.props.translate('packages.BPMNDiagram.BPMNCollabRole')}
+                    </Dropdown.Item>
                     <Dropdown.Item value={'debate'}>
                       {this.props.translate('packages.BPMNDiagram.BPMNCollabDebate')}
                     </Dropdown.Item>

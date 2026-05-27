@@ -111,9 +111,7 @@ const WorkspaceTopBarInner: React.FC<WorkspaceTopBarProps> = ({
             onGenerate={onGenerate}
             onSwitchDiagramType={onSwitchDiagramType}
           />
-          {activeDiagramType === 'BPMN' && (
-            <GenerateComponentDiagramButton outlineButtonClass={outlineButtonClass} />
-          )}
+          {activeDiagramType === 'BPMN' && <GenerateComponentDiagramButton outlineButtonClass={outlineButtonClass} />}
           <DeployMenu
             outlineButtonClass={outlineButtonClass}
             isAuthenticated={isAuthenticated}
