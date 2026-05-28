@@ -7,7 +7,9 @@ import {
   switchDiagramTypeThunk,
   updateDiagramModelThunk,
 } from '../../app/store/workspaceSlice';
+import type { DiagramLineage } from '../../shared/types/project';
 import { componentModelToDeploymentModel } from './component-to-deployment';
+import { hashUmlModel } from './lineage-hash';
 import type { DeploymentDerivationResult } from './types';
 
 /**
@@ -32,7 +34,17 @@ export function useGenerateDeploymentDiagram(): () => Promise<DeploymentDerivati
 
     const title = `${activeDiagram.title || 'Components'} — Deployment`;
 
-    await dispatch(addDiagramThunk({ diagramType: 'DeploymentDiagram', title })).unwrap();
+    // 06-v1 — record lineage so the UI can show "← Derived from ..."
+    // and detect staleness when the source Component model changes.
+    const derivedFrom: DiagramLineage = {
+      sourceDiagramId: activeDiagram.id,
+      sourceDiagramType: 'ComponentDiagram',
+      derivationKind: 'component-to-deployment',
+      derivedAt: new Date().toISOString(),
+      sourceModelHash: hashUmlModel(activeDiagram.model as UMLModel),
+    };
+
+    await dispatch(addDiagramThunk({ diagramType: 'DeploymentDiagram', title, derivedFrom })).unwrap();
     await dispatch(switchDiagramTypeThunk({ diagramType: 'DeploymentDiagram' })).unwrap();
     await dispatch(updateDiagramModelThunk({ model: result.model })).unwrap();
     // F-D2 (carry-over from 02-FU3): bump revision so the editor picks

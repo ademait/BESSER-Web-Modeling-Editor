@@ -7,7 +7,9 @@ import {
   switchDiagramTypeThunk,
   updateDiagramModelThunk,
 } from '../../app/store/workspaceSlice';
+import type { DiagramLineage } from '../../shared/types/project';
 import { bpmnModelToComponentModel } from './bpmn-to-component';
+import { hashUmlModel } from './lineage-hash';
 import type { DerivationResult } from './types';
 
 /**
@@ -35,7 +37,18 @@ export function useGenerateComponentDiagram(): () => Promise<DerivationResult> {
 
     const title = `${activeDiagram.title || 'BPMN'} — Components`;
 
-    await dispatch(addDiagramThunk({ diagramType: 'ComponentDiagram', title })).unwrap();
+    // 06-v1 — record lineage on the new diagram so the UI can show
+    // "← Derived from <source title>" and detect staleness when the
+    // source model changes.
+    const derivedFrom: DiagramLineage = {
+      sourceDiagramId: activeDiagram.id,
+      sourceDiagramType: 'BPMN',
+      derivationKind: 'bpmn-to-component',
+      derivedAt: new Date().toISOString(),
+      sourceModelHash: hashUmlModel(activeDiagram.model as UMLModel),
+    };
+
+    await dispatch(addDiagramThunk({ diagramType: 'ComponentDiagram', title, derivedFrom })).unwrap();
     await dispatch(switchDiagramTypeThunk({ diagramType: 'ComponentDiagram' })).unwrap();
     await dispatch(updateDiagramModelThunk({ model: result.model })).unwrap();
     // F-D2 (2026-05-27): updateDiagramModelThunk is intentionally
