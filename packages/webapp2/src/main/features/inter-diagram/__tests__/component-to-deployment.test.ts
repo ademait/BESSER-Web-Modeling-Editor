@@ -94,7 +94,13 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
       const dcs = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentComponent');
       expect(dcs).toHaveLength(2);
     });
-    it('04-FU1 — emits 2 DeploymentArtifacts (one per Component), inside the same Node', () => {
+    it('04-FU3 — emits 2 DeploymentComponents OUTSIDE the Nodes (owner=null)', () => {
+      if (!r.ok) throw new Error('expected ok');
+      const dcs = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentComponent');
+      expect(dcs).toHaveLength(2);
+      expect(dcs.every((d) => d.owner === null)).toBe(true);
+    });
+    it('04-FU3 — emits 2 DeploymentArtifacts INSIDE the matching Nodes (owner=nodeId)', () => {
       if (!r.ok) throw new Error('expected ok');
       const artifacts = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentArtifact');
       expect(artifacts).toHaveLength(2);
@@ -105,21 +111,34 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
       );
       expect(artifacts.every((a) => nodeIds.has(a.owner ?? ''))).toBe(true);
     });
-    it('04-FU1 — emits 1 structural DeploymentAssociation (no stereotype) cross-Node', () => {
+    it('04-FU3 — emits 1 structural DeploymentAssociation cross-Node', () => {
       if (!r.ok) throw new Error('expected ok');
-      const structural = Object.values(r.model.relationships).filter(
-        (rel) =>
-          rel.type === 'DeploymentAssociation' && (rel as unknown as { stereotype?: string }).stereotype === undefined,
-      );
+      const structural = Object.values(r.model.relationships).filter((rel) => rel.type === 'DeploymentAssociation');
       expect(structural).toHaveLength(1);
     });
-    it('04-FU1 — emits 2 «manifest» DeploymentAssociations (one per Artifact→Component pair)', () => {
+    it('04-FU3 — emits 2 DeploymentDependencies (manifest, dashed) — no stereotype label', () => {
       if (!r.ok) throw new Error('expected ok');
-      const manifest = Object.values(r.model.relationships).filter(
-        (rel) =>
-          rel.type === 'DeploymentAssociation' && (rel as unknown as { stereotype?: string }).stereotype === 'manifest',
+      const manifests = Object.values(r.model.relationships).filter((rel) => rel.type === 'DeploymentDependency');
+      expect(manifests).toHaveLength(2);
+      expect(manifests.every((m) => (m as unknown as { stereotype?: string }).stereotype === undefined)).toBe(true);
+    });
+    it('04-FU3 — each manifest edge runs Artifact (source) → Component (target)', () => {
+      if (!r.ok) throw new Error('expected ok');
+      const manifests = Object.values(r.model.relationships).filter((rel) => rel.type === 'DeploymentDependency');
+      const artifactIds = new Set(
+        Object.values(r.model.elements)
+          .filter((e) => e.type === 'DeploymentArtifact')
+          .map((a) => a.id),
       );
-      expect(manifest).toHaveLength(2);
+      const componentIds = new Set(
+        Object.values(r.model.elements)
+          .filter((e) => e.type === 'DeploymentComponent')
+          .map((c) => c.id),
+      );
+      for (const m of manifests) {
+        expect(artifactIds.has(m.source.element)).toBe(true);
+        expect(componentIds.has(m.target.element)).toBe(true);
+      }
     });
     it('emits no warnings', () => {
       if (!r.ok) throw new Error('expected ok');
@@ -136,15 +155,18 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
     });
     const r = componentModelToDeploymentModel(m);
 
-    it('emits exactly 1 Default Host Node + 3 DeploymentComponents inside it', () => {
+    it('04-FU3 — emits 1 Default Host Node + 3 DeploymentComponents OUTSIDE it (owner=null) + 3 Artifacts inside', () => {
       if (!r.ok) throw new Error('expected ok');
       const nodes = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentNode');
       expect(nodes).toHaveLength(1);
       expect(nodes[0].name).toBe('Default Host');
       const dcs = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentComponent');
       expect(dcs).toHaveLength(3);
+      expect(dcs.every((dc) => dc.owner === null)).toBe(true);
+      const artifacts = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentArtifact');
+      expect(artifacts).toHaveLength(3);
       const hostId = nodes[0].id;
-      expect(dcs.every((dc) => dc.owner === hostId)).toBe(true);
+      expect(artifacts.every((a) => a.owner === hostId)).toBe(true);
     });
     it('Default Host has displayStereotype: true (04-FU1 — consistency with other Nodes)', () => {
       if (!r.ok) throw new Error('expected ok');
@@ -169,25 +191,20 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
     });
     const r = componentModelToDeploymentModel(m);
 
-    it('emits 1 Node, 2 DeploymentComponents, 0 STRUCTURAL associations, 0 warnings', () => {
+    it('emits 1 Node, 2 DeploymentComponents (owner=null), 0 STRUCTURAL associations, 0 warnings', () => {
       if (!r.ok) throw new Error('expected ok');
       const nodes = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentNode');
       const dcs = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentComponent');
-      const structural = Object.values(r.model.relationships).filter(
-        (rel) =>
-          rel.type === 'DeploymentAssociation' && (rel as unknown as { stereotype?: string }).stereotype === undefined,
-      );
+      const structural = Object.values(r.model.relationships).filter((rel) => rel.type === 'DeploymentAssociation');
       expect(nodes).toHaveLength(1);
       expect(dcs).toHaveLength(2);
+      expect(dcs.every((d) => d.owner === null)).toBe(true);
       expect(structural).toHaveLength(0);
       expect(r.warnings).toEqual([]);
     });
-    it('04-FU1 — still emits 2 «manifest» edges (one per Component-Artifact pair)', () => {
+    it('04-FU3 — still emits 2 manifest DeploymentDependencies (one per Component-Artifact pair)', () => {
       if (!r.ok) throw new Error('expected ok');
-      const manifest = Object.values(r.model.relationships).filter(
-        (rel) =>
-          rel.type === 'DeploymentAssociation' && (rel as unknown as { stereotype?: string }).stereotype === 'manifest',
-      );
+      const manifest = Object.values(r.model.relationships).filter((rel) => rel.type === 'DeploymentDependency');
       expect(manifest).toHaveLength(2);
     });
   });
@@ -207,11 +224,9 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
 
     it('emits 1 STRUCTURAL DeploymentAssociation with no stereotype and 0 warnings', () => {
       if (!r.ok) throw new Error('expected ok');
-      const structural = Object.values(r.model.relationships).filter(
-        (rel) =>
-          rel.type === 'DeploymentAssociation' && (rel as unknown as { stereotype?: string }).stereotype === undefined,
-      );
+      const structural = Object.values(r.model.relationships).filter((rel) => rel.type === 'DeploymentAssociation');
       expect(structural).toHaveLength(1);
+      expect((structural[0] as unknown as { stereotype?: string }).stereotype).toBeUndefined();
       expect(r.warnings).toEqual([]);
     });
   });
@@ -239,18 +254,17 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
       const names = nodes.map((n) => n.name).sort();
       expect(names).toEqual(['A', 'B', 'Default Host']);
     });
-    it('places Component C in Node B (immediate Subsystem parent, not A)', () => {
+    it('04-FU3 — Component C lives above Node B (owner=null, its Artifact has owner=Node B)', () => {
       if (!r.ok) throw new Error('expected ok');
       const nodeB = Object.values(r.model.elements).find((e) => e.type === 'DeploymentNode' && e.name === 'B')!;
       const dcC = Object.values(r.model.elements).find((e) => e.type === 'DeploymentComponent' && e.name === 'C')!;
-      expect(dcC.owner).toBe(nodeB.id);
+      expect(dcC.owner).toBeNull();
+      const artifactC = Object.values(r.model.elements).find((e) => e.type === 'DeploymentArtifact' && e.name === 'C')!;
+      expect(artifactC.owner).toBe(nodeB.id);
     });
     it('emits 1 STRUCTURAL DeploymentAssociation Default Host → B', () => {
       if (!r.ok) throw new Error('expected ok');
-      const structural = Object.values(r.model.relationships).filter(
-        (rel) =>
-          rel.type === 'DeploymentAssociation' && (rel as unknown as { stereotype?: string }).stereotype === undefined,
-      );
+      const structural = Object.values(r.model.relationships).filter((rel) => rel.type === 'DeploymentAssociation');
       expect(structural).toHaveLength(1);
     });
   });
@@ -271,10 +285,7 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
 
     it('emits 1 STRUCTURAL DeploymentAssociation between the two Nodes (FU2 fix)', () => {
       if (!r.ok) throw new Error('expected ok');
-      const structural = Object.values(r.model.relationships).filter(
-        (rel) =>
-          rel.type === 'DeploymentAssociation' && (rel as unknown as { stereotype?: string }).stereotype === undefined,
-      );
+      const structural = Object.values(r.model.relationships).filter((rel) => rel.type === 'DeploymentAssociation');
       expect(structural).toHaveLength(1);
       const nodeOrder = Object.values(r.model.elements).find((e) => e.type === 'DeploymentNode' && e.name === 'Order')!;
       const nodeShipping = Object.values(r.model.elements).find(
@@ -305,10 +316,7 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
 
     it('emits 1 STRUCTURAL DeploymentAssociation A → B', () => {
       if (!r.ok) throw new Error('expected ok');
-      const structural = Object.values(r.model.relationships).filter(
-        (rel) =>
-          rel.type === 'DeploymentAssociation' && (rel as unknown as { stereotype?: string }).stereotype === undefined,
-      );
+      const structural = Object.values(r.model.relationships).filter((rel) => rel.type === 'DeploymentAssociation');
       expect(structural).toHaveLength(1);
     });
   });
