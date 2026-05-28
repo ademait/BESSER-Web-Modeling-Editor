@@ -80,13 +80,15 @@ export function componentModelToDeploymentModel(component: UMLModel): Deployment
 
   // Phase 3 — cross-Subsystem ComponentDependencies → DeploymentAssociation.
   // Intra-node deps collapse silently (OQ-2). Direction-preserving dedup (OQ-5).
+  // 04-FU2 (2026-05-28): the dep endpoint may be a Component **or** a
+  // Subsystem (users routinely draw Subsystem-to-Subsystem deps at the
+  // logical level). Resolve via `resolveToNodeId` so both kinds map to
+  // their owning Node.
   const dedup = new Set<string>();
   for (const rel of Object.values(component.relationships)) {
     if (rel.type !== 'ComponentDependency') continue;
-    const srcCompId = rel.source.element;
-    const tgtCompId = rel.target.element;
-    const srcNodeId = nodeIdByCompId.get(srcCompId);
-    const tgtNodeId = nodeIdByCompId.get(tgtCompId);
+    const srcNodeId = resolveToNodeId(component, rel.source.element, nodeIdByCompId, nodeIdBySubsystemId);
+    const tgtNodeId = resolveToNodeId(component, rel.target.element, nodeIdByCompId, nodeIdBySubsystemId);
     if (!srcNodeId || !tgtNodeId) continue;
     if (srcNodeId === tgtNodeId) continue; // intra-node — silent drop
     const key = `${srcNodeId}\x00${tgtNodeId}`;
@@ -122,6 +124,31 @@ function immediateSubsystemParent(model: UMLModel, el: UMLElement): UMLElement |
     cur = parent;
   }
   return null;
+}
+
+/**
+ * 04-FU2 (2026-05-28): resolve a ComponentDependency endpoint to the
+ * DeploymentNode it belongs to. Source endpoint may be:
+ *   1) a tracked Component (lookup in `nodeIdByCompId` — populated in Phase 2)
+ *   2) the Subsystem itself (lookup in `nodeIdBySubsystemId` — populated in Phase 1)
+ *   3) any other element nested inside a Subsystem (walk up via
+ *      `immediateSubsystemParent`, then look up by that Subsystem)
+ * Returns undefined if no Node mapping can be derived.
+ */
+function resolveToNodeId(
+  model: UMLModel,
+  elementId: string,
+  nodeIdByCompId: Map<string, string>,
+  nodeIdBySubsystemId: Map<string, string>,
+): string | undefined {
+  const direct = nodeIdByCompId.get(elementId);
+  if (direct) return direct;
+  const el = model.elements[elementId];
+  if (!el) return undefined;
+  if (el.type === 'Subsystem') return nodeIdBySubsystemId.get(elementId);
+  const sub = immediateSubsystemParent(model, el);
+  if (sub) return nodeIdBySubsystemId.get(sub.id);
+  return undefined;
 }
 
 // ── Emit helpers ────────────────────────────────────────────────────

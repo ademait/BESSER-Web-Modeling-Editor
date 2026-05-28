@@ -254,4 +254,62 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
       expect(structural).toHaveLength(1);
     });
   });
+
+  describe('04-FU2 — Subsystem-to-Subsystem dependency', () => {
+    const m = makeBaseModel();
+    Object.assign(m.elements as Record<string, unknown>, {
+      s1: el('s1', 'Subsystem', 'Order', null),
+      s2: el('s2', 'Subsystem', 'Shipping', null),
+      c1: el('c1', 'Component', 'Inner1', 's1'),
+      c2: el('c2', 'Component', 'Inner2', 's2'),
+    });
+    // Dep at the Subsystem level (not between Components).
+    Object.assign(m.relationships as Record<string, unknown>, {
+      r1: dep('r1', 's1', 's2'),
+    });
+    const r = componentModelToDeploymentModel(m);
+
+    it('emits 1 STRUCTURAL DeploymentAssociation between the two Nodes (FU2 fix)', () => {
+      if (!r.ok) throw new Error('expected ok');
+      const structural = Object.values(r.model.relationships).filter(
+        (rel) =>
+          rel.type === 'DeploymentAssociation' && (rel as unknown as { stereotype?: string }).stereotype === undefined,
+      );
+      expect(structural).toHaveLength(1);
+      const nodeOrder = Object.values(r.model.elements).find((e) => e.type === 'DeploymentNode' && e.name === 'Order')!;
+      const nodeShipping = Object.values(r.model.elements).find(
+        (e) => e.type === 'DeploymentNode' && e.name === 'Shipping',
+      )!;
+      const e = structural[0] as unknown as {
+        source: { element: string };
+        target: { element: string };
+      };
+      expect(e.source.element).toBe(nodeOrder.id);
+      expect(e.target.element).toBe(nodeShipping.id);
+    });
+  });
+
+  describe('04-FU2 — mixed Subsystem↔Component dependency', () => {
+    const m = makeBaseModel();
+    Object.assign(m.elements as Record<string, unknown>, {
+      s1: el('s1', 'Subsystem', 'A', null),
+      s2: el('s2', 'Subsystem', 'B', null),
+      c1: el('c1', 'Component', 'Ca', 's1'),
+      c2: el('c2', 'Component', 'Cb', 's2'),
+    });
+    // Dep from a Subsystem to a Component in a *different* Subsystem.
+    Object.assign(m.relationships as Record<string, unknown>, {
+      r1: dep('r1', 's1', 'c2'),
+    });
+    const r = componentModelToDeploymentModel(m);
+
+    it('emits 1 STRUCTURAL DeploymentAssociation A → B', () => {
+      if (!r.ok) throw new Error('expected ok');
+      const structural = Object.values(r.model.relationships).filter(
+        (rel) =>
+          rel.type === 'DeploymentAssociation' && (rel as unknown as { stereotype?: string }).stereotype === undefined,
+      );
+      expect(structural).toHaveLength(1);
+    });
+  });
 });
