@@ -406,8 +406,11 @@ export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({
       }
       if (r.warnings.length > 0) {
         // Per 03- § 8 OQ-2, the only warning kind is `flat-scaffold`.
+        // 04-FU4 (2026-05-28): wording revised per NT-3 — lead with
+        // what was emitted (the synthetic Default Host) rather than
+        // the abstract "flat scaffold" framing.
         toast.warning(
-          'Deployment diagram generated as a flat scaffold — add Subsystems to your Component diagram for a richer layout.',
+          'Default Host node created as a placeholder — add Subsystems to your Component diagram for a richer layout.',
         );
         console.info('[inter-diagram] deployment derivation warnings:', r.warnings);
       } else {

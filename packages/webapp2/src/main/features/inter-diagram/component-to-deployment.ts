@@ -167,17 +167,24 @@ function resolveToNodeId(
   return undefined;
 }
 
-// ── Layout constants (04-FU3) ───────────────────────────────────────
+// ── Layout constants (04-FU3, revised 04-FU4) ───────────────────────
 
 const SLOT_WIDTH = 184; // 160 px Component + 24 px gap
 const NODE_MIN_WIDTH = 280;
 const NODE_HEIGHT = 200;
 const COMPONENT_WIDTH = 160;
 const COMPONENT_HEIGHT = 60;
-const ARTIFACT_WIDTH = 120;
-const ARTIFACT_HEIGHT = 40;
-const COMPONENT_Y_ABOVE = 80; // px above the Node's top edge
+// 04-FU4 (2026-05-28): Artifact size lifted to match Component (was
+// 120×40) so each pair reads as a same-shape Component / Artifact
+// twin — user feedback on NT-1.
+const ARTIFACT_WIDTH = 160;
+const ARTIFACT_HEIGHT = 60;
 const ARTIFACT_Y_INSIDE = 64; // px below the Node's top edge
+// 04-FU4: Components flipped from above the Node to below it (user
+// preference on NT-1). Edge still runs Artifact (source) → Component
+// (target) per UML 2.5 manifest direction — the path coords flip but
+// the relationship direction does not.
+const COMPONENT_Y_BELOW_GAP = 24; // px between Node bottom and Component top
 
 // ── Emit helpers ────────────────────────────────────────────────────
 
@@ -265,13 +272,15 @@ function emitDeploymentNode(
 }
 
 /**
- * 04-FU3 (UML 2.5 deployment notation rework): each source Component
- * emits three things into the deployment model —
+ * 04-FU3 (UML 2.5 deployment notation rework), revised 04-FU4:
+ * each source Component emits three things into the deployment model —
  *
- *  1. A `DeploymentComponent` *above* the Node (D-D1, owner=null —
- *     logical view).
+ *  1. A `DeploymentComponent` *below* the Node (D-D1, owner=null —
+ *     logical view). 04-FU4 flipped position from above to below per
+ *     NT-1 user preference.
  *  2. A `DeploymentArtifact` *inside* the Node (physical placement,
- *     owner=nodeId).
+ *     owner=nodeId). 04-FU4 bumped its size to 160×60 to match the
+ *     Component so each pair reads as a same-shape twin.
  *  3. A `DeploymentDependency` from Artifact → Component (D-D2 —
  *     dashed line with arrow at Component end). No stereotype label
  *     (D-D3) — the dashed-arrow visual is the UML 2.5 manifest signal.
@@ -290,21 +299,21 @@ function emitDeploymentComponentPair(out: UMLModel, source: UMLElement, nodeId: 
 
   // D-D4 — horizontal slot starts at parent.x + 24 + slotIndex*184.
   const slotLeft = parent.bounds.x + 24 + slotIndex * SLOT_WIDTH;
-  const slotCenterX = slotLeft + COMPONENT_WIDTH / 2;
 
-  // Component above the Node, owner=null (D-D1).
-  const componentBounds = {
-    x: slotLeft,
-    y: parent.bounds.y - COMPONENT_Y_ABOVE,
-    width: COMPONENT_WIDTH,
-    height: COMPONENT_HEIGHT,
-  };
-  // Artifact inside the Node, owner=nodeId, centred under the Component.
+  // Artifact inside the Node, owner=nodeId. With 04-FU4's matched
+  // size (160×60) it aligns with the Component at slotLeft.
   const artifactBounds = {
-    x: slotCenterX - ARTIFACT_WIDTH / 2,
+    x: slotLeft,
     y: parent.bounds.y + ARTIFACT_Y_INSIDE,
     width: ARTIFACT_WIDTH,
     height: ARTIFACT_HEIGHT,
+  };
+  // 04-FU4 — Component below the Node, owner=null (D-D1).
+  const componentBounds = {
+    x: slotLeft,
+    y: parent.bounds.y + parent.bounds.height + COMPONENT_Y_BELOW_GAP,
+    width: COMPONENT_WIDTH,
+    height: COMPONENT_HEIGHT,
   };
 
   out.elements[componentId] = {
@@ -347,27 +356,34 @@ function emitManifestDependency(
   // on `element.type === 'ComponentDependency'`, and
   // UMLDeploymentDependency.serialize does not persist a stereotype
   // field anyway. The dashed arrow alone IS the UML 2.5 signal.
-  const artifactTopCx = artifactBounds.x + artifactBounds.width / 2;
-  const artifactTopY = artifactBounds.y;
-  const componentBottomCx = componentBounds.x + componentBounds.width / 2;
-  const componentBottomY = componentBounds.y + componentBounds.height;
+  //
+  // 04-FU4 (2026-05-28): Component is BELOW the Node now, so the edge
+  // runs Artifact bottom-centre → Component top-centre (was top↔bottom
+  // when Component was above). Relationship direction (source =
+  // Artifact, target = Component) is unchanged — only the path coords
+  // flip. Endpoint `direction` hints flip too so the editor's edge
+  // router lands the connectors correctly.
+  const artifactBottomCx = artifactBounds.x + artifactBounds.width / 2;
+  const artifactBottomY = artifactBounds.y + artifactBounds.height;
+  const componentTopCx = componentBounds.x + componentBounds.width / 2;
+  const componentTopY = componentBounds.y;
   out.relationships[id] = {
     id,
     name: '',
     type: 'DeploymentDependency',
     owner: null,
     bounds: {
-      x: Math.min(artifactTopCx, componentBottomCx) - 4,
-      y: componentBottomY,
-      width: Math.abs(artifactTopCx - componentBottomCx) + 8,
-      height: Math.max(8, artifactTopY - componentBottomY),
+      x: Math.min(artifactBottomCx, componentTopCx) - 4,
+      y: artifactBottomY,
+      width: Math.abs(artifactBottomCx - componentTopCx) + 8,
+      height: Math.max(8, componentTopY - artifactBottomY),
     },
     path: [
-      { x: artifactTopCx, y: artifactTopY },
-      { x: componentBottomCx, y: componentBottomY },
+      { x: artifactBottomCx, y: artifactBottomY },
+      { x: componentTopCx, y: componentTopY },
     ],
-    source: { element: artifactId, direction: 'Up' },
-    target: { element: componentId, direction: 'Down' },
+    source: { element: artifactId, direction: 'Down' },
+    target: { element: componentId, direction: 'Up' },
   } as unknown as UMLRelationship;
 }
 
