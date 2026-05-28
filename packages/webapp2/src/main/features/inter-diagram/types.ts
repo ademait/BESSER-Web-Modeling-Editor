@@ -21,3 +21,33 @@ export type DerivationWarning =
   | { kind: 'flow-skipped-non-agentic-source'; flowId: string }
   | { kind: 'dropped-task-in-non-agentic-lane'; taskId: string }
   | { kind: 'inferred-external-component'; messageFlowId: string };
+
+/**
+ * Outcome of `componentModelToDeploymentModel`.
+ *
+ * Mirrors `DerivationResult` but for the Component → Deployment
+ * derivation. Kept as a sibling type (not a generic) to avoid
+ * overloading the BPMN-side discriminated union — the calling UI
+ * code only ever handles one direction at a time.
+ *
+ * See `.claude/inter-diagram/03-component-to-deployment-derivation-plan.md`.
+ */
+export type DeploymentDerivationResult =
+  | { ok: true; model: UMLModel; warnings: DeploymentDerivationWarning[] }
+  | { ok: false; reason: DeploymentDerivationRefusalReason; warnings: DeploymentDerivationWarning[] };
+
+export type DeploymentDerivationRefusalReason =
+  /** The input model.type is not ComponentDiagram. Defensive guard. */
+  | 'not-a-component-diagram'
+  /** The Component model has zero Component elements (empty diagram). */
+  | 'no-components';
+
+/**
+ * Per OQ-2, intra-Subsystem dependency drops and agentic-edge stereotype
+ * drops are *not* warnings — they're correct behaviour from the
+ * Deployment view's perspective. The only thing we surface is
+ * `flat-scaffold`: the input had no Subsystems, so the result is one
+ * synthetic `Default Host` Node — likely a surprise on a structured
+ * diagram, worth flagging.
+ */
+export type DeploymentDerivationWarning = { kind: 'flat-scaffold' };

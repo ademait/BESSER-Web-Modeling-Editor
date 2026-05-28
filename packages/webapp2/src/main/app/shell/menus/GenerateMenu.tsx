@@ -24,6 +24,7 @@ interface GenerateMenuProps {
   onGenerate: (type: GeneratorType) => void;
   onSwitchDiagramType?: (type: SupportedDiagramType) => void;
   onDeriveComponentDiagram?: () => void;
+  onDeriveDeploymentDiagram?: () => void;
 }
 
 const renderGeneratorMenuEntry = (entry: GeneratorMenuEntry, onGenerate: (type: GeneratorType) => void) => {
@@ -65,6 +66,7 @@ export const GenerateMenu: React.FC<GenerateMenuProps> = ({
   onGenerate,
   onSwitchDiagramType,
   onDeriveComponentDiagram,
+  onDeriveDeploymentDiagram,
 }) => {
   const menuEntries = GENERATOR_MENU_CONFIG[mode];
 
@@ -91,6 +93,12 @@ export const GenerateMenu: React.FC<GenerateMenuProps> = ({
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onDeriveComponentDiagram}>Generate Component diagram</DropdownMenuItem>
+          </>
+        )}
+        {activeDiagramType === 'ComponentDiagram' && onDeriveDeploymentDiagram && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onDeriveDeploymentDiagram}>Generate Deployment diagram</DropdownMenuItem>
           </>
         )}
       </DropdownMenuContent>

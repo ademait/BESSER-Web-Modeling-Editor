@@ -52,6 +52,7 @@ const WorkspaceTopBarInner: React.FC<WorkspaceTopBarProps> = ({
   onSwitchUml,
   onSwitchDiagramType,
   onDeriveComponentDiagram,
+  onDeriveDeploymentDiagram,
   onNavigate,
   projectNameDraft,
   onProjectNameDraftChange,
@@ -112,6 +113,7 @@ const WorkspaceTopBarInner: React.FC<WorkspaceTopBarProps> = ({
             onGenerate={onGenerate}
             onSwitchDiagramType={onSwitchDiagramType}
             onDeriveComponentDiagram={onDeriveComponentDiagram}
+            onDeriveDeploymentDiagram={onDeriveDeploymentDiagram}
           />
           <DeployMenu
             outlineButtonClass={outlineButtonClass}

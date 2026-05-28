@@ -14,7 +14,7 @@ import {
   useImportDiagramToProjectWorkflow,
   useImportBpmnDiagramToProjectWorkflow,
 } from '../../features/import/useImportDiagram';
-import { useGenerateComponentDiagram } from '../../features/inter-diagram';
+import { useGenerateComponentDiagram, useGenerateDeploymentDiagram } from '../../features/inter-diagram';
 import { buildExportableProjectPayload } from '../../features/export/utils/projectExportUtils';
 import {
   besserLibraryRepositoryLink,
@@ -370,14 +370,68 @@ export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({
       // 02-FU3 (2026-05-27): surface both the raw error message and
       // the actionable hint, so the user knows what happened AND
       // what to do next.
-      const message = err instanceof Error ? err.message : String(err);
+      // 02-FU4 (2026-05-28): `.unwrap()` on a rejected createAsyncThunk
+      // re-throws a SerializedError (plain object with `.message`),
+      // not the original Error. `instanceof Error` is false, so the
+      // old code fell to String(err) → "[object Object]". Read
+      // `.message` off the object directly when present.
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === 'object' &&
+              err !== null &&
+              'message' in err &&
+              typeof (err as { message?: unknown }).message === 'string'
+            ? (err as { message: string }).message
+            : String(err);
       const body = /limit reached/i.test(message)
-        ? `${message}. Close or delete an existing Component diagram before generating a new one.`
+        ? `${message}. Close an existing Component diagram before generating a new one.`
         : message;
       toast.error(`Cannot derive Component diagram: ${body}`);
       console.error('[inter-diagram] derivation failed:', err);
     }
   }, [deriveComponentDiagram]);
+
+  const deriveDeploymentDiagram = useGenerateDeploymentDiagram();
+  const handleDeriveDeploymentDiagram = useCallback(async () => {
+    try {
+      const r = await deriveDeploymentDiagram();
+      if (!r.ok) {
+        const msg =
+          r.reason === 'no-components'
+            ? 'Add at least one Component to this Component diagram first.'
+            : 'This action only works on a Component diagram.';
+        toast.error(`Cannot derive Deployment diagram: ${msg}`);
+        return;
+      }
+      if (r.warnings.length > 0) {
+        // Per 03- § 8 OQ-2, the only warning kind is `flat-scaffold`.
+        toast.warning(
+          'Deployment diagram generated as a flat scaffold — add Subsystems to your Component diagram for a richer layout.',
+        );
+        console.info('[inter-diagram] deployment derivation warnings:', r.warnings);
+      } else {
+        toast.success('Deployment diagram generated — switched to the new diagram.');
+      }
+    } catch (err) {
+      // Carry-over from 02-FU4: read `.message` off the rejected
+      // thunk's SerializedError regardless of `instanceof Error`.
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === 'object' &&
+              err !== null &&
+              'message' in err &&
+              typeof (err as { message?: unknown }).message === 'string'
+            ? (err as { message: string }).message
+            : String(err);
+      const body = /limit reached/i.test(message)
+        ? `${message}. Close an existing Deployment diagram before generating a new one.`
+        : message;
+      toast.error(`Cannot derive Deployment diagram: ${body}`);
+      console.error('[inter-diagram] deployment derivation failed:', err);
+    }
+  }, [deriveDeploymentDiagram]);
 
   const handleSwitchUml = useCallback(
     (type: UMLDiagramType) => {
@@ -576,6 +630,7 @@ export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({
         onSwitchUml={handleSwitchUml}
         onSwitchDiagramType={handleSwitchDiagramType}
         onDeriveComponentDiagram={handleDeriveComponentDiagram}
+        onDeriveDeploymentDiagram={handleDeriveDeploymentDiagram}
         onNavigate={handleNavigate}
         projectNameDraft={projectNameDraft}
         onProjectNameDraftChange={setProjectNameDraft}
