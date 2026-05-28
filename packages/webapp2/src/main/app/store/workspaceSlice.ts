@@ -60,10 +60,7 @@ export interface WorkspaceState {
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
-function deriveEditorOptions(
-  base: EditorOptions,
-  diagramType: SupportedDiagramType,
-): EditorOptions {
+function deriveEditorOptions(base: EditorOptions, diagramType: SupportedDiagramType): EditorOptions {
   const umlType = toUMLDiagramType(diagramType);
   return { ...base, type: umlType ?? base.type };
 }
@@ -102,19 +99,16 @@ function buildInitialState(): WorkspaceState {
 
 // ── Thunks ─────────────────────────────────────────────────────────────
 
-export const loadProjectThunk = createAsyncThunk(
-  'workspace/loadProject',
-  async (projectId: string | undefined) => {
-    const project = projectId
-      ? ProjectStorageRepository.loadProject(projectId)
-      : ProjectStorageRepository.getCurrentProject();
+export const loadProjectThunk = createAsyncThunk('workspace/loadProject', async (projectId: string | undefined) => {
+  const project = projectId
+    ? ProjectStorageRepository.loadProject(projectId)
+    : ProjectStorageRepository.getCurrentProject();
 
-    if (!project) throw new Error('Project not found');
+  if (!project) throw new Error('Project not found');
 
-    localStorage.setItem(localStorageLatestProject, project.id);
-    return project;
-  },
-);
+  localStorage.setItem(localStorageLatestProject, project.id);
+  return project;
+});
 
 export const createProjectThunk = createAsyncThunk(
   'workspace/createProject',
@@ -129,10 +123,7 @@ export const createProjectThunk = createAsyncThunk(
 
 export const switchDiagramTypeThunk = createAsyncThunk(
   'workspace/switchDiagramType',
-  async (
-    { diagramType }: { diagramType: UMLDiagramType | SupportedDiagramType },
-    { getState },
-  ) => {
+  async ({ diagramType }: { diagramType: UMLDiagramType | SupportedDiagramType }, { getState }) => {
     const state = getState() as { workspace: WorkspaceState };
     const { project } = state.workspace;
     if (!project) throw new Error('No active project');
@@ -168,10 +159,7 @@ export const switchDiagramTypeThunk = createAsyncThunk(
 
 export const switchDiagramIndexThunk = createAsyncThunk(
   'workspace/switchDiagramIndex',
-  async (
-    { diagramType, index }: { diagramType: SupportedDiagramType; index: number },
-    { getState },
-  ) => {
+  async ({ diagramType, index }: { diagramType: SupportedDiagramType; index: number }, { getState }) => {
     const state = getState() as { workspace: WorkspaceState };
     const { project } = state.workspace;
     if (!project) throw new Error('No active project');
@@ -188,10 +176,7 @@ export const switchDiagramIndexThunk = createAsyncThunk(
 
 export const updateDiagramModelThunk = createAsyncThunk(
   'workspace/updateDiagramModel',
-  async (
-    updates: Partial<Pick<ProjectDiagram, 'model' | 'title' | 'description'>>,
-    { getState },
-  ) => {
+  async (updates: Partial<Pick<ProjectDiagram, 'model' | 'title' | 'description'>>, { getState }) => {
     const state = getState() as { workspace: WorkspaceState };
     const { project, activeDiagramType, activeDiagramIndex } = state.workspace;
     if (!project) return null;
@@ -206,12 +191,7 @@ export const updateDiagramModelThunk = createAsyncThunk(
 
     let success = false;
     ProjectStorageRepository.withoutNotify(() => {
-      success = ProjectStorageRepository.updateDiagram(
-        project.id,
-        activeDiagramType,
-        updated,
-        activeDiagramIndex,
-      );
+      success = ProjectStorageRepository.updateDiagram(project.id, activeDiagramType, updated, activeDiagramIndex);
     });
     if (!success) throw new Error('Failed to update diagram');
     return updated;
@@ -238,12 +218,7 @@ export const updateQuantumDiagramThunk = createAsyncThunk(
 
     let success = false;
     ProjectStorageRepository.withoutNotify(() => {
-      success = ProjectStorageRepository.updateDiagram(
-        project.id,
-        'QuantumCircuitDiagram',
-        updated,
-        safeIndex,
-      );
+      success = ProjectStorageRepository.updateDiagram(project.id, 'QuantumCircuitDiagram', updated, safeIndex);
     });
     if (!success) throw new Error('Failed to update quantum diagram');
     return updated;
@@ -269,7 +244,11 @@ export const refreshProjectStateThunk = createAsyncThunk(
 export const updateDiagramReferencesThunk = createAsyncThunk(
   'workspace/updateDiagramReferences',
   async (
-    { diagramType, diagramIndex, references }: {
+    {
+      diagramType,
+      diagramIndex,
+      references,
+    }: {
       diagramType: SupportedDiagramType;
       diagramIndex: number;
       references: Partial<Record<SupportedDiagramType, string>>;
@@ -285,9 +264,7 @@ export const updateDiagramReferencesThunk = createAsyncThunk(
     // best and a race-condition source at worst.
     let success = false;
     ProjectStorageRepository.withoutNotify(() => {
-      success = ProjectStorageRepository.updateDiagramReferences(
-        project.id, diagramType, diagramIndex, references,
-      );
+      success = ProjectStorageRepository.updateDiagramReferences(project.id, diagramType, diagramIndex, references);
     });
     if (!success) throw new Error('Failed to update diagram references');
 
@@ -298,7 +275,16 @@ export const updateDiagramReferencesThunk = createAsyncThunk(
 export const addDiagramThunk = createAsyncThunk(
   'workspace/addDiagram',
   async (
-    { diagramType, title }: { diagramType: SupportedDiagramType; title?: string },
+    {
+      diagramType,
+      title,
+      derivedFrom,
+    }: {
+      diagramType: SupportedDiagramType;
+      title?: string;
+      /** 06-v1: lineage metadata set by inter-diagram derivation hooks. */
+      derivedFrom?: import('../../shared/types/project').DiagramLineage;
+    },
     { getState },
   ) => {
     const state = getState() as { workspace: WorkspaceState };
@@ -307,7 +293,7 @@ export const addDiagramThunk = createAsyncThunk(
 
     let result: { index: number; diagram: ProjectDiagram } | null = null;
     ProjectStorageRepository.withoutNotify(() => {
-      result = ProjectStorageRepository.addDiagram(project.id, diagramType, title);
+      result = ProjectStorageRepository.addDiagram(project.id, diagramType, title, derivedFrom);
     });
     if (!result) throw new Error('Cannot add more diagrams (limit reached)');
 
@@ -318,10 +304,7 @@ export const addDiagramThunk = createAsyncThunk(
 
 export const removeDiagramThunk = createAsyncThunk(
   'workspace/removeDiagram',
-  async (
-    { diagramType, index }: { diagramType: SupportedDiagramType; index: number },
-    { getState },
-  ) => {
+  async ({ diagramType, index }: { diagramType: SupportedDiagramType; index: number }, { getState }) => {
     const state = getState() as { workspace: WorkspaceState };
     const { project } = state.workspace;
     if (!project) throw new Error('No active project');
@@ -373,10 +356,7 @@ const workspaceSlice = createSlice({
     clearError(state) {
       state.error = null;
     },
-    updateProjectInfo(
-      state,
-      action: PayloadAction<Partial<Pick<BesserProject, 'name' | 'description' | 'owner'>>>,
-    ) {
+    updateProjectInfo(state, action: PayloadAction<Partial<Pick<BesserProject, 'name' | 'description' | 'owner'>>>) {
       if (state.project) {
         Object.assign(state.project, action.payload);
         // Suppress change notification — Redux is already up-to-date
@@ -495,8 +475,7 @@ const workspaceSlice = createSlice({
         if (action.payload) {
           state.activeDiagram = action.payload;
           if (state.project) {
-            state.project.diagrams[state.activeDiagramType][state.activeDiagramIndex] =
-              action.payload;
+            state.project.diagrams[state.activeDiagramType][state.activeDiagramIndex] = action.payload;
           }
         }
       })
@@ -647,10 +626,7 @@ const EMPTY_DIAGRAMS: ProjectDiagram[] = [];
 
 export const selectProjectId = createSelector(selectProject, (project) => project?.id);
 
-export const selectDiagrams = createSelector(
-  selectProject,
-  (project) => project?.diagrams,
-);
+export const selectDiagrams = createSelector(selectProject, (project) => project?.diagrams);
 
 export const selectClassDiagrams = createSelector(
   selectDiagrams,
