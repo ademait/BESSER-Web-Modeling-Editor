@@ -19,6 +19,7 @@ import { UMLRelationship } from '../../services/uml-relationship/uml-relationshi
 import { ColorButton } from '../../components/controls/color-button/color-button';
 import { StylePane } from '../../components/style-pane/style-pane';
 import { COMPONENT_EDGE_STEREOTYPE_PRESETS } from '../common/agentic/agentic-tokens';
+import { LineageSourceLink } from '../../components/lineage/LineageSourceLink';
 
 const Flex = styled.div`
   display: flex;
@@ -111,6 +112,8 @@ class ComponentAssociationUpdate extends Component<Props, State> {
             </section>
           </>
         )}
+        {/* 06-v2 — self-gating: only renders for derived ComponentDependencies. */}
+        <LineageSourceLink elementId={element.id} />
       </div>
     );
   }

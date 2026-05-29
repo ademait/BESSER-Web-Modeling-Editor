@@ -21,6 +21,7 @@ import { delay } from './utils/delay';
 import { ErrorBoundary } from './components/controls/error-boundary/ErrorBoundary';
 import { replaceColorVariables } from './utils/replace-color-variables';
 import { UMLModelCompat } from './compat';
+import { LineageProvider, LineageProviderRoot } from './components/lineage/LineageContext';
 
 export class ApollonEditor {
   private ensureInitialized() {
@@ -120,6 +121,13 @@ export class ApollonEditor {
   private errorSubscribers: { [key: number]: (error: Error) => void } = {};
   private nextRenderPromise: Promise<void>;
 
+  // 06-v2 — lineage provider supplied by the host (webapp2). The
+  // `_lineageProviderUpdater` is captured by the `LineageProviderRoot`
+  // component on mount so subsequent setLineageProvider calls update
+  // React state without rebuilding the editor tree.
+  private _lineageProvider: LineageProvider | null = null;
+  private _lineageProviderUpdater: ((v: LineageProvider | null) => void) | null = null;
+
   constructor(
     private container: HTMLElement,
     private options: Apollon.ApollonOptions,
@@ -159,7 +167,7 @@ export class ApollonEditor {
       nextRenderResolve = resolve;
     });
 
-    const element = createElement(Application, {
+    const appElement = createElement(Application, {
       ref: async (app) => {
         if (app == null) return;
         this.application = app;
@@ -172,6 +180,17 @@ export class ApollonEditor {
       styles: options.theme,
       locale: options.locale,
     });
+    // 06-v2 — wrap so the editor's popup tree can read the host-supplied lineage provider.
+    const element = createElement(
+      LineageProviderRoot,
+      {
+        initialValue: this._lineageProvider,
+        register: (listener: (v: LineageProvider | null) => void) => {
+          this._lineageProviderUpdater = listener;
+        },
+      },
+      appElement,
+    );
     const errorBoundary = createElement(ErrorBoundary, { onError: this.onErrorOccurred.bind(this) }, element);
     this.root = createRoot(container);
     this.root.render(errorBoundary);
@@ -233,6 +252,17 @@ export class ApollonEditor {
    */
   unsubscribeFromSelectionChange(subscriptionId: number) {
     delete this.selectionSubscribers[subscriptionId];
+  }
+
+  /**
+   * 06-v2 — register a lineage provider so derived-element popups can
+   * render a "← Derived from X" link and dispatch click-through.
+   * Pass `null` to clear. Safe to call before or after mount; the
+   * editor captures the latest value on its next render.
+   */
+  setLineageProvider(provider: LineageProvider | null): void {
+    this._lineageProvider = provider;
+    this._lineageProviderUpdater?.(provider);
   }
 
   /**
@@ -503,7 +533,7 @@ export class ApollonEditor {
       nextRenderResolve = resolve;
     });
 
-    const element = createElement(Application, {
+    const appElement = createElement(Application, {
       ref: async (app: Application) => {
         if (app == null) return;
         this.application = app;
@@ -516,6 +546,17 @@ export class ApollonEditor {
       styles: this.options.theme,
       locale: this.options.locale,
     } as any);
+    // 06-v2 — re-wrap on every editor rebuild; the updater is captured fresh.
+    const element = createElement(
+      LineageProviderRoot,
+      {
+        initialValue: this._lineageProvider,
+        register: (listener: (v: LineageProvider | null) => void) => {
+          this._lineageProviderUpdater = listener;
+        },
+      },
+      appElement,
+    );
     const errorBoundary = createElement(ErrorBoundary, { onError: this.onErrorOccurred.bind(this) }, element);
     this.root = createRoot(this.container);
     this.root.render(errorBoundary);

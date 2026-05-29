@@ -13,6 +13,7 @@ import { UMLElementRepository } from '../../../services/uml-element/uml-element-
 import { AsyncDispatch } from '../../../utils/actions/actions';
 import { IUMLSubsystem, UMLSubsystem } from './uml-component-subsystem';
 import { StereotypeToggle } from '../../../components/controls/stereotype-toggle/stereotype-toggle';
+import { LineageSourceLink } from '../../../components/lineage/LineageSourceLink';
 
 const Flex = styled.div`
   display: flex;
@@ -65,6 +66,8 @@ class ComponentSubsystemUpdate extends Component<Props, State> {
           textColor
           fillColor
         />
+        {/* 06-v2 — self-gating: only renders for derived Subsystems. */}
+        <LineageSourceLink elementId={element.id} />
       </div>
     );
   }

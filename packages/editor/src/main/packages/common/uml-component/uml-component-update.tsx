@@ -15,6 +15,7 @@ import { IUMLComponent, UMLComponent } from './uml-component';
 import { StereotypeToggle } from '../../../components/controls/stereotype-toggle/stereotype-toggle';
 import { Dropdown } from '../../../components/controls/dropdown/dropdown';
 import { COMPONENT_STEREOTYPE_PRESETS } from '../agentic/agentic-tokens';
+import { LineageSourceLink } from '../../../components/lineage/LineageSourceLink';
 
 const Flex = styled.div`
   display: flex;
@@ -97,6 +98,8 @@ class ComponentUpdate extends Component<Props, State> {
           textColor
           fillColor
         />
+        {/* 06-v2 — self-gating: renders nothing for non-derived elements. */}
+        <LineageSourceLink elementId={element.id} />
       </div>
     );
   }

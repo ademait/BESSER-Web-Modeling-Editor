@@ -21,6 +21,7 @@ import { DeploymentRelationshipType } from '../index';
 import { UMLDeploymentDependency } from '../uml-deployment-dependency/uml-deployment-dependency';
 import { ColorButton } from '../../../components/controls/color-button/color-button';
 import { StylePane } from '../../../components/style-pane/style-pane';
+import { LineageSourceLink } from '../../../components/lineage/LineageSourceLink';
 
 const Flex = styled.div`
   display: flex;
@@ -111,6 +112,8 @@ class DeploymentAssociationUpdate extends Component<Props, State> {
             </section>
           </>
         )}
+        {/* 06-v2 — self-gating: only renders for derived edges. */}
+        <LineageSourceLink elementId={element.id} />
       </div>
     );
   }

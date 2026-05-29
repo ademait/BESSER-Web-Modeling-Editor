@@ -13,6 +13,7 @@ import { UMLElementRepository } from '../../../services/uml-element/uml-element-
 import { AsyncDispatch } from '../../../utils/actions/actions';
 import { IUMLDeploymentNode, UMLDeploymentNode } from './uml-deployment-node';
 import { StereotypeToggle } from '../../../components/controls/stereotype-toggle/stereotype-toggle';
+import { LineageSourceLink } from '../../../components/lineage/LineageSourceLink';
 
 const Flex = styled.div`
   display: flex;
@@ -65,6 +66,8 @@ class DeploymentNodeUpdate extends Component<Props, State> {
             />
           </Flex>
         </section>
+        {/* 06-v2 — self-gating: only renders for derived DeploymentNodes. */}
+        <LineageSourceLink elementId={element.id} />
       </div>
     );
   }
