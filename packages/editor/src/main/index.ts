@@ -45,6 +45,10 @@ export * from './packages/bpmn/common/types';
 // Used when working with patching operations in TypeScript
 export type { Patch } from './services/patcher';
 
+// 08 — public type for the agent-diagram linker callback object; the host
+// (webapp2) implements this and passes it to `editor.setAgentDiagramLinker`.
+export type { AgentDiagramLinker } from './components/agent-diagram-linker/AgentDiagramLinkerContext';
+
 // Export only the UMLModelCompat type for compatibility purposes
 // Provides type definitions for compatibility with different UML model versions
 export type { UMLModelCompat } from './compat';

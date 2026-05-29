@@ -16,6 +16,7 @@ import { ColorButton } from '../../../components/controls/color-button/color-but
 import { StylePane } from '../../../components/style-pane/style-pane';
 import { BPMNSwimlane } from './bpmn-swimlane';
 import { BPMNAgentRole, clampTrustScore } from '../common/types';
+import { AgentDiagramLinkSection } from '../../../components/agent-diagram-linker/AgentDiagramLinkSection';
 
 interface OwnProps {
   element: BPMNSwimlane;
@@ -97,6 +98,11 @@ class BPMNSwimlaneUpdateComponent extends Component<Props, State> {
                 <Textfield value={String(element.trustScore)} onChange={this.changeTrustScore(element.id)} />
               </Flex>
             </section>
+            <AgentDiagramLinkSection
+              laneId={element.id}
+              laneName={element.name}
+              agentDiagramRef={element.agentDiagramRef}
+            />
           </>
         )}
       </div>

@@ -22,6 +22,10 @@ import { ErrorBoundary } from './components/controls/error-boundary/ErrorBoundar
 import { replaceColorVariables } from './utils/replace-color-variables';
 import { UMLModelCompat } from './compat';
 import { LineageProvider, LineageProviderRoot } from './components/lineage/LineageContext';
+import {
+  AgentDiagramLinker,
+  AgentDiagramLinkerProviderRoot,
+} from './components/agent-diagram-linker/AgentDiagramLinkerContext';
 
 export class ApollonEditor {
   private ensureInitialized() {
@@ -128,6 +132,13 @@ export class ApollonEditor {
   private _lineageProvider: LineageProvider | null = null;
   private _lineageProviderUpdater: ((v: LineageProvider | null) => void) | null = null;
 
+  // 08 — agent-diagram linker provider supplied by the host (webapp2).
+  // Same pattern as `_lineageProvider`: the React provider root captures
+  // an updater on mount so subsequent setAgentDiagramLinker calls flow
+  // through it without tearing down the editor tree.
+  private _agentDiagramLinker: AgentDiagramLinker | null = null;
+  private _agentDiagramLinkerUpdater: ((v: AgentDiagramLinker | null) => void) | null = null;
+
   constructor(
     private container: HTMLElement,
     private options: Apollon.ApollonOptions,
@@ -181,6 +192,24 @@ export class ApollonEditor {
       locale: options.locale,
     });
     // 06-v2 — wrap so the editor's popup tree can read the host-supplied lineage provider.
+    // 08 — also wrap with the agent-diagram linker provider for the BPMN lane popup.
+    const linkedElement = createElement(
+      AgentDiagramLinkerProviderRoot,
+      {
+        initialValue: this._agentDiagramLinker,
+        register: (listener: (v: AgentDiagramLinker | null) => void) => {
+          this._agentDiagramLinkerUpdater = listener;
+          // 08 — flush: if setAgentDiagramLinker was called between
+          // ApollonEditor construction and the provider root's useEffect
+          // firing, the value is stored on the instance but never reached
+          // React state (the updater was null). Apply it now.
+          if (this._agentDiagramLinker !== null) {
+            listener(this._agentDiagramLinker);
+          }
+        },
+      },
+      appElement,
+    );
     const element = createElement(
       LineageProviderRoot,
       {
@@ -189,7 +218,7 @@ export class ApollonEditor {
           this._lineageProviderUpdater = listener;
         },
       },
-      appElement,
+      linkedElement,
     );
     const errorBoundary = createElement(ErrorBoundary, { onError: this.onErrorOccurred.bind(this) }, element);
     this.root = createRoot(container);
@@ -263,6 +292,17 @@ export class ApollonEditor {
   setLineageProvider(provider: LineageProvider | null): void {
     this._lineageProvider = provider;
     this._lineageProviderUpdater?.(provider);
+  }
+
+  /**
+   * 08 — register an agent-diagram linker so the agentic-lane popup can
+   * render the Define / Open affordance and dispatch the project-mutating
+   * callbacks. Pass `null` to clear. Safe to call before or after mount;
+   * the editor captures the latest value on its next render.
+   */
+  setAgentDiagramLinker(linker: AgentDiagramLinker | null): void {
+    this._agentDiagramLinker = linker;
+    this._agentDiagramLinkerUpdater?.(linker);
   }
 
   /**
@@ -547,6 +587,21 @@ export class ApollonEditor {
       locale: this.options.locale,
     } as any);
     // 06-v2 — re-wrap on every editor rebuild; the updater is captured fresh.
+    // 08 — same re-wrap for the agent-diagram linker provider, including
+    // the post-mount flush to handle restoreEditor's re-mount timing too.
+    const linkedElement = createElement(
+      AgentDiagramLinkerProviderRoot,
+      {
+        initialValue: this._agentDiagramLinker,
+        register: (listener: (v: AgentDiagramLinker | null) => void) => {
+          this._agentDiagramLinkerUpdater = listener;
+          if (this._agentDiagramLinker !== null) {
+            listener(this._agentDiagramLinker);
+          }
+        },
+      },
+      appElement,
+    );
     const element = createElement(
       LineageProviderRoot,
       {
@@ -555,7 +610,7 @@ export class ApollonEditor {
           this._lineageProviderUpdater = listener;
         },
       },
-      appElement,
+      linkedElement,
     );
     const errorBoundary = createElement(ErrorBoundary, { onError: this.onErrorOccurred.bind(this) }, element);
     this.root = createRoot(this.container);
