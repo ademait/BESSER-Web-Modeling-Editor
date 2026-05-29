@@ -320,4 +320,69 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
       expect(structural).toHaveLength(1);
     });
   });
+
+  describe('06-v2 — element-mapping output', () => {
+    it('maps DeploymentNode → source Subsystem, DeploymentComponent + Artifact → source Component, DeploymentAssociation → source ComponentDependency', () => {
+      const m = makeBaseModel();
+      Object.assign(m.elements as Record<string, unknown>, {
+        s1: el('s1', 'Subsystem', 'Order', null),
+        s2: el('s2', 'Subsystem', 'Shipping', null),
+        c1: el('c1', 'Component', 'OrderAgent', 's1'),
+        c2: el('c2', 'Component', 'ShippingAgent', 's2'),
+      });
+      Object.assign(m.relationships as Record<string, unknown>, {
+        r1: dep('r1', 'c1', 'c2'),
+      });
+      const r = componentModelToDeploymentModel(m);
+      if (!r.ok) throw new Error('expected ok');
+
+      // Each DeploymentNode maps back to its source Subsystem.
+      const nodes = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentNode');
+      for (const node of nodes) {
+        const sourceId = r.elementMapping[node.id];
+        expect(sourceId).toBe(node.name === 'Order' ? 's1' : 's2');
+      }
+
+      // Each DeploymentComponent + its paired DeploymentArtifact both
+      // map to the same source Component id.
+      const dcs = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentComponent');
+      const artifacts = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentArtifact');
+      for (const dc of dcs) {
+        const expected = dc.name === 'OrderAgent' ? 'c1' : 'c2';
+        expect(r.elementMapping[dc.id]).toBe(expected);
+        const matchingArtifact = artifacts.find((a) => a.name === dc.name);
+        expect(matchingArtifact).toBeDefined();
+        expect(r.elementMapping[matchingArtifact!.id]).toBe(expected);
+      }
+
+      // The structural DeploymentAssociation maps to the source dep.
+      const structural = Object.values(r.model.relationships).filter((rel) => rel.type === 'DeploymentAssociation');
+      expect(structural).toHaveLength(1);
+      expect(r.elementMapping[structural[0].id]).toBe('r1');
+    });
+
+    it('synthetic emissions (Default Host, manifest DeploymentDependency) are absent from elementMapping', () => {
+      const m = makeBaseModel();
+      Object.assign(m.elements as Record<string, unknown>, {
+        c1: el('c1', 'Component', 'Orphan1', null),
+        c2: el('c2', 'Component', 'Orphan2', null),
+      });
+      const r = componentModelToDeploymentModel(m);
+      if (!r.ok) throw new Error('expected ok');
+
+      // Default Host has no entry.
+      const host = Object.values(r.model.elements).find(
+        (e) => e.type === 'DeploymentNode' && e.name === 'Default Host',
+      );
+      expect(host).toBeDefined();
+      expect(r.elementMapping[host!.id]).toBeUndefined();
+
+      // Manifest DeploymentDependencies have no entry either.
+      const manifests = Object.values(r.model.relationships).filter((rel) => rel.type === 'DeploymentDependency');
+      expect(manifests.length).toBeGreaterThan(0);
+      for (const m2 of manifests) {
+        expect(r.elementMapping[m2.id]).toBeUndefined();
+      }
+    });
+  });
 });

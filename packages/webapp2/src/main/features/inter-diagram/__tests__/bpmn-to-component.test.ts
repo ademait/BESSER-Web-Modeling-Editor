@@ -114,4 +114,42 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
       expect(delegates).toHaveLength(1);
     });
   });
+
+  describe('06-v2 — element-mapping output', () => {
+    it('maps derived Subsystem → source Pool, Component → source Lane, ComponentDependency → source BPMNFlow', () => {
+      const r = bpmnModelToComponentModel(minimalAgentic as unknown as UMLModel);
+      if (!r.ok) throw new Error('expected ok');
+
+      // Pull source ids from the fixture.
+      const sourcePoolId = Object.values((minimalAgentic as unknown as UMLModel).elements).find(
+        (e) => e.type === 'BPMNPool',
+      )?.id;
+      const sourceLaneIds = Object.values((minimalAgentic as unknown as UMLModel).elements)
+        .filter((e) => e.type === 'BPMNSwimlane')
+        .map((e) => e.id);
+      const sourceFlowId = Object.values((minimalAgentic as unknown as UMLModel).relationships).find(
+        (rel) => rel.type === 'BPMNFlow' && (rel as unknown as { flowType?: string }).flowType === 'sequence',
+      )?.id;
+      expect(sourcePoolId).toBeDefined();
+      expect(sourceLaneIds.length).toBeGreaterThan(0);
+      expect(sourceFlowId).toBeDefined();
+
+      // The Subsystem points at the Pool.
+      const subsystem = Object.values(r.model.elements).find((e) => e.type === 'Subsystem');
+      expect(subsystem).toBeDefined();
+      expect(r.elementMapping[subsystem!.id]).toBe(sourcePoolId);
+
+      // Each lane-derived Component points at its source Lane.
+      const components = Object.values(r.model.elements).filter((e) => e.type === 'Component');
+      const mappedLaneIds = components.map((c) => r.elementMapping[c.id]).filter(Boolean);
+      for (const mid of mappedLaneIds) {
+        expect(sourceLaneIds).toContain(mid);
+      }
+
+      // The emitted ComponentDependency points at the source BPMNFlow.
+      const dep = Object.values(r.model.relationships).find((rel) => rel.type === 'ComponentDependency');
+      expect(dep).toBeDefined();
+      expect(r.elementMapping[dep!.id]).toBe(sourceFlowId);
+    });
+  });
 });
