@@ -40,6 +40,12 @@ export function componentModelToDeploymentModel(component: UMLModel): Deployment
   const layout = makeLayoutCursor();
   // 06-v2 — derivedElementId → sourceElementId. Populated as we emit.
   // Synthetic emissions (Default Host, manifest edges) leave no entry.
+  // DeploymentArtifacts are also intentionally NOT mapped (06-v2 FU,
+  // 2026-05-29): UML 2.5 §19.4 — an Artifact "manifests" a Component;
+  // it is a physical packaging unit with no direct counterpart in the
+  // logical source diagram. The DeploymentComponent above the Node
+  // already projects the source Component; mapping the Artifact too
+  // would mis-attribute the manifest as the source link.
   const elementMapping: ElementLineageMap = {};
 
   // 04-FU3: pre-count Components per Subsystem and orphan bucket so
@@ -80,11 +86,11 @@ export function componentModelToDeploymentModel(component: UMLModel): Deployment
     if (!nodeId) continue;
     const subComps = componentsBySubsystemId.get(sub.id) ?? [];
     for (let i = 0; i < subComps.length; i++) {
-      const { componentId, artifactId } = emitDeploymentComponentPair(out, subComps[i], nodeId, i);
+      const { componentId } = emitDeploymentComponentPair(out, subComps[i], nodeId, i);
       nodeIdByCompId.set(subComps[i].id, nodeId);
-      // 06-v2 — both members of the pair point at the same source Component
+      // 06-v2 — only the DeploymentComponent (logical projection) maps
+      // to the source Component; the Artifact has no source counterpart.
       elementMapping[componentId] = subComps[i].id;
-      elementMapping[artifactId] = subComps[i].id;
     }
   }
 
@@ -92,10 +98,9 @@ export function componentModelToDeploymentModel(component: UMLModel): Deployment
     const hostId = emitDeploymentNode(out, 'Default Host', null, /*synthetic*/ true, layout, orphanComponents.length);
     // Default Host is synthetic — no entry in elementMapping (D-D1 per plan 05- § 3.3).
     for (let i = 0; i < orphanComponents.length; i++) {
-      const { componentId, artifactId } = emitDeploymentComponentPair(out, orphanComponents[i], hostId, i);
+      const { componentId } = emitDeploymentComponentPair(out, orphanComponents[i], hostId, i);
       nodeIdByCompId.set(orphanComponents[i].id, hostId);
       elementMapping[componentId] = orphanComponents[i].id;
-      elementMapping[artifactId] = orphanComponents[i].id;
     }
   }
 

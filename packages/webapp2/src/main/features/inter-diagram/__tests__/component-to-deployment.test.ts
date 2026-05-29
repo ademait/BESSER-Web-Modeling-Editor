@@ -322,7 +322,7 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
   });
 
   describe('06-v2 — element-mapping output', () => {
-    it('maps DeploymentNode → source Subsystem, DeploymentComponent + Artifact → source Component, DeploymentAssociation → source ComponentDependency', () => {
+    it('maps DeploymentNode → source Subsystem, DeploymentComponent → source Component, DeploymentAssociation → source ComponentDependency', () => {
       const m = makeBaseModel();
       Object.assign(m.elements as Record<string, unknown>, {
         s1: el('s1', 'Subsystem', 'Order', null),
@@ -343,22 +343,36 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
         expect(sourceId).toBe(node.name === 'Order' ? 's1' : 's2');
       }
 
-      // Each DeploymentComponent + its paired DeploymentArtifact both
-      // map to the same source Component id.
+      // Only the DeploymentComponent maps to the source Component
+      // (06-v2 FU, 2026-05-29). The paired Artifact has no source
+      // counterpart — it is the physical manifestation, not a
+      // projection of any source element.
       const dcs = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentComponent');
-      const artifacts = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentArtifact');
       for (const dc of dcs) {
         const expected = dc.name === 'OrderAgent' ? 'c1' : 'c2';
         expect(r.elementMapping[dc.id]).toBe(expected);
-        const matchingArtifact = artifacts.find((a) => a.name === dc.name);
-        expect(matchingArtifact).toBeDefined();
-        expect(r.elementMapping[matchingArtifact!.id]).toBe(expected);
       }
 
       // The structural DeploymentAssociation maps to the source dep.
       const structural = Object.values(r.model.relationships).filter((rel) => rel.type === 'DeploymentAssociation');
       expect(structural).toHaveLength(1);
       expect(r.elementMapping[structural[0].id]).toBe('r1');
+    });
+
+    it('DeploymentArtifacts are absent from elementMapping (06-v2 FU — Artifacts have no source counterpart)', () => {
+      const m = makeBaseModel();
+      Object.assign(m.elements as Record<string, unknown>, {
+        s1: el('s1', 'Subsystem', 'Order', null),
+        c1: el('c1', 'Component', 'OrderAgent', 's1'),
+      });
+      const r = componentModelToDeploymentModel(m);
+      if (!r.ok) throw new Error('expected ok');
+
+      const artifacts = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentArtifact');
+      expect(artifacts).toHaveLength(1);
+      for (const a of artifacts) {
+        expect(r.elementMapping[a.id]).toBeUndefined();
+      }
     });
 
     it('synthetic emissions (Default Host, manifest DeploymentDependency) are absent from elementMapping', () => {
