@@ -1,4 +1,5 @@
 import type { UMLModel } from '@besser/wme';
+import type { ElementLineageMap } from '../../shared/types/project';
 
 /**
  * Outcome of `bpmnModelToComponentModel`.
@@ -9,9 +10,12 @@ import type { UMLModel } from '@besser/wme';
  *
  * `model` is `null` when the input is unusable (e.g. a flat BPMN with
  * no pool / lane structure — see plan § 3 pre-conditions).
+ *
+ * `elementMapping` (06-v2): derived element id → source BPMN element
+ * id. Synthetic emissions (external Components) have no entry.
  */
 export type DerivationResult =
-  | { ok: true; model: UMLModel; warnings: DerivationWarning[] }
+  | { ok: true; model: UMLModel; warnings: DerivationWarning[]; elementMapping: ElementLineageMap }
   | { ok: false; reason: DerivationRefusalReason; warnings: DerivationWarning[] };
 
 export type DerivationRefusalReason = 'no-pools' | 'no-lanes-in-any-pool' | 'not-a-bpmn-diagram';
@@ -33,7 +37,7 @@ export type DerivationWarning =
  * See `.claude/inter-diagram/03-component-to-deployment-derivation-plan.md`.
  */
 export type DeploymentDerivationResult =
-  | { ok: true; model: UMLModel; warnings: DeploymentDerivationWarning[] }
+  | { ok: true; model: UMLModel; warnings: DeploymentDerivationWarning[]; elementMapping: ElementLineageMap }
   | { ok: false; reason: DeploymentDerivationRefusalReason; warnings: DeploymentDerivationWarning[] };
 
 export type DeploymentDerivationRefusalReason =

@@ -78,6 +78,14 @@ export interface ProjectDiagram {
   derivedFrom?: DiagramLineage;
 }
 
+/**
+ * 06-v2 — per-derived-diagram element mapping: derived element id →
+ * source element id. The source diagram is implied by the containing
+ * `ProjectDiagram.derivedFrom.sourceDiagramId`. Sidecar on
+ * `BesserProject` (no editor-package storage diff per plan 05- OQ-1).
+ */
+export type ElementLineageMap = Record<string, string>;
+
 export type ProjectDiagramModel = UMLModel | GrapesJSProjectData | QuantumCircuitData;
 
 // New centralized project structure
@@ -107,6 +115,10 @@ export interface BesserProject {
     autoSave: boolean;
     collaborationEnabled: boolean;
   };
+  /** 06-v2 — derivedDiagramId → ElementLineageMap. Sidecar; populated
+   *  by the inter-diagram derivation hooks after the derived diagram
+   *  is added. Survives import/export. */
+  elementLineage?: Record<string, ElementLineageMap>;
 }
 
 // Helper to get the active diagram for a type

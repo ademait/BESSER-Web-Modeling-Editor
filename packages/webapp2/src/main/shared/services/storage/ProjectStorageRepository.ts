@@ -339,6 +339,14 @@ export class ProjectStorageRepository {
     // tiny so leaving it dangling has no storage cost worth
     // optimising against.
 
+    // 06-v2 — drop the element-lineage sidecar for the deleted diagram
+    // itself (it's the *derived* side that the sidecar is keyed on,
+    // not the source). If the deleted diagram was a derived one, its
+    // sidecar is now garbage and should be cleared.
+    if (project.elementLineage) {
+      delete project.elementLineage[deletedId];
+    }
+
     this.saveProject(project);
     return true;
   }
