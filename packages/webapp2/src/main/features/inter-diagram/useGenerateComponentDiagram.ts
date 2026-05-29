@@ -4,6 +4,7 @@ import { useAppDispatch, useAppSelector } from '../../app/store/hooks';
 import {
   addDiagramThunk,
   bumpEditorRevision,
+  setElementLineageThunk,
   switchDiagramTypeThunk,
   updateDiagramModelThunk,
 } from '../../app/store/workspaceSlice';
@@ -48,9 +49,13 @@ export function useGenerateComponentDiagram(): () => Promise<DerivationResult> {
       sourceModelHash: hashUmlModel(activeDiagram.model as UMLModel),
     };
 
-    await dispatch(addDiagramThunk({ diagramType: 'ComponentDiagram', title, derivedFrom })).unwrap();
+    const added = await dispatch(addDiagramThunk({ diagramType: 'ComponentDiagram', title, derivedFrom })).unwrap();
     await dispatch(switchDiagramTypeThunk({ diagramType: 'ComponentDiagram' })).unwrap();
     await dispatch(updateDiagramModelThunk({ model: result.model })).unwrap();
+    // 06-v2 — write the element-level lineage sidecar for the new diagram.
+    await dispatch(
+      setElementLineageThunk({ derivedDiagramId: added.diagram.id, mapping: result.elementMapping }),
+    ).unwrap();
     // F-D2 (2026-05-27): updateDiagramModelThunk is intentionally
     // silent on editorRevision (so normal editing doesn't reinit the
     // editor on every keystroke). For a derivation we DO want the

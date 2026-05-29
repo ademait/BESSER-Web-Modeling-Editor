@@ -1,5 +1,6 @@
 import type { UMLModel, UMLElement, UMLRelationship } from '@besser/wme';
 import { UMLDiagramType } from '@besser/wme';
+import type { ElementLineageMap } from '../../shared/types/project';
 import type { DeploymentDerivationResult, DeploymentDerivationWarning } from './types';
 
 /**
@@ -37,6 +38,9 @@ export function componentModelToDeploymentModel(component: UMLModel): Deployment
   const subsystems = collectSubsystems(component);
   const out = emptyDeploymentModel(component.size);
   const layout = makeLayoutCursor();
+  // 06-v2 — derivedElementId → sourceElementId. Populated as we emit.
+  // Synthetic emissions (Default Host, manifest edges) leave no entry.
+  const elementMapping: ElementLineageMap = {};
 
   // 04-FU3: pre-count Components per Subsystem and orphan bucket so
   // each Node can be sized from its componentCount at emit time
@@ -63,6 +67,7 @@ export function componentModelToDeploymentModel(component: UMLModel): Deployment
     const subComps = componentsBySubsystemId.get(sub.id) ?? [];
     const nodeId = emitDeploymentNode(out, sub.name, sub, /*synthetic*/ false, layout, subComps.length);
     nodeIdBySubsystemId.set(sub.id, nodeId);
+    elementMapping[nodeId] = sub.id; // 06-v2 — DeploymentNode ← source Subsystem
   }
 
   // Phase 2 — emit DeploymentComponent + DeploymentArtifact + manifest
@@ -75,16 +80,22 @@ export function componentModelToDeploymentModel(component: UMLModel): Deployment
     if (!nodeId) continue;
     const subComps = componentsBySubsystemId.get(sub.id) ?? [];
     for (let i = 0; i < subComps.length; i++) {
-      emitDeploymentComponentPair(out, subComps[i], nodeId, i);
+      const { componentId, artifactId } = emitDeploymentComponentPair(out, subComps[i], nodeId, i);
       nodeIdByCompId.set(subComps[i].id, nodeId);
+      // 06-v2 — both members of the pair point at the same source Component
+      elementMapping[componentId] = subComps[i].id;
+      elementMapping[artifactId] = subComps[i].id;
     }
   }
 
   if (orphanComponents.length > 0) {
     const hostId = emitDeploymentNode(out, 'Default Host', null, /*synthetic*/ true, layout, orphanComponents.length);
+    // Default Host is synthetic — no entry in elementMapping (D-D1 per plan 05- § 3.3).
     for (let i = 0; i < orphanComponents.length; i++) {
-      emitDeploymentComponentPair(out, orphanComponents[i], hostId, i);
+      const { componentId, artifactId } = emitDeploymentComponentPair(out, orphanComponents[i], hostId, i);
       nodeIdByCompId.set(orphanComponents[i].id, hostId);
+      elementMapping[componentId] = orphanComponents[i].id;
+      elementMapping[artifactId] = orphanComponents[i].id;
     }
   }
 
@@ -110,10 +121,11 @@ export function componentModelToDeploymentModel(component: UMLModel): Deployment
     const key = `${srcNodeId}\x00${tgtNodeId}`;
     if (dedup.has(key)) continue;
     dedup.add(key);
-    emitDeploymentAssociation(out, srcNodeId, tgtNodeId);
+    const edgeId = emitDeploymentAssociation(out, srcNodeId, tgtNodeId);
+    elementMapping[edgeId] = rel.id; // 06-v2 — DeploymentAssociation ← source ComponentDependency
   }
 
-  return { ok: true, model: out, warnings };
+  return { ok: true, model: out, warnings, elementMapping };
 }
 
 // ── Collection helpers ──────────────────────────────────────────────
@@ -288,7 +300,12 @@ function emitDeploymentNode(
  * `slotIndex` = 0-based index of this Component within its owning
  * Node, drives the horizontal slot layout (D-D4).
  */
-function emitDeploymentComponentPair(out: UMLModel, source: UMLElement, nodeId: string, slotIndex: number): string {
+function emitDeploymentComponentPair(
+  out: UMLModel,
+  source: UMLElement,
+  nodeId: string,
+  slotIndex: number,
+): { componentId: string; artifactId: string } {
   const componentId = newId();
   const artifactId = newId();
   const sourceStereotype = (source as unknown as { stereotype?: string }).stereotype ?? 'component';
@@ -337,7 +354,7 @@ function emitDeploymentComponentPair(out: UMLModel, source: UMLElement, nodeId: 
   // Manifest edge: dashed, arrow at Component end (D-D2).
   emitManifestDependency(out, artifactId, artifactBounds, componentId, componentBounds);
 
-  return componentId;
+  return { componentId, artifactId };
 }
 
 function emitManifestDependency(
@@ -387,7 +404,7 @@ function emitManifestDependency(
   } as unknown as UMLRelationship;
 }
 
-function emitDeploymentAssociation(out: UMLModel, srcNodeId: string, tgtNodeId: string): void {
+function emitDeploymentAssociation(out: UMLModel, srcNodeId: string, tgtNodeId: string): string {
   const id = newId();
   const src = (
     out.elements[srcNodeId] as unknown as {
@@ -419,4 +436,5 @@ function emitDeploymentAssociation(out: UMLModel, srcNodeId: string, tgtNodeId: 
     // D-D2 / OQ-2 — agentic edge stereotypes are NOT carried over.
     // Leave `stereotype` undefined.
   } as unknown as UMLRelationship;
+  return id;
 }

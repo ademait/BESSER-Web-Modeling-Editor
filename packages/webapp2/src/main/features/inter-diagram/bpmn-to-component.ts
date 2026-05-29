@@ -1,5 +1,6 @@
 import type { UMLModel, UMLElement, UMLRelationship } from '@besser/wme';
 import { UMLDiagramType } from '@besser/wme';
+import type { ElementLineageMap } from '../../shared/types/project';
 import type { DerivationResult, DerivationWarning } from './types';
 
 type LaneCrossingFlow = {
@@ -33,6 +34,9 @@ export function bpmnModelToComponentModel(bpmn: UMLModel): DerivationResult {
 
   const out = emptyComponentModel(bpmn.size);
   const layout = makeLayoutCursor();
+  // 06-v2 — derivedElementId → source BPMN element id. Synthetic
+  // external Components leave no entry.
+  const elementMapping: ElementLineageMap = {};
 
   // Phase 1: Subsystems + lane-Components
   // F-D1 (2026-05-27): tasks are not represented in the Component
@@ -43,9 +47,11 @@ export function bpmnModelToComponentModel(bpmn: UMLModel): DerivationResult {
     if (lanes.length === 0) continue;
 
     const subsystemId = emitSubsystem(out, pool, layout);
+    elementMapping[subsystemId] = pool.id; // 06-v2 — Subsystem ← source Pool
     for (const lane of lanes) {
       const laneCompId = emitLaneComponent(out, lane, subsystemId, layout);
       componentIdByLaneId.set(lane.id, laneCompId);
+      elementMapping[laneCompId] = lane.id; // 06-v2 — Component ← source Lane
 
       const isAgentic = (lane as unknown as { isAgentic?: boolean }).isAgentic === true;
       if (!isAgentic) {
@@ -72,10 +78,11 @@ export function bpmnModelToComponentModel(bpmn: UMLModel): DerivationResult {
     const srcComp = componentIdByLaneId.get(crossing.srcLaneId);
     const tgtComp = componentIdByLaneId.get(crossing.tgtLaneId);
     if (!srcComp || !tgtComp) continue;
-    dedup.add(srcComp, tgtComp, kind);
+    dedup.add(srcComp, tgtComp, kind, crossing.flowId);
   }
   for (const e of dedup.entries()) {
-    emitComponentDependency(out, e.srcCompId, e.tgtCompId, e.kind);
+    const edgeId = emitComponentDependency(out, e.srcCompId, e.tgtCompId, e.kind);
+    elementMapping[edgeId] = e.sourceFlowId; // 06-v2 — ComponentDependency ← source BPMNFlow
   }
 
   // Phase 3: inter-pool message flows → ComponentDependency
@@ -111,15 +118,18 @@ export function bpmnModelToComponentModel(bpmn: UMLModel): DerivationResult {
     }
 
     if (tgtComp) {
-      emitComponentDependency(out, srcComp, tgtComp, 'delegates');
+      const edgeId = emitComponentDependency(out, srcComp, tgtComp, 'delegates');
+      elementMapping[edgeId] = mf.id; // 06-v2 — ComponentDependency ← source BPMNFlow (message)
     } else {
+      // Synthetic external Component — no lineage entry (D-D1 per plan 05- § 3.3).
       const externalId = emitExternalComponent(out, mf, layout);
-      emitComponentDependency(out, srcComp, externalId, 'delegates');
+      const edgeId = emitComponentDependency(out, srcComp, externalId, 'delegates');
+      elementMapping[edgeId] = mf.id; // The edge itself does still trace back to the message flow.
       warnings.push({ kind: 'inferred-external-component', messageFlowId: mf.id });
     }
   }
 
-  return { ok: true, model: out, warnings };
+  return { ok: true, model: out, warnings, elementMapping };
 }
 
 // ── Collection helpers ──────────────────────────────────────────────
@@ -406,7 +416,7 @@ function emitExternalComponent(out: UMLModel, mf: UMLRelationship, layout: Layou
   return id;
 }
 
-function emitComponentDependency(out: UMLModel, sourceId: string, targetId: string, stereotype: string): void {
+function emitComponentDependency(out: UMLModel, sourceId: string, targetId: string, stereotype: string): string {
   const id = newId();
   const src = (out.elements[sourceId] as unknown as { bounds: { x: number; y: number; width: number; height: number } })
     .bounds;
@@ -431,22 +441,26 @@ function emitComponentDependency(out: UMLModel, sourceId: string, targetId: stri
     target: { element: targetId, direction: 'Left' },
     stereotype,
   } as unknown as UMLRelationship;
+  return id;
 }
 
 // ── Edge de-duplication (guide § 1 D-D4) ────────────────────────────
 
 class EdgeDedup {
   private seen = new Set<string>();
-  private out: Array<{ srcCompId: string; tgtCompId: string; kind: AgenticEdgeKind }> = [];
+  private out: Array<{ srcCompId: string; tgtCompId: string; kind: AgenticEdgeKind; sourceFlowId: string }> = [];
 
-  add(srcCompId: string, tgtCompId: string, kind: AgenticEdgeKind): void {
+  // 06-v2 — accepts a representative `sourceFlowId` for the lineage
+  // map. When multiple flows collapse into one edge, the first
+  // occurrence wins (the others are functionally identical).
+  add(srcCompId: string, tgtCompId: string, kind: AgenticEdgeKind, sourceFlowId: string): void {
     const k = `${srcCompId}::${tgtCompId}::${kind}`;
     if (this.seen.has(k)) return;
     this.seen.add(k);
-    this.out.push({ srcCompId, tgtCompId, kind });
+    this.out.push({ srcCompId, tgtCompId, kind, sourceFlowId });
   }
 
-  entries(): Array<{ srcCompId: string; tgtCompId: string; kind: AgenticEdgeKind }> {
+  entries(): Array<{ srcCompId: string; tgtCompId: string; kind: AgenticEdgeKind; sourceFlowId: string }> {
     return this.out;
   }
 }

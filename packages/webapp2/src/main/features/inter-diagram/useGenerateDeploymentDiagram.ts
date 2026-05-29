@@ -4,6 +4,7 @@ import { useAppDispatch, useAppSelector } from '../../app/store/hooks';
 import {
   addDiagramThunk,
   bumpEditorRevision,
+  setElementLineageThunk,
   switchDiagramTypeThunk,
   updateDiagramModelThunk,
 } from '../../app/store/workspaceSlice';
@@ -44,9 +45,13 @@ export function useGenerateDeploymentDiagram(): () => Promise<DeploymentDerivati
       sourceModelHash: hashUmlModel(activeDiagram.model as UMLModel),
     };
 
-    await dispatch(addDiagramThunk({ diagramType: 'DeploymentDiagram', title, derivedFrom })).unwrap();
+    const added = await dispatch(addDiagramThunk({ diagramType: 'DeploymentDiagram', title, derivedFrom })).unwrap();
     await dispatch(switchDiagramTypeThunk({ diagramType: 'DeploymentDiagram' })).unwrap();
     await dispatch(updateDiagramModelThunk({ model: result.model })).unwrap();
+    // 06-v2 — element-level lineage sidecar.
+    await dispatch(
+      setElementLineageThunk({ derivedDiagramId: added.diagram.id, mapping: result.elementMapping }),
+    ).unwrap();
     // F-D2 (carry-over from 02-FU3): bump revision so the editor picks
     // up the populated model immediately. updateDiagramModelThunk is
     // intentionally silent on editorRevision for normal edits.

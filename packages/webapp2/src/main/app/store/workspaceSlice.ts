@@ -302,6 +302,38 @@ export const addDiagramThunk = createAsyncThunk(
   },
 );
 
+/**
+ * 06-v2 — write an `ElementLineageMap` sidecar for a derived diagram.
+ * Called by the inter-diagram derivation hooks after the derived
+ * diagram is added and its model is stamped.
+ */
+export const setElementLineageThunk = createAsyncThunk(
+  'workspace/setElementLineage',
+  async (
+    {
+      derivedDiagramId,
+      mapping,
+    }: {
+      derivedDiagramId: string;
+      mapping: import('../../shared/types/project').ElementLineageMap;
+    },
+    { getState },
+  ) => {
+    const state = getState() as { workspace: WorkspaceState };
+    const { project } = state.workspace;
+    if (!project) throw new Error('No active project');
+
+    ProjectStorageRepository.withoutNotify(() => {
+      const p = ProjectStorageRepository.loadProject(project.id);
+      if (!p) return;
+      p.elementLineage = { ...(p.elementLineage ?? {}), [derivedDiagramId]: mapping };
+      ProjectStorageRepository.saveProject(p);
+    });
+
+    return { derivedDiagramId, mapping };
+  },
+);
+
 export const removeDiagramThunk = createAsyncThunk(
   'workspace/removeDiagram',
   async ({ diagramType, index }: { diagramType: SupportedDiagramType; index: number }, { getState }) => {
@@ -519,6 +551,18 @@ const workspaceSlice = createSlice({
       .addCase(addDiagramThunk.rejected, (state, action) => {
         console.error('addDiagramThunk failed:', action.error.message);
         state.error = action.error.message || 'Failed to add diagram';
+      })
+
+      // ── 06-v2 — Element lineage sidecar ───────────────────────
+      .addCase(setElementLineageThunk.fulfilled, (state, action) => {
+        if (!state.project) return;
+        state.project.elementLineage = {
+          ...(state.project.elementLineage ?? {}),
+          [action.payload.derivedDiagramId]: action.payload.mapping,
+        };
+      })
+      .addCase(setElementLineageThunk.rejected, (state, action) => {
+        console.error('setElementLineageThunk failed:', action.error.message);
       })
 
       // ── Remove diagram ────────────────────────────────────────
