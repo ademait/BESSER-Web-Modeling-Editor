@@ -166,6 +166,10 @@ function parseAgenticExtension(
   collaborationMode?: BPMNCollaborationMode;
   mergingStrategy?: BPMNMergingStrategy;
   trustScore?: number;
+  // 08 — lane-only ref. Free-form UUID; never validated here (the
+  // target project may not even contain the diagram). C4 webapp2
+  // post-validator handles the dead-ref toast per plan OQ-F.
+  agentDiagramRef?: string;
 } {
   const a = findAgenticExtension(parent);
   if (!a) return null;
@@ -211,6 +215,12 @@ function parseAgenticExtension(
         message: `Agentic trustScore="${tsRaw}" is not a number; ignored.`,
       });
     }
+  }
+  // 08 — opaque pass-through. Empty string ("") is treated as absent so
+  // a malformed export doesn't create an unresolvable dead ref.
+  const ref = a.getAttribute('agentDiagramRef');
+  if (ref !== null && ref !== '') {
+    out.agentDiagramRef = ref;
   }
   return out as ReturnType<typeof parseAgenticExtension>;
 }
@@ -656,9 +666,7 @@ export function bpmnXmlToApollon(xml: string): ImportResult {
 
 // Build the unified element + relationship map the validator helpers consume.
 // Same shape as `validateAllBpmnFlows`'s input after the 04C FB1 fix.
-function unifiedElementsById(
-  model: UMLModel,
-): Record<string, { id: string; type: string; [k: string]: unknown }> {
+function unifiedElementsById(model: UMLModel): Record<string, { id: string; type: string; [k: string]: unknown }> {
   const out: Record<string, { id: string; type: string; [k: string]: unknown }> = {};
   for (const id of Object.keys(model.elements)) out[id] = model.elements[id] as never;
   for (const id of Object.keys(model.relationships)) out[id] = model.relationships[id] as never;

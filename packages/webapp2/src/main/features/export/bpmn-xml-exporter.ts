@@ -405,6 +405,8 @@ export function apollonBpmnToXml(model: UMLModel, opts: ExportOptions = {}): Exp
 
 // 04D2 — every agentic-able construct exposes these optional fields. Sourced
 // from BPMNSwimlane / BPMNTask / BPMNGateway / BPMNFlow on the editor side.
+// 08 — `agentDiagramRef` is lane-only (see plan D2); kept on this shared
+// interface so the existing emitAgenticExtension helper can stay one fn.
 interface AnyAgentic {
   isAgentic?: boolean;
   role?: string;
@@ -413,6 +415,7 @@ interface AnyAgentic {
   collaborationMode?: string;
   mergingStrategy?: string;
   trustScore?: number;
+  agentDiagramRef?: string;
 }
 
 // 04D2 — paper §5 / BPMN 2.0.2 § 8.2.3. Emit the agentic extensionElements
@@ -435,6 +438,11 @@ function emitAgenticExtension(lines: string[], el: AnyAgentic, indent: string): 
     attrs.push(`mergingStrategy="${escapeAttr(el.mergingStrategy)}"`);
   }
   if (el.trustScore !== undefined) attrs.push(`trustScore="${el.trustScore}"`);
+  // 08 — lane-only ref (see plan D2). Other constructs never set the
+  // field (lane is the only carrier in C1), so this is effectively gated.
+  if (el.agentDiagramRef !== undefined) {
+    attrs.push(`agentDiagramRef="${escapeAttr(el.agentDiagramRef)}"`);
+  }
   lines.push(`${indent}<bpmn:extensionElements>`);
   lines.push(`${indent}  <agentic:agentic ${attrs.join(' ')}/>`);
   lines.push(`${indent}</bpmn:extensionElements>`);

@@ -136,6 +136,53 @@ describe('agentic round-trip (04D2)', () => {
     expect(xml).not.toContain('<agentic:agentic');
     expect(xml).not.toContain('<bpmn:extensionElements>');
   });
+
+  // 08 — lane carries agentDiagramRef → survives round-trip on the lane only.
+  it('preserves agentDiagramRef on the agentic lane through round-trip', () => {
+    const REF = '3f0a1c2d-4e5b-4f6a-9012-3456789abcde';
+    const model = buildFixtureAgenticModel();
+    // Mutate the lane in the fixture to carry the ref; everything else stays.
+    (model.elements as Record<string, { agentDiagramRef?: string }>)['Lane_1'].agentDiagramRef = REF;
+
+    const { xml } = apollonBpmnToXml(model);
+    // Sanity: the attribute lands on the lane's agentic block.
+    expect(xml).toMatch(/<agentic:agentic[^/]*agentDiagramRef="3f0a1c2d-4e5b-4f6a-9012-3456789abcde"/);
+
+    const { model: parsed } = bpmnXmlToApollon(xml);
+    const lane = Object.values(parsed.elements).find((e) => (e as { name?: string }).name === 'AgentReviewer');
+    expect((lane as { agentDiagramRef?: string }).agentDiagramRef).toBe(REF);
+
+    // Other agentic constructs MUST NOT pick up agentDiagramRef (lane-only).
+    const task = Object.values(parsed.elements).find((e) => (e as { name?: string }).name === 'Review');
+    expect((task as { agentDiagramRef?: string }).agentDiagramRef).toBeUndefined();
+  });
+
+  // 08 — non-agentic lane with a stale ref must NOT emit the extension
+  // (matches 04D2 D-D3: extension presence implies isAgentic).
+  it('does not emit agentDiagramRef on a non-agentic lane', () => {
+    const model = buildFixtureNonAgenticModel();
+    // Find any swimlane in the non-agentic fixture and plant a stale ref.
+    const lane = Object.values(model.elements ?? {}).find((e) => (e as { type?: string }).type === 'BPMNSwimlane') as
+      | { agentDiagramRef?: string }
+      | undefined;
+    if (lane) lane.agentDiagramRef = 'should-not-be-emitted';
+    const { xml } = apollonBpmnToXml(model);
+    expect(xml).not.toContain('agentDiagramRef=');
+    expect(xml).not.toContain('<agentic:agentic');
+  });
+
+  // 08 — extension block present but no agentDiagramRef attribute → field
+  // stays undefined; no warning.
+  it('leaves agentDiagramRef undefined when the attribute is absent', () => {
+    const model = buildFixtureAgenticModel();
+    const { xml } = apollonBpmnToXml(model);
+    expect(xml).not.toContain('agentDiagramRef='); // fixture has no ref
+    const { model: parsed, warnings } = bpmnXmlToApollon(xml);
+    const lane = Object.values(parsed.elements).find((e) => (e as { name?: string }).name === 'AgentReviewer');
+    expect((lane as { agentDiagramRef?: string }).agentDiagramRef).toBeUndefined();
+    // No new warning code from 08.
+    expect(warnings.some((w) => w.message.toLowerCase().includes('agentdiagramref'))).toBe(false);
+  });
 });
 
 describe('importer collab-mode derivation (04D2-followup F3)', () => {
