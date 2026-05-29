@@ -42,6 +42,12 @@ export class BPMNSwimlane extends UMLContainer {
   isAgentic: boolean;
   role: BPMNAgentRole;
   trustScore: number;
+  // 08 (07-plan D2): forward link to the BESSER Agent diagram that
+  // defines this lane's agent. Set only when isAgentic === true and the
+  // user has clicked "Define BESSER agent" on the popup. UUID-only —
+  // the title side is cosmetic (plan OQ-D). Survives isAgentic toggle
+  // off (plan OQ-B); the popup hides the section but keeps the ref.
+  agentDiagramRef?: string;
 
   constructor(values?: DeepPartial<BPMNSwimlane>) {
     super(values);
@@ -49,6 +55,7 @@ export class BPMNSwimlane extends UMLContainer {
     this.isAgentic = values?.isAgentic ?? false;
     this.role = values?.role ?? BPMNSwimlane.defaultRole;
     this.trustScore = clampTrustScore(values?.trustScore ?? BPMNSwimlane.defaultTrustScore);
+    this.agentDiagramRef = values?.agentDiagramRef ?? undefined;
   }
 
   serialize(children?: UMLContainer[]): Apollon.BPMNSwimlane {
@@ -58,17 +65,24 @@ export class BPMNSwimlane extends UMLContainer {
       isAgentic: this.isAgentic,
       role: this.role,
       trustScore: this.trustScore,
+      agentDiagramRef: this.agentDiagramRef,
     };
   }
 
   deserialize<T extends Apollon.UMLModelElement>(
-    values: T & { isAgentic?: boolean; role?: BPMNAgentRole; trustScore?: number },
+    values: T & {
+      isAgentic?: boolean;
+      role?: BPMNAgentRole;
+      trustScore?: number;
+      agentDiagramRef?: string;
+    },
     children?: Apollon.UMLModelElement[],
   ): void {
     super.deserialize(values, children);
     this.isAgentic = values.isAgentic ?? false;
     this.role = values.role ?? BPMNSwimlane.defaultRole;
     this.trustScore = clampTrustScore(values.trustScore ?? BPMNSwimlane.defaultTrustScore);
+    this.agentDiagramRef = values.agentDiagramRef ?? undefined;
   }
 
   render(layer: ILayer, children: ILayoutable[] = []): ILayoutable[] {

@@ -251,10 +251,13 @@ export type UMLPetriNetPlace = UMLElement & {
 
 // Agentic BPMN (04D): `isAgentic` / `role` / `reflectionMode` / `trustScore`
 // live on the base swimlane and task — there are no separate agentic types.
+// 08 (07-plan D2): `agentDiagramRef` is an optional cross-diagram link
+// from an agentic lane to the BESSER Agent diagram that defines its agent.
 export type BPMNSwimlane = UMLElement & {
   isAgentic: boolean;
   role: BPMNAgentRole;
   trustScore: number;
+  agentDiagramRef?: string;
 };
 
 export type BPMNTask = UMLElement & {
