@@ -16,6 +16,7 @@ import {
   switchDiagramIndexThunk,
 } from '../../../app/store/workspaceSlice';
 import { notifyError } from '../../../shared/utils/notifyError';
+import { useAgentDiagramLinker } from '../../inter-diagram/useAgentDiagramLinker';
 
 export const ApollonEditorComponent: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -42,6 +43,15 @@ export const ApollonEditorComponent: React.FC = () => {
   reduxDiagramRef.current = reduxDiagram;
   const optionsRef = useRef(options);
   optionsRef.current = options;
+  // 08 — agent-diagram linker held in a ref so the setup effect can
+  // register it on the freshly-created editor without taking it as a
+  // dependency (which would force editor recreation on every linker
+  // identity change). Pass editorRef so the linker can read the editor's
+  // in-memory model and flush pending edits before the Define click
+  // triggers a diagram switch.
+  const linker = useAgentDiagramLinker(editorRef);
+  const linkerRef = useRef(linker);
+  linkerRef.current = linker;
 
   const destroyEditorDeferred = useCallback((editor: ApollonEditor) => {
     return new Promise<void>((resolve) => {
@@ -153,6 +163,16 @@ export const ApollonEditorComponent: React.FC = () => {
         }, 300);
       });
 
+      // 08 — register the agent-diagram linker as soon as the editor is
+      // mounted. Imperative call (not a dep-list effect) because
+      // editorRevision-keyed effects all run in the same render before
+      // this async setup completes — by the time setEditor fires,
+      // editorRef.current is fresh but no React dep has changed, so an
+      // effect would never re-fire to register. The standalone effect
+      // below handles *later* linker identity changes (e.g. agentDiagrams
+      // mutates after a new Agent diagram is added).
+      nextEditor.setAgentDiagramLinker(linkerRef.current);
+
       setEditor!(nextEditor);
     };
 
@@ -217,6 +237,19 @@ export const ApollonEditorComponent: React.FC = () => {
       },
     });
   }, [dispatch, project, reduxDiagram, editorRevision]);
+
+  // 08 — re-register the agent-diagram linker when its identity changes
+  // (e.g. an Agent diagram was added/removed → `isRefAlive` changes →
+  // `linker` identity changes). Initial registration happens inside the
+  // setup effect itself (see above) — relying on this effect alone misses
+  // it because no React dep changes between editor-destroy and editor-
+  // recreate. Cleanup on editor unmount is implicit via setAgentDiagramLinker(null)
+  // at destroy time inside the editor.
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.setAgentDiagramLinker(linker);
+  }, [linker]);
 
   return (
     <div

@@ -3,6 +3,7 @@ import { toast } from 'react-toastify';
 import { validateAllBpmnFlows } from '@besser/wme';
 import { uuid } from '../../shared/utils/uuid';
 import { ProjectDiagram } from '../../shared/types/project';
+import { ProjectStorageRepository } from '../../shared/services/storage/ProjectStorageRepository';
 import { bpmnXmlToApollon, ImportResult } from './bpmn-xml-importer';
 
 export const useImportBpmnXml = () => {
@@ -39,9 +40,37 @@ export const useImportBpmnXml = () => {
       );
     }
 
+    // 08 (07-plan OQ-F): dead-ref scan for agentDiagramRef. Walks
+    // imported lanes; for each ref that doesn't resolve to a current
+    // Agent diagram in the active project, push a warning into the
+    // existing toast. The lane keeps the dead ref; the lane popup will
+    // render the Define-fallback (plan § 4.3 render rule).
+    const refWarnings: string[] = [];
+    const currentProject = ProjectStorageRepository.getCurrentProject();
+    if (currentProject) {
+      const liveAgentIds = new Set(currentProject.diagrams.AgentDiagram.map((d) => d.id));
+      for (const el of Object.values(result.model.elements ?? {})) {
+        const lane = el as { type?: string; name?: string; agentDiagramRef?: string };
+        if (
+          lane.type === 'BPMNSwimlane' &&
+          typeof lane.agentDiagramRef === 'string' &&
+          !liveAgentIds.has(lane.agentDiagramRef)
+        ) {
+          refWarnings.push(
+            `Lane '${lane.name || '(unnamed)'}' references an Agent diagram that doesn't exist in this project. ` +
+              `Click 'Define BESSER agent' on the lane to create a fresh one.`,
+          );
+        }
+      }
+    }
+
     // Self-contained warn toast: summarise the actual messages (parse + flow),
     // capped so the toast stays compact. Console keeps the full detail.
-    const allWarnings = [...result.warnings.map((w) => w.message), ...flowWarnings.map((w) => w.message)];
+    const allWarnings = [
+      ...result.warnings.map((w) => w.message),
+      ...flowWarnings.map((w) => w.message),
+      ...refWarnings,
+    ];
     if (allWarnings.length) {
       const MAX_SHOWN = 4;
       const shown = allWarnings.slice(0, MAX_SHOWN);
