@@ -2,7 +2,8 @@ import React, { FunctionComponent } from 'react';
 import { ThemedPolyline } from '../../../../components/theme/themedComponents';
 import { Multiline } from '../../../../utils/svg/multiline';
 import { BPMNBotIcon } from '../../common/icons/bpmn-bot-icon';
-import { BPMNReflectionIcon } from '../../common/icons/bpmn-reflection-icon';
+import { BPMNMergeMarkerIcon } from '../../common/icons/bpmn-merge-marker-icon';
+import { BPMNCollaborationMarkerIcon } from '../../common/icons/bpmn-collaboration-marker-icon';
 import { COLLAB_LETTER, MERGING_TWO_LETTER, Props } from '../bpmn-gateway-component';
 
 export const BPMNParallelGatewayComponent: FunctionComponent<Props> = ({ element, fillColor }) => (
@@ -41,17 +42,22 @@ export const BPMNParallelGatewayComponent: FunctionComponent<Props> = ({ element
         manual review. */}
     {element.isAgentic && (
       <>
-        <BPMNBotIcon x={-12} y={-12} color={element.strokeColor} />
-        <BPMNReflectionIcon
-          letter={
-            element.gatewayRole === 'diverging'
-              ? COLLAB_LETTER[element.collaborationMode]
-              : MERGING_TWO_LETTER[element.mergingStrategy]
-          }
-          x={element.bounds.width - 4}
-          y={element.bounds.height - 4}
-          color={element.strokeColor}
-        />
+        <BPMNBotIcon x={-4} y={-4} color={element.strokeColor} />
+        {element.gatewayRole === 'diverging' ? (
+          <BPMNCollaborationMarkerIcon
+            letter={COLLAB_LETTER[element.collaborationMode]}
+            x={element.bounds.width - 12}
+            y={element.bounds.height - 12}
+            color={element.strokeColor}
+          />
+        ) : (
+          <BPMNMergeMarkerIcon
+            letter={MERGING_TWO_LETTER[element.mergingStrategy]}
+            x={element.bounds.width - 12}
+            y={element.bounds.height - 12}
+            color={element.strokeColor}
+          />
+        )}
       </>
     )}
   </g>

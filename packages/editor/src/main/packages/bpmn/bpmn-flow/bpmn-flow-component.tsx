@@ -8,7 +8,8 @@ import {
   ThemedPolyline,
 } from '../../../components/theme/themedComponents';
 import { BPMNBotIcon } from '../common/icons/bpmn-bot-icon';
-import { BPMNReflectionIcon } from '../common/icons/bpmn-reflection-icon';
+import { BPMNCollaborationMarkerIcon } from '../common/icons/bpmn-collaboration-marker-icon';
+import { BPMNMergeMarkerIcon } from '../common/icons/bpmn-merge-marker-icon';
 import { COLLAB_LETTER, MERGING_TWO_LETTER } from '../bpmn-gateway/bpmn-gateway-component';
 
 export const BPMNFlowComponent: FunctionComponent<Props> = ({ element }) => {
@@ -134,24 +135,31 @@ export const BPMNFlowComponent: FunctionComponent<Props> = ({ element }) => {
         element.flowType === 'message' &&
         path.length >= 2 &&
         (() => {
+          // Offset markers perpendicular to the line: bot on the left of the flow
+          // direction, collaboration + merge on the right. (Flip PERP's sign to
+          // swap sides.)
+          const PERP = 14;
           const srcDir = path[1].subtract(path[0]).normalize();
-          const srcBot = path[0].add(srcDir.scale(18));
-          const srcLetter = path[0].add(srcDir.scale(36));
+          const srcLeft = new Point(srcDir.y, -srcDir.x).scale(PERP);
+          const srcRight = new Point(-srcDir.y, srcDir.x).scale(PERP);
+          const srcBot = path[0].add(srcDir.scale(18)).add(srcLeft);
+          const srcLetter = path[0].add(srcDir.scale(18)).add(srcRight);
           const tgtDir = path[path.length - 2].subtract(path[path.length - 1]).normalize();
-          const tgtAt = path[path.length - 1].add(tgtDir.scale(18));
+          const tgtRight = new Point(tgtDir.y, -tgtDir.x).scale(PERP);
+          const tgtAt = path[path.length - 1].add(tgtDir.scale(18)).add(tgtRight);
           return (
             <>
               <BPMNBotIcon x={srcBot.x - 8} y={srcBot.y - 8} color={element.strokeColor} />
-              <BPMNReflectionIcon
+              <BPMNCollaborationMarkerIcon
                 letter={COLLAB_LETTER[element.collaborationMode]}
                 x={srcLetter.x - 8}
-                y={srcLetter.y - 8}
+                y={srcLetter.y - 10}
                 color={element.strokeColor}
               />
-              <BPMNReflectionIcon
+              <BPMNMergeMarkerIcon
                 letter={MERGING_TWO_LETTER[element.mergingStrategy]}
                 x={tgtAt.x - 8}
-                y={tgtAt.y - 8}
+                y={tgtAt.y - 10}
                 color={element.strokeColor}
               />
             </>
