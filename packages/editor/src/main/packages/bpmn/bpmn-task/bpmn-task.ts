@@ -8,6 +8,24 @@ import { assign } from '../../../utils/fx/assign';
 import * as Apollon from '../../../typings';
 import { BPMNCollaborationMode, BPMNMarkerType, BPMNReflectionMode, clampTrustScore } from '../common/types';
 
+// Agentic-task layout reserves (px). Shared with bpmn-task-component.tsx so the
+// model's height floor and the component's text layout agree. See guide
+// 06-followup1.
+//
+// The name stays horizontally centred; it wraps within an inset width
+// (SIDE_INSET on each side) so a *long* name can't slide under the top-left bot
+// marker (x≈8..24) — short names are unaffected and the task never widens.
+export const AGENTIC_TASK_LINE_HEIGHT = 16;
+export const AGENTIC_TASK_CAP_HEIGHT = 11;
+export const AGENTIC_TASK_SIDE_INSET = 26;
+// Vertical: the name centres in [0, height - REFLECTION_RESERVE]. TOP_MARGIN +
+// CAP_HEIGHT + (reflection ? REFLECTION_RESERVE : 0) is a fixed minimum height
+// (not width-driven) so the bot and reflection markers always have room and
+// setting a reflection mode bumps a short task a little taller — while agentic
+// tasks otherwise resize like normal tasks.
+export const AGENTIC_TASK_TOP_MARGIN = 28;
+export const AGENTIC_TASK_REFLECTION_RESERVE = 28;
+
 export type BPMNTaskType = 'default' | 'user' | 'service' | 'send' | 'receive' | 'manual' | 'business-rule' | 'script';
 
 export class BPMNTask extends UMLContainer {
@@ -78,6 +96,20 @@ export class BPMNTask extends UMLContainer {
   }
 
   render(canvas: ILayer): ILayoutable[] {
+    // Agentic tasks keep a fixed minimum height so the bot marker (top) and, when
+    // a reflection mode is set, the reflection marker (bottom) have room —
+    // setting a reflection mode bumps a short task a little taller. The floor is
+    // NOT width-driven, so agentic tasks otherwise resize like normal tasks (no
+    // height jump when narrowing); the name is centred and clears the bot
+    // horizontally by wrapping (see bpmn-task-component). Never widens, never
+    // shrinks below the floor. (Guide 06-followup1.)
+    if (this.isAgentic) {
+      const bottom = this.reflectionMode !== 'none' ? AGENTIC_TASK_REFLECTION_RESERVE : 0;
+      const minHeight = AGENTIC_TASK_TOP_MARGIN + AGENTIC_TASK_CAP_HEIGHT + bottom;
+      if (this.bounds.height < minHeight) {
+        this.bounds = { ...this.bounds, height: minHeight };
+      }
+    }
     return [this];
   }
 }

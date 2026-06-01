@@ -1,5 +1,12 @@
 import React, { FunctionComponent, ReactElement } from 'react';
-import { BPMNTask, BPMNTaskType } from './bpmn-task';
+import {
+  BPMNTask,
+  BPMNTaskType,
+  AGENTIC_TASK_LINE_HEIGHT,
+  AGENTIC_TASK_CAP_HEIGHT,
+  AGENTIC_TASK_SIDE_INSET,
+  AGENTIC_TASK_REFLECTION_RESERVE,
+} from './bpmn-task';
 import { ThemedRect } from '../../../components/theme/themedComponents';
 import { Multiline } from '../../../utils/svg/multiline';
 import { BPMNMessageIcon } from '../common/icons/bpmn-message-icon';
@@ -10,7 +17,7 @@ import { BPMNManualIcon } from '../common/icons/bpmn-manual-icon';
 import { BPMNUserIcon } from '../common/icons/bpmn-user-icon';
 import { BPMNServiceIcon } from '../common/icons/bpmn-service-icon';
 import { BPMNBotIcon } from '../common/icons/bpmn-bot-icon';
-import { BPMNReflectionIcon } from '../common/icons/bpmn-reflection-icon';
+import { BPMNReflectionMarkerIcon } from '../common/icons/bpmn-reflection-marker-icon';
 import { BPMNSequentialMarkerIcon } from '../common/markers/bpmn-sequential-marker-icon';
 import { BPMNMarkerType, BPMNReflectionMode } from '../common/types';
 import { BpmnLoopMarkerIcon } from '../common/markers/bpmn-loop-marker-icon';
@@ -75,6 +82,17 @@ export const BPMNTaskComponent: FunctionComponent<Props> = ({ element, fillColor
   const fg = textColor || element.textColor;
   const reflectionLetter = REFLECTION_LETTER[element.reflectionMode];
 
+  // Agentic tasks keep the name horizontally centred but wrap it within an inset
+  // width (SIDE_INSET each side) so a long name can't slide under the top-left
+  // bot marker — short names are unaffected and the task never widens. When a
+  // reflection mode is set, a bottom band is reserved so the name shifts up and
+  // clears the reflection marker. The height floor lives in BPMNTask.render().
+  // Non-agentic tasks keep the plain full-width centre. (Guide 06-followup1.)
+  const sideInset = element.isAgentic ? AGENTIC_TASK_SIDE_INSET : 0;
+  const bottomReserve = element.isAgentic && reflectionLetter ? AGENTIC_TASK_REFLECTION_RESERVE : 0;
+  const textWidth = Math.max(1, element.bounds.width - 2 * sideInset);
+  const textCenterY = (element.bounds.height - bottomReserve) / 2;
+
   return (
     <g>
       <ThemedRect
@@ -87,13 +105,13 @@ export const BPMNTaskComponent: FunctionComponent<Props> = ({ element, fillColor
       />
       <Multiline
         x={element.bounds.width / 2}
-        y={element.bounds.height / 2}
-        width={element.bounds.width}
+        y={textCenterY}
+        width={textWidth}
         height={element.bounds.height}
         fontWeight="bold"
         fill={fg}
-        lineHeight={16}
-        capHeight={11}
+        lineHeight={AGENTIC_TASK_LINE_HEIGHT}
+        capHeight={AGENTIC_TASK_CAP_HEIGHT}
       >
         {element.name}
       </Multiline>
@@ -107,10 +125,10 @@ export const BPMNTaskComponent: FunctionComponent<Props> = ({ element, fillColor
       )}
       {element.isAgentic
         ? reflectionLetter && (
-            <BPMNReflectionIcon
+            <BPMNReflectionMarkerIcon
               letter={reflectionLetter}
               x={element.bounds.width / 2 - 8}
-              y={element.bounds.height - 20}
+              y={element.bounds.height - 25}
               color={fg}
             />
           )
