@@ -279,6 +279,7 @@ export type BPMNGateway = UMLElement & {
   collaborationMode: BPMNCollaborationMode;
   mergingStrategy: BPMNMergingStrategy;
   trustScore: number;
+  governanceDsl?: string;
 };
 
 export type BPMNStartEvent = UMLElement & {

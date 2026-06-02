@@ -39,6 +39,10 @@ export class BPMNGateway extends UMLContainer {
   collaborationMode: BPMNCollaborationMode;
   mergingStrategy: BPMNMergingStrategy;
   trustScore: number;
+  // Governance DSL (guide 02 / level 3). Optional, free-text. Only set on
+  // merging gateways; undefined = "not authored". Generated from the
+  // collaboration block (see common/governance-dsl.ts), then user-editable.
+  governanceDsl?: string;
 
   constructor(values?: DeepPartial<BPMNGateway>) {
     super(values);
@@ -49,6 +53,7 @@ export class BPMNGateway extends UMLContainer {
     this.collaborationMode = values?.collaborationMode ?? BPMNGateway.defaultCollaborationMode;
     this.mergingStrategy = values?.mergingStrategy ?? BPMNGateway.defaultMergingStrategy;
     this.trustScore = clampTrustScore(values?.trustScore ?? BPMNGateway.defaultTrustScore);
+    this.governanceDsl = values?.governanceDsl;
   }
 
   serialize(children?: UMLContainer[]): Apollon.BPMNGateway {
@@ -61,6 +66,7 @@ export class BPMNGateway extends UMLContainer {
       collaborationMode: this.collaborationMode,
       mergingStrategy: this.mergingStrategy,
       trustScore: this.trustScore,
+      governanceDsl: this.governanceDsl,
     };
   }
 
@@ -72,6 +78,7 @@ export class BPMNGateway extends UMLContainer {
       collaborationMode?: BPMNCollaborationMode;
       mergingStrategy?: BPMNMergingStrategy;
       trustScore?: number;
+      governanceDsl?: string;
     },
     children?: Apollon.UMLModelElement[],
   ): void {
@@ -82,6 +89,7 @@ export class BPMNGateway extends UMLContainer {
     this.collaborationMode = values.collaborationMode ?? BPMNGateway.defaultCollaborationMode;
     this.mergingStrategy = values.mergingStrategy ?? BPMNGateway.defaultMergingStrategy;
     this.trustScore = clampTrustScore(values.trustScore ?? BPMNGateway.defaultTrustScore);
+    this.governanceDsl = values.governanceDsl;
   }
 
   render(canvas: ILayer): ILayoutable[] {
