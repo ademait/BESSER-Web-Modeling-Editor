@@ -40,6 +40,7 @@ export * from './packages/bpmn/bpmn-flow/bpmn-flow-validator';
 // (BPMNAgentRole / BPMNReflectionMode / clampTrustScore) consumed by the Phase D
 // vitest coverage and, later, the 04D2 extension serializer.
 export * from './packages/bpmn/common/types';
+export * from './packages/bpmn/common/governance-dsl';
 
 // Export only the Patch type (not the implementation) for type safety
 // Used when working with patching operations in TypeScript
