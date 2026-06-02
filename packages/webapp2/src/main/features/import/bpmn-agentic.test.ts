@@ -183,6 +183,35 @@ describe('agentic round-trip (04D2)', () => {
     // No new warning code from 08.
     expect(warnings.some((w) => w.message.toLowerCase().includes('agentdiagramref'))).toBe(false);
   });
+
+  // 11 — agentic task carries agentDiagramRef → survives round-trip.
+  it('preserves agentDiagramRef on the agentic task through round-trip', () => {
+    const REF = '7c1e9a40-2b3c-4d5e-8f90-1a2b3c4d5e6f';
+    const model = buildFixtureAgenticModel();
+    // The fixture's agentic task is named 'Review'.
+    const taskEntry = Object.values(model.elements as Record<string, { name?: string; agentDiagramRef?: string }>).find(
+      (e) => e.name === 'Review',
+    );
+    if (taskEntry) taskEntry.agentDiagramRef = REF;
+
+    const { xml } = apollonBpmnToXml(model);
+    expect(xml).toMatch(/agentDiagramRef="7c1e9a40-2b3c-4d5e-8f90-1a2b3c4d5e6f"/);
+
+    const { model: parsed } = bpmnXmlToApollon(xml);
+    const task = Object.values(parsed.elements).find((e) => (e as { name?: string }).name === 'Review');
+    expect((task as { agentDiagramRef?: string }).agentDiagramRef).toBe(REF);
+  });
+
+  // 11 — non-agentic task with a stale ref must NOT emit the extension.
+  it('does not emit agentDiagramRef on a non-agentic task', () => {
+    const model = buildFixtureNonAgenticModel();
+    const task = Object.values(model.elements ?? {}).find((e) => (e as { type?: string }).type === 'BPMNTask') as
+      | { agentDiagramRef?: string }
+      | undefined;
+    if (task) task.agentDiagramRef = 'should-not-be-emitted';
+    const { xml } = apollonBpmnToXml(model);
+    expect(xml).not.toContain('agentDiagramRef=');
+  });
 });
 
 describe('importer collab-mode derivation (04D2-followup F3)', () => {

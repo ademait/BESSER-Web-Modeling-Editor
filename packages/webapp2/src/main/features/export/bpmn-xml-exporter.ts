@@ -405,8 +405,10 @@ export function apollonBpmnToXml(model: UMLModel, opts: ExportOptions = {}): Exp
 
 // 04D2 — every agentic-able construct exposes these optional fields. Sourced
 // from BPMNSwimlane / BPMNTask / BPMNGateway / BPMNFlow on the editor side.
-// 08 — `agentDiagramRef` is lane-only (see plan D2); kept on this shared
-// interface so the existing emitAgenticExtension helper can stay one fn.
+// 08/11 — `agentDiagramRef` links an agentic construct to a BESSER Agent
+// diagram. As of guide 11 it is carried by the agentic TASK (08 originally
+// put it on the lane; the lane carrier is retained but no longer UI-set).
+// The shared interface lets emitAgenticExtension stay one fn for all types.
 interface AnyAgentic {
   isAgentic?: boolean;
   role?: string;
@@ -438,8 +440,9 @@ function emitAgenticExtension(lines: string[], el: AnyAgentic, indent: string): 
     attrs.push(`mergingStrategy="${escapeAttr(el.mergingStrategy)}"`);
   }
   if (el.trustScore !== undefined) attrs.push(`trustScore="${el.trustScore}"`);
-  // 08 — lane-only ref (see plan D2). Other constructs never set the
-  // field (lane is the only carrier in C1), so this is effectively gated.
+  // 08/11 — agentDiagramRef rides the agentic extension block of whatever
+  // construct carries it (guide 11: the agentic task; legacy: the lane).
+  // Emitted only when set, so non-linked constructs add nothing.
   if (el.agentDiagramRef !== undefined) {
     attrs.push(`agentDiagramRef="${escapeAttr(el.agentDiagramRef)}"`);
   }

@@ -128,7 +128,10 @@ export function useAgentDiagramLinker(editorRef: MutableRefObject<ApollonEditor 
             const storageLane = bpmn.model.elements?.[laneId] as
               | { type?: string; agentDiagramRef?: string }
               | undefined;
-            if (storageLane && storageLane.type === 'BPMNSwimlane') {
+            // 11 — the affordance now lives on the agentic TASK; accept it,
+            // and keep BPMNSwimlane for tolerant handling of any legacy
+            // lane-linked element (D3). `laneId` is a carry-over name.
+            if (storageLane && (storageLane.type === 'BPMNTask' || storageLane.type === 'BPMNSwimlane')) {
               const updatedBpmn: ProjectDiagram = {
                 ...bpmn,
                 model: {

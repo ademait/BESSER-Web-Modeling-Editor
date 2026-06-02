@@ -50,6 +50,12 @@ export class BPMNTask extends UMLContainer {
   reflectionMode: BPMNReflectionMode;
   trustScore: number;
   collaborationMode: BPMNCollaborationMode;
+  // 11 (retarget of 08 D2 from lane → task): forward link to the BESSER
+  // Agent diagram that defines this task's internal agent behavior. Set
+  // only when isAgentic === true and the user clicked "Define agent
+  // behavior" on the popup. UUID-only; survives an isAgentic toggle off
+  // (the popup hides the section but keeps the ref).
+  agentDiagramRef?: string;
 
   constructor(values?: DeepPartial<BPMNTask>) {
     super(values);
@@ -60,6 +66,8 @@ export class BPMNTask extends UMLContainer {
     this.reflectionMode = values?.reflectionMode || BPMNTask.defaultReflectionMode;
     this.trustScore = clampTrustScore(values?.trustScore ?? BPMNTask.defaultTrustScore);
     this.collaborationMode = values?.collaborationMode ?? BPMNTask.defaultCollaborationMode;
+    // Optional pass-through — undefined when not linked.
+    this.agentDiagramRef = values?.agentDiagramRef ?? undefined;
   }
 
   serialize(children?: UMLContainer[]): Apollon.BPMNTask {
@@ -72,6 +80,7 @@ export class BPMNTask extends UMLContainer {
       reflectionMode: this.reflectionMode,
       trustScore: this.trustScore,
       collaborationMode: this.collaborationMode,
+      agentDiagramRef: this.agentDiagramRef,
     };
   }
 
@@ -83,6 +92,7 @@ export class BPMNTask extends UMLContainer {
       reflectionMode?: BPMNReflectionMode;
       trustScore?: number;
       collaborationMode?: BPMNCollaborationMode;
+      agentDiagramRef?: string;
     },
     children?: Apollon.UMLModelElement[],
   ): void {
@@ -93,6 +103,7 @@ export class BPMNTask extends UMLContainer {
     this.reflectionMode = values.reflectionMode || BPMNTask.defaultReflectionMode;
     this.trustScore = clampTrustScore(values.trustScore ?? BPMNTask.defaultTrustScore);
     this.collaborationMode = values.collaborationMode ?? BPMNTask.defaultCollaborationMode;
+    this.agentDiagramRef = values.agentDiagramRef ?? undefined;
   }
 
   render(canvas: ILayer): ILayoutable[] {

@@ -20,6 +20,7 @@ import { BpmnLoopMarkerIcon } from '../common/markers/bpmn-loop-marker-icon';
 import { BPMNParallelMarkerIcon } from '../common/markers/bpmn-parallel-marker-icon';
 import { BPMNSequentialMarkerIcon } from '../common/markers/bpmn-sequential-marker-icon';
 import { resolveUpstreamCollabMode } from '../bpmn-flow/bpmn-flow-validator';
+import { AgentDiagramLinkSection } from '../../../components/agent-diagram-linker/AgentDiagramLinkSection';
 
 // Map collaboration-mode enum values to their i18n keys (04D2-followup F2 —
 // used by the read-only "inherited" label on agentic tasks).
@@ -194,6 +195,14 @@ class BPMNTaskUpdateComponent extends Component<Props, State> {
                 </span>
               </Flex>
             </section>
+            {/* 11 — agentic-task → Agent-diagram link. Reuses the generic
+                section 08 built for the lane (props named laneId/laneName
+                are carry-over misnomers — they hold the task id/name). */}
+            <AgentDiagramLinkSection
+              laneId={element.id}
+              laneName={element.name}
+              agentDiagramRef={element.agentDiagramRef}
+            />
           </>
         )}
       </div>

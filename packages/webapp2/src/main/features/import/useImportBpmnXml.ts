@@ -50,15 +50,17 @@ export const useImportBpmnXml = () => {
     if (currentProject) {
       const liveAgentIds = new Set(currentProject.diagrams.AgentDiagram.map((d) => d.id));
       for (const el of Object.values(result.model.elements ?? {})) {
-        const lane = el as { type?: string; name?: string; agentDiagramRef?: string };
+        const node = el as { type?: string; name?: string; agentDiagramRef?: string };
+        // 11 — scan agentic TASKS (primary) + lanes (tolerant of legacy
+        // files; the lane UI is gone but old refs may still be present).
         if (
-          lane.type === 'BPMNSwimlane' &&
-          typeof lane.agentDiagramRef === 'string' &&
-          !liveAgentIds.has(lane.agentDiagramRef)
+          (node.type === 'BPMNTask' || node.type === 'BPMNSwimlane') &&
+          typeof node.agentDiagramRef === 'string' &&
+          !liveAgentIds.has(node.agentDiagramRef)
         ) {
           refWarnings.push(
-            `Lane '${lane.name || '(unnamed)'}' references an Agent diagram that doesn't exist in this project. ` +
-              `Click 'Define BESSER agent' on the lane to create a fresh one.`,
+            `Element '${node.name || '(unnamed)'}' references an agent behavior that doesn't exist in this project. ` +
+              `Click 'Define agent behavior' on the task to create a fresh one.`,
           );
         }
       }

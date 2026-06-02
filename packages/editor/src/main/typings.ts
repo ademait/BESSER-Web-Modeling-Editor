@@ -267,6 +267,9 @@ export type BPMNTask = UMLElement & {
   reflectionMode: BPMNReflectionMode;
   trustScore: number;
   collaborationMode: BPMNCollaborationMode;
+  // 11 — cross-diagram link from an agentic task to the BESSER Agent
+  // diagram that defines its internal behavior (retarget of 08 from lane).
+  agentDiagramRef?: string;
 };
 
 export type BPMNGateway = UMLElement & {
