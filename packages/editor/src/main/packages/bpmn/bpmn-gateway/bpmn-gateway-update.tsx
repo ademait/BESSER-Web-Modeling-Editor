@@ -18,6 +18,10 @@ import { Dropdown } from '../../../components/controls/dropdown/dropdown';
 import { ColorButton } from '../../../components/controls/color-button/color-button';
 import { StylePane } from '../../../components/style-pane/style-pane';
 import { Switch } from '../../../components/controls/switch/switch';
+import { Controlled as CodeMirror } from 'react-codemirror2';
+import 'codemirror/lib/codemirror.css';
+import 'codemirror/theme/material.css';
+import { generateGovernanceDsl } from '../common/governance-dsl';
 import {
   BPMNCollaborationMode,
   BPMNGatewayRole,
@@ -121,10 +125,33 @@ const Flex = styled.div`
   justify-content: space-between;
 `;
 
-type State = { colorOpen: boolean };
+// Governance DSL editor (guide 02). Mirrors the agent-diagram code-snippet UX.
+const ResizableCodeMirrorWrapper = styled.div`
+  resize: both;
+  overflow: auto;
+  min-height: 120px;
+  border: 1px solid ${(props) => props.theme.color.gray};
+  border-radius: 4px;
+  padding: 8px;
+  box-sizing: border-box;
+
+  .CodeMirror {
+    height: 100% !important;
+    width: 100%;
+  }
+`;
+
+const GovHeaderRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+`;
+
+type State = { colorOpen: boolean; confirmRegenerate: boolean };
 
 class BPMNGatewayUpdateComponent extends Component<Props, State> {
-  state = { colorOpen: false };
+  state = { colorOpen: false, confirmRegenerate: false };
 
   private toggleColor = () => {
     this.setState((state) => ({
@@ -265,6 +292,50 @@ class BPMNGatewayUpdateComponent extends Component<Props, State> {
                     <Textfield value={String(element.trustScore)} onChange={this.changeTrustScore(element.id)} />
                   </Flex>
                 </section>
+                {/* Governance DSL (guide 02 / level 3): merging gateways only —
+                    the merge point is the governed moment (paper §4.3). */}
+                {element.gatewayRole === 'merging' && (
+                  <section>
+                    <Divider />
+                    <GovHeaderRow>
+                      <span>{this.props.translate('packages.BPMNDiagram.BPMNGovernanceLabel')}</span>
+                      {!this.state.confirmRegenerate && (
+                        <Button color="link" onClick={this.startGenerateGovernance(element.id)}>
+                          {this.props.translate(
+                            element.governanceDsl && element.governanceDsl.trim().length > 0
+                              ? 'packages.BPMNDiagram.BPMNGovernanceRegenerate'
+                              : 'packages.BPMNDiagram.BPMNGovernanceGenerate',
+                          )}
+                        </Button>
+                      )}
+                    </GovHeaderRow>
+                    {this.state.confirmRegenerate && (
+                      <GovHeaderRow>
+                        <span>{this.props.translate('packages.BPMNDiagram.BPMNGovernanceOverwriteConfirm')}</span>
+                        <span>
+                          <Button color="link" onClick={this.confirmGenerateGovernance(element.id)}>
+                            {this.props.translate('packages.BPMNDiagram.BPMNGovernanceReplace')}
+                          </Button>
+                          <Button color="link" onClick={this.cancelGenerateGovernance}>
+                            {this.props.translate('packages.BPMNDiagram.BPMNGovernanceCancel')}
+                          </Button>
+                        </span>
+                      </GovHeaderRow>
+                    )}
+                    <ResizableCodeMirrorWrapper>
+                      <CodeMirror
+                        value={element.governanceDsl ?? ''}
+                        options={{
+                          mode: null,
+                          theme: 'material',
+                          lineNumbers: true,
+                          tabSize: 4,
+                        }}
+                        onBeforeChange={this.changeGovernanceDsl(element.id)}
+                      />
+                    </ResizableCodeMirrorWrapper>
+                  </section>
+                )}
               </>
             )}
           </>
@@ -374,6 +445,45 @@ class BPMNGatewayUpdateComponent extends Component<Props, State> {
   private changeTrustScore = (id: string) => (value: string) => {
     const parsed = Number.parseInt(value, 10);
     this.props.update<BPMNGateway>(id, { trustScore: clampTrustScore(Number.isFinite(parsed) ? parsed : 0) });
+  };
+
+  /**
+   * Persist a manual edit to the governance DSL (free-text — guide 02 / spec Q6).
+   * CodeMirror's onBeforeChange passes (editor, data, value).
+   */
+  private changeGovernanceDsl = (id: string) => (_editor: unknown, _data: unknown, value: string) => {
+    this.props.update<BPMNGateway>(id, { governanceDsl: value });
+  };
+
+  /**
+   * Generate (or Regenerate) the governance DSL from the collaboration block.
+   * Generate-once: when a non-empty DSL already exists, switch the header row
+   * to an in-popup Replace/Cancel confirm (no browser dialog) instead of
+   * overwriting straight away (the field is meant to be hand-edited).
+   */
+  private startGenerateGovernance = (id: string) => () => {
+    const existing = this.props.element.governanceDsl;
+    if (existing && existing.trim().length > 0) {
+      this.setState({ confirmRegenerate: true });
+      return;
+    }
+    this.writeGeneratedGovernance(id);
+  };
+
+  /** Confirm the in-popup Regenerate overwrite. */
+  private confirmGenerateGovernance = (id: string) => () => {
+    this.writeGeneratedGovernance(id);
+    this.setState({ confirmRegenerate: false });
+  };
+
+  /** Dismiss the in-popup Regenerate confirm without overwriting. */
+  private cancelGenerateGovernance = () => {
+    this.setState({ confirmRegenerate: false });
+  };
+
+  private writeGeneratedGovernance = (id: string) => {
+    const dsl = generateGovernanceDsl(id, this.props.elementsById as unknown as Record<string, never>);
+    this.props.update<BPMNGateway>(id, { governanceDsl: dsl });
   };
 
   /**
