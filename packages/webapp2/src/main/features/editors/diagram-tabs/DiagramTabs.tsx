@@ -31,6 +31,7 @@ import {
 } from '../../../app/store/workspaceSlice';
 import type { UMLModel } from '@besser/wme';
 import { hashUmlModel } from '../../inter-diagram/lineage-hash';
+import { ProjectStorageRepository } from '../../../shared/services/storage/ProjectStorageRepository';
 
 /* ------------------------------------------------------------------ */
 /*  Small inline tooltip used for info icons next to reference labels  */
@@ -405,13 +406,69 @@ export const DiagramTabs: React.FC = () => {
                 className="text-[11px] font-medium text-brand hover:underline"
                 onClick={onJumpToSource}
               >
-                ← Derived from {sourceDiagram.title} ({lineage.sourceDiagramType})
+                ← Derived from <em>{sourceDiagram.title}</em> ({lineage.sourceDiagramType})
               </button>
               {stale && (
                 <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
                   source changed
                 </span>
               )}
+            </div>
+          );
+        })()}
+
+      {/* 12: back-link from an Agent diagram to the BPMN task that defines it.
+          Reverse-lookup — scan BPMN tasks for a forward agentDiagramRef pointing
+          at this diagram; no stored field, no editor-package change. */}
+      {currentDiagramType === 'AgentDiagram' &&
+        activeDiagram &&
+        (() => {
+          // 12-FU1: scan FRESH storage, not Redux currentProject. The linker
+          // writes the task's agentDiagramRef via
+          // ProjectStorageRepository.withoutNotify (to avoid a sync loop while
+          // the BPMN editor is torn down on Define), so currentProject lags
+          // until a later thunk re-syncs it — which is why the badge was
+          // missing right after "Define agent behavior" but appeared after
+          // creating another diagram. Storage is authoritative and already
+          // holds the ref by the time the post-Define switch re-renders us.
+          const freshProject = ProjectStorageRepository.getCurrentProject();
+          const bpmnDiagrams = freshProject?.diagrams.BPMN ?? currentProject?.diagrams.BPMN ?? [];
+          let sourceIndex = -1;
+          let sourceTaskName = '';
+          let sourceDiagram: ProjectDiagram | undefined;
+          for (let i = 0; i < bpmnDiagrams.length; i++) {
+            const d = bpmnDiagrams[i];
+            if (!isUMLModel(d.model)) continue;
+            const task = Object.values(d.model.elements ?? {}).find(
+              (el) =>
+                (el as { type?: string }).type === 'BPMNTask' &&
+                (el as { agentDiagramRef?: string }).agentDiagramRef === activeDiagram.id,
+            ) as { name?: string } | undefined;
+            if (task) {
+              sourceIndex = i;
+              sourceTaskName = task.name?.trim() || '(unnamed task)';
+              sourceDiagram = d;
+              break;
+            }
+          }
+          if (!sourceDiagram || sourceIndex < 0) return null;
+          const onJumpToTask = () => {
+            if (location.pathname !== '/') {
+              navigate('/');
+            }
+            const wireType = toUMLDiagramType('BPMN');
+            dispatch(switchDiagramTypeThunk({ diagramType: wireType ?? 'BPMN' }));
+            dispatch(switchDiagramIndexThunk({ diagramType: 'BPMN', index: sourceIndex }));
+          };
+          return (
+            <div className="flex items-center gap-2 border-t border-border/40 bg-muted/30 px-3 py-1.5">
+              <button
+                type="button"
+                className="text-[11px] font-medium text-brand hover:underline"
+                onClick={onJumpToTask}
+              >
+                ← Implementing <em>{sourceTaskName}</em> of <em>{sourceDiagram.title}</em>
+              </button>
             </div>
           );
         })()}
