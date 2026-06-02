@@ -895,3 +895,55 @@ function buildFixtureNonAgenticModel(): UMLModel {
     relationships: {},
   } as unknown as UMLModel;
 }
+
+describe('governance DSL round-trip (guide 02 / G4)', () => {
+  it('preserves a multi-line governance DSL through export → import', () => {
+    const model = buildFixtureAgenticModel();
+    const dsl = [
+      '// Generated from agentic merging gateway "AND"',
+      'Scopes:',
+      '    Tasks:',
+      '        AND',
+      'Participants:',
+      '    Roles : worker',
+      'MajorityPolicy ANDPolicy {',
+      '    Scope: AND',
+      '    DecisionType as BooleanDecision',
+      '    Participant list : worker',
+      '    Parameters:',
+      '        ratio : 0.5',
+      '}',
+    ].join('\n');
+
+    const mergingGw = Object.values(model.elements).find(
+      (e) =>
+        (e as { type?: string }).type === 'BPMNGateway' && (e as { gatewayRole?: string }).gatewayRole === 'merging',
+    ) as Record<string, unknown>;
+    mergingGw.governanceDsl = dsl;
+
+    const { xml } = apollonBpmnToXml(model);
+    expect(xml).toContain('<agentic:governance><![CDATA[');
+
+    const { model: parsed } = bpmnXmlToApollon(xml);
+    const gw2 = Object.values(parsed.elements).find(
+      (e) =>
+        (e as { type?: string }).type === 'BPMNGateway' && (e as { gatewayRole?: string }).gatewayRole === 'merging',
+    ) as Record<string, unknown>;
+    expect(gw2.governanceDsl).toBe(dsl);
+  });
+
+  it('round-trips a DSL containing a literal ]]> sequence', () => {
+    const model = buildFixtureAgenticModel();
+    const dsl = '// edge ]]> case\nMajorityPolicy P { Scope: S }';
+    const mergingGw = Object.values(model.elements).find(
+      (e) => (e as { gatewayRole?: string }).gatewayRole === 'merging',
+    ) as Record<string, unknown>;
+    mergingGw.governanceDsl = dsl;
+    const { xml } = apollonBpmnToXml(model);
+    const { model: parsed } = bpmnXmlToApollon(xml);
+    const gw2 = Object.values(parsed.elements).find(
+      (e) => (e as { gatewayRole?: string }).gatewayRole === 'merging',
+    ) as Record<string, unknown>;
+    expect(gw2.governanceDsl).toBe(dsl);
+  });
+});

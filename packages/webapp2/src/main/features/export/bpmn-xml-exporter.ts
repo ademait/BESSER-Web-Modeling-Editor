@@ -418,6 +418,7 @@ interface AnyAgentic {
   mergingStrategy?: string;
   trustScore?: number;
   agentDiagramRef?: string;
+  governanceDsl?: string;
 }
 
 // 04D2 — paper §5 / BPMN 2.0.2 § 8.2.3. Emit the agentic extensionElements
@@ -448,6 +449,15 @@ function emitAgenticExtension(lines: string[], el: AnyAgentic, indent: string): 
   }
   lines.push(`${indent}<bpmn:extensionElements>`);
   lines.push(`${indent}  <agentic:agentic ${attrs.join(' ')}/>`);
+  // Governance DSL (guide 02). Multi-line free text → CDATA child, not an
+  // attribute. Split any literal `]]>` so the CDATA stays well-formed (the
+  // parser re-joins adjacent CDATA sections on import, so no un-escape needed).
+  if (el.governanceDsl !== undefined && el.governanceDsl.trim() !== '') {
+    const safe = el.governanceDsl.replace(/]]>/g, ']]]]><![CDATA[>');
+    lines.push(`${indent}  <agentic:governance><![CDATA[`);
+    lines.push(safe);
+    lines.push(`${indent}  ]]></agentic:governance>`);
+  }
   lines.push(`${indent}</bpmn:extensionElements>`);
 }
 

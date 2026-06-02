@@ -150,6 +150,22 @@ function findAgenticExtension(parent: Element): Element | null {
   return null;
 }
 
+// 02 — read the governance DSL CDATA child from a construct's extensionElements.
+// Returns the trimmed text, or null if absent. Adjacent CDATA sections produced
+// by the exporter's `]]>` split are concatenated by the DOM parser, so the
+// original text comes back intact.
+function findGovernanceText(parent: Element): string | null {
+  const ext = childByLocalName(parent, 'extensionElements');
+  if (!ext) return null;
+  for (const c of Array.from(ext.children)) {
+    if (getLocalName(c) === 'governance') {
+      const t = c.textContent;
+      return t === null ? null : t.trim();
+    }
+  }
+  return null;
+}
+
 // 04D2 — parse the agentic extension into a partial-fields object. Unknown
 // enum values and bad numerics emit a warning and the field is left unset
 // (the model class's default kicks in). Returns null if no agentic extension
@@ -170,6 +186,8 @@ function parseAgenticExtension(
   // target project may not even contain the diagram). C4 webapp2
   // post-validator handles the dead-ref toast per plan OQ-F.
   agentDiagramRef?: string;
+  // 02 — governance DSL CDATA child (merging gateways only). Opaque string.
+  governanceDsl?: string;
 } {
   const a = findAgenticExtension(parent);
   if (!a) return null;
@@ -222,6 +240,10 @@ function parseAgenticExtension(
   if (ref !== null && ref !== '') {
     out.agentDiagramRef = ref;
   }
+  // 02 — governance DSL is a sibling CDATA child of <agentic:agentic>, not an
+  // attribute. Read it off the same extensionElements parent.
+  const gov = findGovernanceText(parent);
+  if (gov !== null && gov !== '') out.governanceDsl = gov;
   return out as ReturnType<typeof parseAgenticExtension>;
 }
 
