@@ -43,12 +43,17 @@ export function bpmnModelToComponentModel(bpmn: UMLModel): DerivationResult {
   // F-D1 (2026-05-27): tasks are not represented in the Component
   // diagram. Only lane-to-lane swarm structure matters.
   const componentIdByLaneId = new Map<string, string>();
+  // 14-FU2: Subsystem id per pool, so a message flow that lands on the
+  // pool-as-whole resolves to the Subsystem (the swarm boundary) rather
+  // than an inner lane Component.
+  const subsystemIdByPoolId = new Map<string, string>();
   for (const pool of pools) {
     const lanes = lanesByPool.get(pool.id) ?? [];
     if (lanes.length === 0) continue;
 
     const subsystemId = emitSubsystem(out, pool, layout);
     elementMapping[subsystemId] = pool.id; // 06-v2 — Subsystem ← source Pool
+    subsystemIdByPoolId.set(pool.id, subsystemId); // 14-FU2
     for (const lane of lanes) {
       const laneCompId = emitLaneComponent(out, lane, subsystemId, layout);
       componentIdByLaneId.set(lane.id, laneCompId);
@@ -86,47 +91,35 @@ export function bpmnModelToComponentModel(bpmn: UMLModel): DerivationResult {
   }
 
   // Phase 3: inter-pool message flows → ComponentDependency
-  // F-D4 (2026-05-27): if the message-flow target lives in a tracked
-  // lane, connect to that lane's existing Component (cleaner: no
-  // duplicated representation). Fall back to synthesising an external
-  // Component only when the target is outside any tracked lane.
+  // 14-FU2: an endpoint that lands on a specific lane → that lane's
+  // Component; an endpoint on the pool-as-whole (header / black-box
+  // participant, BPMN 2.0.2 § 9.2.1, or a shape in a laneless pool) →
+  // that pool's Subsystem (the swarm boundary, plan § 3). A black-box
+  // pool with no lanes gets a synthesised external Subsystem, once.
+  const resolveMessageEndpoint = (elementId: string): string | undefined => {
+    const lane = laneForElement(bpmn, elementId);
+    if (lane) return componentIdByLaneId.get(lane.id);
+    const el = bpmn.elements[elementId];
+    const poolId = el ? poolFor(bpmn, el) : null;
+    if (!poolId) return undefined;
+    const existing = subsystemIdByPoolId.get(poolId);
+    if (existing) return existing;
+    const pool = bpmn.elements[poolId];
+    if (!pool) return undefined;
+    const subId = emitExternalSubsystem(out, pool, layout);
+    subsystemIdByPoolId.set(poolId, subId); // dedupe further flows to this pool
+    elementMapping[subId] = poolId; // Subsystem ← source Pool (a real element)
+    return subId;
+  };
+
   const messageFlows = collectInterPoolMessageFlows(bpmn);
   for (const mf of messageFlows) {
-    const srcLane = laneForElement(bpmn, mf.source.element);
-    if (!srcLane) continue;
-    const srcComp = componentIdByLaneId.get(srcLane.id);
-    if (!srcComp) continue;
-
-    // Resolve target Component:
-    // 1) If the flow ends on a lane (or a task in a lane) → that lane's Component.
-    // 2) If it ends on the pool shape itself → the pool's first lane Component
-    //    (02-FU3 2026-05-27 — a pool with lanes is a tracked swarm; route the
-    //    edge there instead of synthesising a fresh external).
-    // 3) Otherwise (truly black-box target) → synthesise an external Component.
-    let tgtComp: string | undefined;
-    const tgtLane = laneForElement(bpmn, mf.target.element);
-    if (tgtLane) {
-      tgtComp = componentIdByLaneId.get(tgtLane.id);
-    } else {
-      const tgtEl = bpmn.elements[mf.target.element];
-      if (tgtEl && tgtEl.type === 'BPMNPool') {
-        const targetLanes = lanesByPool.get(tgtEl.id) ?? [];
-        if (targetLanes.length > 0) {
-          tgtComp = componentIdByLaneId.get(targetLanes[0].id);
-        }
-      }
-    }
-
-    if (tgtComp) {
-      const edgeId = emitComponentDependency(out, srcComp, tgtComp, 'delegates');
-      elementMapping[edgeId] = mf.id; // 06-v2 — ComponentDependency ← source BPMNFlow (message)
-    } else {
-      // Synthetic external Component — no lineage entry (D-D1 per plan 05- § 3.3).
-      const externalId = emitExternalComponent(out, mf, layout);
-      const edgeId = emitComponentDependency(out, srcComp, externalId, 'delegates');
-      elementMapping[edgeId] = mf.id; // The edge itself does still trace back to the message flow.
-      warnings.push({ kind: 'inferred-external-component', messageFlowId: mf.id });
-    }
+    const srcTarget = resolveMessageEndpoint(mf.source.element);
+    if (!srcTarget) continue;
+    const tgtTarget = resolveMessageEndpoint(mf.target.element);
+    if (!tgtTarget) continue;
+    const edgeId = emitComponentDependency(out, srcTarget, tgtTarget, 'delegates');
+    elementMapping[edgeId] = mf.id; // 06-v2 — ComponentDependency ← source BPMNFlow (message)
   }
 
   return { ok: true, model: out, warnings, elementMapping };
@@ -398,17 +391,20 @@ function emitLaneComponent(out: UMLModel, lane: UMLElement, subsystemId: string,
   return id;
 }
 
-function emitExternalComponent(out: UMLModel, mf: UMLRelationship, layout: LayoutCursor): string {
+// 14-FU2: a black-box external pool (no lanes) is still a swarm boundary
+// → a Subsystem, not a Component. Placed in the external row below the
+// tracked Subsystems. Named after the source pool.
+function emitExternalSubsystem(out: UMLModel, pool: UMLElement, layout: LayoutCursor): string {
   const id = newId();
-  const bounds = { x: layout.externalX, y: layout.externalRowY, width: 140, height: 80 };
+  const bounds = { x: layout.externalX, y: layout.externalRowY, width: 320, height: 160 };
   layout.externalX += bounds.width + 24;
   out.elements[id] = {
     id,
-    name: mf.name || 'External',
-    type: 'Component',
+    name: pool.name || 'External swarm',
+    type: 'Subsystem',
     owner: null,
     bounds,
-    stereotype: 'external',
+    stereotype: 'subsystem',
     displayStereotype: true,
   } as unknown as UMLElement;
   return id;
