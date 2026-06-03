@@ -5,11 +5,12 @@ import type { DerivationResult, DerivationWarning } from './types';
 
 type LaneCrossingFlow = {
   flowId: string;
-  srcTaskId: string;
-  tgtTaskId: string;
   srcLaneId: string;
   tgtLaneId: string;
-  viaGatewayId?: string;
+  // Gateway-as-lane-proxy (guide 13 § 5.1 / Q1): the gateway that
+  // mediates this edge, if either endpoint was a gateway. Consumed by
+  // resolveEdgeKind (Q4) to detect a role-cooperation merge → supervises.
+  gatewayId?: string;
 };
 
 type AgenticEdgeKind = 'delegates' | 'supervises' | 'revises' | 'collaborates';
@@ -64,16 +65,15 @@ export function bpmnModelToComponentModel(bpmn: UMLModel): DerivationResult {
   }
 
   // Phase 2: lane-crossing sequence flows → ComponentDependency
-  const laneCrossings = collectLaneCrossingFlows(bpmn, lanesByPool, warnings);
+  const laneCrossings = collectLaneCrossingFlows(bpmn, lanesByPool);
   const dedup = new EdgeDedup();
   for (const crossing of laneCrossings) {
     const srcLane = bpmn.elements[crossing.srcLaneId];
     const tgtLane = bpmn.elements[crossing.tgtLaneId];
-    const srcTask = bpmn.elements[crossing.srcTaskId];
-    const gateway = crossing.viaGatewayId ? bpmn.elements[crossing.viaGatewayId] : undefined;
+    const gateway = crossing.gatewayId ? bpmn.elements[crossing.gatewayId] : undefined;
 
     if (!srcLane || !tgtLane) continue;
-    const kind = resolveEdgeKind(srcLane, tgtLane, srcTask, gateway);
+    const kind = resolveEdgeKind(srcLane, tgtLane, gateway);
 
     const srcComp = componentIdByLaneId.get(crossing.srcLaneId);
     const tgtComp = componentIdByLaneId.get(crossing.tgtLaneId);
@@ -169,13 +169,35 @@ function laneForElement(bpmn: UMLModel, elementId: string): UMLElement | null {
   return null;
 }
 
-function collectLaneCrossingFlows(
+// Resolve a sequence-flow endpoint to the tracked lane that "owns" it
+// (guide 13 § 5.1 / Q1 — gateway-as-lane-proxy). A task resolves to its
+// lane; a gateway resolves to the lane that owns it, so a flow into or
+// out of a gateway is attributed to the gateway's OWN lane rather than
+// routed through to a downstream task. Returns null for endpoints that
+// don't resolve to a tracked lane (events, free-floating shapes, or a
+// gateway owned by a pool) — those are not lane bridges in v1, matching
+// the prior scope (events were never traced).
+function laneIdForEndpoint(
   bpmn: UMLModel,
-  lanesByPool: Map<string, UMLElement[]>,
-  warnings: DerivationWarning[],
-): LaneCrossingFlow[] {
-  const lanes = new Set<string>();
-  for (const arr of lanesByPool.values()) for (const l of arr) lanes.add(l.id);
+  elementId: string,
+  trackedLanes: Set<string>,
+): { laneId: string; gatewayId?: string } | null {
+  const el = bpmn.elements[elementId];
+  if (!el) return null;
+  if (el.type === 'BPMNTask') {
+    const laneId = el.owner;
+    return laneId && trackedLanes.has(laneId) ? { laneId } : null;
+  }
+  if (el.type === 'BPMNGateway') {
+    const laneId = el.owner;
+    return laneId && trackedLanes.has(laneId) ? { laneId, gatewayId: el.id } : null;
+  }
+  return null;
+}
+
+function collectLaneCrossingFlows(bpmn: UMLModel, lanesByPool: Map<string, UMLElement[]>): LaneCrossingFlow[] {
+  const trackedLanes = new Set<string>();
+  for (const arr of lanesByPool.values()) for (const l of arr) trackedLanes.add(l.id);
 
   const sequenceFlows = Object.values(bpmn.relationships).filter(
     (r) => r.type === 'BPMNFlow' && (r as unknown as { flowType?: string }).flowType === 'sequence',
@@ -183,62 +205,21 @@ function collectLaneCrossingFlows(
 
   const out: LaneCrossingFlow[] = [];
   for (const f of sequenceFlows) {
-    const srcEl = bpmn.elements[f.source.element];
-    const tgtEl = bpmn.elements[f.target.element];
-    if (!srcEl || !tgtEl) continue;
+    const src = laneIdForEndpoint(bpmn, f.source.element, trackedLanes);
+    const tgt = laneIdForEndpoint(bpmn, f.target.element, trackedLanes);
+    if (!src || !tgt) continue; // an endpoint isn't a tracked task/gateway
+    if (src.laneId === tgt.laneId) continue; // intra-lane — process detail
 
-    // Direct task → task
-    if (srcEl.type === 'BPMNTask' && tgtEl.type === 'BPMNTask') {
-      const srcLane = srcEl.owner;
-      const tgtLane = tgtEl.owner;
-      if (srcLane && tgtLane && srcLane !== tgtLane && lanes.has(srcLane) && lanes.has(tgtLane)) {
-        out.push({
-          flowId: f.id,
-          srcTaskId: srcEl.id,
-          tgtTaskId: tgtEl.id,
-          srcLaneId: srcLane,
-          tgtLaneId: tgtLane,
-        });
-      }
-      continue;
-    }
-
-    // task → gateway (one-hop)
-    if (srcEl.type === 'BPMNTask' && tgtEl.type === 'BPMNGateway') {
-      const gw = tgtEl;
-      const outFlows = Object.values(bpmn.relationships).filter(
-        (r) =>
-          r.type === 'BPMNFlow' &&
-          (r as unknown as { flowType?: string }).flowType === 'sequence' &&
-          r.source.element === gw.id,
-      );
-      for (const outFlow of outFlows) {
-        const ofTgt = bpmn.elements[outFlow.target.element];
-        if (!ofTgt || ofTgt.type !== 'BPMNTask') {
-          if (ofTgt && ofTgt.type === 'BPMNGateway') {
-            warnings.push({
-              kind: 'multi-hop-gateway',
-              sourceTaskId: srcEl.id,
-              targetGatewayId: ofTgt.id,
-            });
-          }
-          continue;
-        }
-        const srcLane = srcEl.owner;
-        const tgtLane = ofTgt.owner;
-        if (srcLane && tgtLane && srcLane !== tgtLane && lanes.has(srcLane) && lanes.has(tgtLane)) {
-          out.push({
-            flowId: f.id,
-            srcTaskId: srcEl.id,
-            tgtTaskId: ofTgt.id,
-            srcLaneId: srcLane,
-            tgtLaneId: tgtLane,
-            viaGatewayId: gw.id,
-          });
-        }
-      }
-      continue;
-    }
+    out.push({
+      flowId: f.id,
+      srcLaneId: src.laneId,
+      tgtLaneId: tgt.laneId,
+      // The gateway endpoint (if any) mediates the edge. When BOTH ends
+      // are gateways (gateway→gateway chain), the source side wins — the
+      // chain still resolves to the correct cross-lane edge per hop, so
+      // the old `multi-hop-gateway` warning is no longer needed.
+      gatewayId: src.gatewayId ?? tgt.gatewayId,
+    });
   }
   return out;
 }
@@ -274,30 +255,39 @@ function poolFor(bpmn: UMLModel, el: UMLElement): string | null {
 
 // ── Edge-kind heuristic (OQ-5, guide § 2) ───────────────────────────
 
-function resolveEdgeKind(
-  srcLane: UMLElement,
-  tgtLane: UMLElement,
-  _srcTask: UMLElement | undefined,
-  gateway: UMLElement | undefined,
-): AgenticEdgeKind {
+function resolveEdgeKind(srcLane: UMLElement, tgtLane: UMLElement, gateway: UMLElement | undefined): AgenticEdgeKind {
   const srcAgentic = (srcLane as unknown as { isAgentic?: boolean }).isAgentic === true;
   const tgtAgentic = (tgtLane as unknown as { isAgentic?: boolean }).isAgentic === true;
 
+  // Role enum is meaningless on a human / external lane → plain delegation.
   if (!srcAgentic || !tgtAgentic) return 'delegates';
 
   const srcRole = (srcLane as unknown as { role?: 'manager' | 'worker' }).role;
   const tgtRole = (tgtLane as unknown as { role?: 'manager' | 'worker' }).role;
 
+  // Producer → reviewer (worker returns output up to the manager).
   if (srcRole === 'worker' && tgtRole === 'manager') return 'revises';
+  // Peers, no authority asymmetry.
   if (srcRole === tgtRole) return 'collaborates';
 
   if (srcRole === 'manager' && tgtRole === 'worker') {
-    if (gateway) {
-      const role = (gateway as unknown as { gatewayRole?: string }).gatewayRole;
-      const strat = (gateway as unknown as { mergingStrategy?: string }).mergingStrategy;
-      if (role === 'merging' && (strat === 'leader-driven' || strat === 'composed')) {
-        return 'supervises';
-      }
+    // Guide 13 § 5.2 (Q2) + 14-FU1 (FF2). A manager→worker handoff whose
+    // mediating AGENTIC gateway runs a role-cooperation merge is
+    // SUPERVISION: the manager drives/approves the merge → authority /
+    // oversight. We check whichever agentic gateway mediates the edge,
+    // REGARDLESS of its gatewayRole — in a natural diverge-then-merge the
+    // manager→worker edge is mediated by the DIVERGING gateway, whose
+    // user-facing field is `collaborationMode` ('role'). The popup
+    // auto-snaps `mergingStrategy` to leader-driven/composed
+    // (changeCollaborationMode, bpmn-gateway-update.tsx), so we read the
+    // mode first (intention-revealing, always populated) and fall back to
+    // the strategy for a merging gateway or an imported/out-of-sync model.
+    // A voting/majority merge stays plain delegation (workers self-decide).
+    if (gateway && (gateway as unknown as { isAgentic?: boolean }).isAgentic === true) {
+      const g = gateway as unknown as { mergingStrategy?: string; collaborationMode?: string };
+      const roleCooperation =
+        g.collaborationMode === 'role' || g.mergingStrategy === 'leader-driven' || g.mergingStrategy === 'composed';
+      if (roleCooperation) return 'supervises';
     }
     return 'delegates';
   }
