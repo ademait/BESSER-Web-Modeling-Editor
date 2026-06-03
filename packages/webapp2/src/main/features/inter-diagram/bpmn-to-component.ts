@@ -295,9 +295,17 @@ function resolveEdgeKind(srcLane: UMLElement, tgtLane: UMLElement, gateway: UMLE
   return 'delegates';
 }
 
+// Guide 13 § 5.3 (Q3). In-pool non-agentic lanes are overwhelmingly
+// human-in-the-loop participants (User, Maintainer), so default to
+// `human`; promote to `external` only when the name reads as a system /
+// service. Truly-external INTER-POOL participants get a hardcoded
+// `external` via emitExternalComponent (Phase 3 synthetic path), so this
+// default does not mislabel them. (A second pool's in-lane non-agentic
+// actor reached by a message flow defaults `human` unless system-named —
+// accepted edge case; user-editable from the popup.)
 function nonAgenticStereotype(laneName: string | undefined): 'human' | 'external' {
   const name = (laneName ?? '').toLowerCase();
-  return /(human|person|user|operator|reviewer|customer|client|actor)/.test(name) ? 'human' : 'external';
+  return /(queue|api|service|system|database|db|broker|gateway)/.test(name) ? 'external' : 'human';
 }
 
 // ── Emit helpers ────────────────────────────────────────────────────
