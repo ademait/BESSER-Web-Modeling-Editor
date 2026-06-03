@@ -6,6 +6,8 @@ import singlePoolNoLanes from './fixtures/single-pool-no-lanes.json';
 import minimalAgentic from './fixtures/minimal-agentic.json';
 import gatewayRouted from './fixtures/gateway-routed.json';
 import multiPoolMessage from './fixtures/multi-pool-message.json';
+import divergeMerge from './fixtures/diverge-merge.json';
+import poolMessage from './fixtures/pool-message.json';
 
 describe('Inter-diagram — bpmnModelToComponentModel', () => {
   describe('refusals', () => {
@@ -112,6 +114,92 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
         (rel) => (rel as unknown as { stereotype?: string }).stereotype === 'delegates',
       );
       expect(delegates).toHaveLength(1);
+    });
+  });
+
+  describe('diverge-then-merge — surfaces supervises + revises + delegates (guide 13/14)', () => {
+    const r = bpmnModelToComponentModel(divergeMerge as unknown as UMLModel);
+
+    it('produces a ComponentDiagram with 1 Subsystem + 3 Components', () => {
+      if (!r.ok) throw new Error('expected ok');
+      const els = Object.values(r.model.elements);
+      expect(els.filter((e) => e.type === 'Subsystem')).toHaveLength(1);
+      expect(els.filter((e) => e.type === 'Component')).toHaveLength(3);
+    });
+
+    it('marks the two agentic lanes `solution` and the non-agentic lane `human`', () => {
+      if (!r.ok) throw new Error('expected ok');
+      const comps = Object.values(r.model.elements)
+        .filter((e) => e.type === 'Component')
+        .map((c) => (c as unknown as { stereotype?: string }).stereotype)
+        .sort();
+      expect(comps).toEqual(['human', 'solution', 'solution']);
+    });
+
+    it('emits exactly one delegates + one revises + one supervises edge', () => {
+      if (!r.ok) throw new Error('expected ok');
+      const stereotypes = Object.values(r.model.relationships)
+        .map((rel) => (rel as unknown as { stereotype?: string }).stereotype)
+        .sort();
+      expect(stereotypes).toEqual(['delegates', 'revises', 'supervises']);
+    });
+
+    it('does NOT emit a spurious worker→Maintainer edge (cause (a) regression)', () => {
+      if (!r.ok) throw new Error('expected ok');
+      const byId = r.model.elements;
+      const maintainer = Object.values(byId).find(
+        (e) => (e as unknown as { stereotype?: string }).stereotype === 'human',
+      );
+      const coder = Object.values(byId).find((e) => e.type === 'Component' && e.name === 'Coder');
+      expect(maintainer).toBeDefined();
+      expect(coder).toBeDefined();
+      const coderToMaintainer = Object.values(r.model.relationships).some(
+        (rel) =>
+          (rel as unknown as { source: { element: string } }).source.element === coder!.id &&
+          (rel as unknown as { target: { element: string } }).target.element === maintainer!.id,
+      );
+      expect(coderToMaintainer).toBe(false);
+    });
+  });
+
+  describe('pool-connected message flows target the Subsystem (14-FU2 / M9a+c)', () => {
+    const r = bpmnModelToComponentModel(poolMessage as unknown as UMLModel);
+
+    it('emits 3 Subsystems incl. a synthesised external for the laneless pool', () => {
+      if (!r.ok) throw new Error('expected ok');
+      const subs = Object.values(r.model.elements).filter((e) => e.type === 'Subsystem');
+      expect(subs).toHaveLength(3);
+      expect(subs.map((s) => s.name).sort()).toEqual(['LegacySystem', 'SwarmA', 'SwarmB']);
+    });
+
+    it('does NOT emit any external-stereotyped Component (pools are Subsystems)', () => {
+      if (!r.ok) throw new Error('expected ok');
+      const externalComps = Object.values(r.model.elements).filter(
+        (e) => e.type === 'Component' && (e as unknown as { stereotype?: string }).stereotype === 'external',
+      );
+      expect(externalComps).toHaveLength(0);
+    });
+
+    it('routes a pool→pool message flow as Subsystem → Subsystem', () => {
+      if (!r.ok) throw new Error('expected ok');
+      const edge = Object.values(r.model.relationships).find((rel) => r.elementMapping[rel.id] === 'mf-1');
+      expect(edge).toBeDefined();
+      const src = r.model.elements[(edge as unknown as { source: { element: string } }).source.element];
+      const tgt = r.model.elements[(edge as unknown as { target: { element: string } }).target.element];
+      expect(src.type).toBe('Subsystem');
+      expect(tgt.type).toBe('Subsystem');
+      expect((edge as unknown as { stereotype?: string }).stereotype).toBe('delegates');
+    });
+
+    it('routes a lane→black-box-pool message flow as Component → Subsystem', () => {
+      if (!r.ok) throw new Error('expected ok');
+      const edge = Object.values(r.model.relationships).find((rel) => r.elementMapping[rel.id] === 'mf-2');
+      expect(edge).toBeDefined();
+      const src = r.model.elements[(edge as unknown as { source: { element: string } }).source.element];
+      const tgt = r.model.elements[(edge as unknown as { target: { element: string } }).target.element];
+      expect(src.type).toBe('Component');
+      expect(tgt.type).toBe('Subsystem');
+      expect(tgt.name).toBe('LegacySystem');
     });
   });
 
