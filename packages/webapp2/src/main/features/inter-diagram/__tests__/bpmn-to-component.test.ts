@@ -203,6 +203,137 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
     });
   });
 
+  describe('16 — tools/skills as capability Components (opt-in)', () => {
+    // A self-contained BPMN: one agentic worker lane with a task linking
+    // an Agent diagram. The derivation matches `type: 'AgentTool'` by
+    // string, so this exercises the full path without the editor element.
+    const makeBpmn = (laneOverrides: Record<string, unknown> = {}, taskRef = 'ad1') =>
+      ({
+        version: '3.0.0',
+        type: 'BPMNDiagram',
+        size: { width: 800, height: 600 },
+        elements: {
+          P1: {
+            id: 'P1',
+            type: 'BPMNPool',
+            name: 'Swarm',
+            owner: null,
+            bounds: { x: 0, y: 0, width: 400, height: 200 },
+          },
+          L1: {
+            id: 'L1',
+            type: 'BPMNSwimlane',
+            name: 'Researcher',
+            owner: 'P1',
+            isAgentic: true,
+            role: 'worker',
+            bounds: { x: 20, y: 0, width: 380, height: 200 },
+            ...laneOverrides,
+          },
+          T1: {
+            id: 'T1',
+            type: 'BPMNTask',
+            name: 'Search',
+            owner: 'L1',
+            agentDiagramRef: taskRef,
+            bounds: { x: 40, y: 20, width: 100, height: 60 },
+          },
+        },
+        relationships: {},
+        interactive: { elements: {}, relationships: {} },
+        assessments: {},
+      }) as unknown as UMLModel;
+
+    const agentModel = {
+      version: '3.0.0',
+      type: 'AgentDiagram',
+      size: { width: 100, height: 100 },
+      elements: {
+        tlA: {
+          id: 'tlA',
+          type: 'AgentTool',
+          name: 'WebSearch',
+          owner: null,
+          bounds: { x: 0, y: 0, width: 1, height: 1 },
+        },
+        tlB: {
+          id: 'tlB',
+          type: 'AgentTool',
+          name: 'WebSearch',
+          owner: null,
+          bounds: { x: 0, y: 0, width: 1, height: 1 },
+        }, // dup name
+        skA: {
+          id: 'skA',
+          type: 'AgentSkill',
+          name: 'Summarise',
+          owner: null,
+          bounds: { x: 0, y: 0, width: 1, height: 1 },
+        },
+      },
+      relationships: {},
+      interactive: { elements: {}, relationships: {} },
+      assessments: {},
+    } as unknown as UMLModel;
+    const agentDiagramsById = new Map([['ad1', agentModel]]);
+
+    const capStereos = (m: UMLModel) =>
+      Object.values(m.elements)
+        .map((e) => (e as unknown as { stereotype?: string }).stereotype)
+        .filter((s) => s === 'tool' || s === 'skill');
+
+    it('T-U1 — default (no opts): emits no tool/skill Components (clean swarm)', () => {
+      const r = bpmnModelToComponentModel(makeBpmn());
+      if (!r.ok) throw new Error('expected ok');
+      expect(capStereos(r.model)).toHaveLength(0);
+    });
+
+    it('T-U2 — opt-in: one `tool` (deduped) + one `skill`, with `uses` and `has` edges', () => {
+      const r = bpmnModelToComponentModel(makeBpmn(), { agentDiagramsById, includeCapabilities: true });
+      if (!r.ok) throw new Error('expected ok');
+      const tools = Object.values(r.model.elements).filter(
+        (e) => (e as unknown as { stereotype?: string }).stereotype === 'tool',
+      );
+      const skills = Object.values(r.model.elements).filter(
+        (e) => (e as unknown as { stereotype?: string }).stereotype === 'skill',
+      );
+      expect(tools).toHaveLength(1); // WebSearch deduped (DQ5)
+      expect(tools[0].name).toBe('WebSearch');
+      expect(skills).toHaveLength(1);
+      expect(skills[0].name).toBe('Summarise');
+      const edgeStereos = Object.values(r.model.relationships)
+        .map((rel) => (rel as unknown as { stereotype?: string }).stereotype)
+        .filter((s) => s === 'uses' || s === 'has')
+        .sort();
+      expect(edgeStereos).toEqual(['has', 'uses']); // DQ3
+    });
+
+    it('T-U3 — dangling agentDiagramRef: no capabilities, no throw', () => {
+      const r = bpmnModelToComponentModel(makeBpmn({}, 'gone'), { agentDiagramsById, includeCapabilities: true });
+      if (!r.ok) throw new Error('expected ok');
+      expect(capStereos(r.model)).toHaveLength(0);
+    });
+
+    it('T-U4 — lineage: a capability Component maps to the linking BPMNTask id', () => {
+      const r = bpmnModelToComponentModel(makeBpmn(), { agentDiagramsById, includeCapabilities: true });
+      if (!r.ok) throw new Error('expected ok');
+      const tool = Object.values(r.model.elements).find(
+        (e) => (e as unknown as { stereotype?: string }).stereotype === 'tool',
+      );
+      expect(tool).toBeDefined();
+      expect(r.elementMapping[tool!.id]).toBe('T1');
+    });
+
+    it('T-U5 — non-agentic lane: no capabilities even with includeCapabilities', () => {
+      const r = bpmnModelToComponentModel(makeBpmn({ isAgentic: false, role: undefined }), {
+        agentDiagramsById,
+        includeCapabilities: true,
+      });
+      if (!r.ok) throw new Error('expected ok');
+      expect(capStereos(r.model)).toHaveLength(0);
+    });
+  });
+
   describe('06-v2 — element-mapping output', () => {
     it('maps derived Subsystem → source Pool, Component → source Lane, ComponentDependency → source BPMNFlow', () => {
       const r = bpmnModelToComponentModel(minimalAgentic as unknown as UMLModel);

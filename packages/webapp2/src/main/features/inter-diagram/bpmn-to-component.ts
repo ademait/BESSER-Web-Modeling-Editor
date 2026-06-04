@@ -15,7 +15,16 @@ type LaneCrossingFlow = {
 
 type AgenticEdgeKind = 'delegates' | 'supervises' | 'revises' | 'collaborates';
 
-export function bpmnModelToComponentModel(bpmn: UMLModel): DerivationResult {
+export type DerivationOpts = {
+  /** id → model for every AgentDiagram in the project (DQ4). Omitted →
+   *  capability traversal is skipped entirely (back-compatible). */
+  agentDiagramsById?: Map<string, UMLModel>;
+  /** DQ1 — opt-in. When false/undefined, no tool/skill Components are
+   *  emitted and the output is byte-for-byte the pre-16 derivation. */
+  includeCapabilities?: boolean;
+};
+
+export function bpmnModelToComponentModel(bpmn: UMLModel, opts?: DerivationOpts): DerivationResult {
   const warnings: DerivationWarning[] = [];
 
   if (bpmn.type !== UMLDiagramType.BPMN) {
@@ -64,6 +73,10 @@ export function bpmnModelToComponentModel(bpmn: UMLModel): DerivationResult {
         for (const t of tasksInLane(bpmn, lane.id)) {
           warnings.push({ kind: 'dropped-task-in-non-agentic-lane', taskId: t.id });
         }
+      } else if (opts?.includeCapabilities && opts.agentDiagramsById) {
+        // 16 (DQ1/DQ4): an agentic lane = one agent. Lift the tools/skills
+        // of its tasks' linked Agent diagrams into capability Components.
+        emitLaneCapabilities(out, bpmn, lane, laneCompId, subsystemId, layout, opts.agentDiagramsById, elementMapping);
       }
     }
     layout.endSubsystem();
@@ -301,6 +314,64 @@ function nonAgenticStereotype(laneName: string | undefined): 'human' | 'external
   return /(queue|api|service|system|database|db|broker|gateway)/.test(name) ? 'external' : 'human';
 }
 
+// ── Capability traversal (16, plan 15 §4–§5) ────────────────────────
+
+// Agent-diagram element type → Component stereotype. `agentic.py` Skill /
+// Tool (CAPABILITY_TOKENS). Drop the AgentSkill row for tools-only.
+const CAPABILITY_STEREOTYPE: Record<string, 'tool' | 'skill'> = {
+  AgentTool: 'tool',
+  AgentSkill: 'skill',
+};
+
+// agent → capability edge kind, locked by agentic.py AgenticEdgeKind:
+// USES → Tool, HAS → Skill (DQ3).
+const CAPABILITY_EDGE: Record<'tool' | 'skill', 'uses' | 'has'> = {
+  tool: 'uses',
+  skill: 'has',
+};
+
+function capabilityElements(agentModel: UMLModel): UMLElement[] {
+  return Object.values(agentModel.elements).filter((e) => CAPABILITY_STEREOTYPE[e.type] !== undefined);
+}
+
+// One agentic lane's capabilities: union over its tasks' linked Agent
+// diagrams (DQ6 = task.agentDiagramRef), deduped per agent by
+// stereotype+name (DQ5). A dangling ref (deleted Agent diagram) is
+// skipped silently — the popup already surfaces dangling refs (guide 08/11).
+function emitLaneCapabilities(
+  out: UMLModel,
+  bpmn: UMLModel,
+  lane: UMLElement,
+  agentCompId: string,
+  subsystemId: string,
+  layout: LayoutCursor,
+  agentDiagramsById: Map<string, UMLModel>,
+  elementMapping: ElementLineageMap,
+): void {
+  const seen = new Set<string>();
+  for (const task of tasksInLane(bpmn, lane.id)) {
+    const ref = (task as unknown as { agentDiagramRef?: string }).agentDiagramRef;
+    if (!ref) continue;
+    const agentModel = agentDiagramsById.get(ref);
+    if (!agentModel) continue; // dangling ref → skip
+    for (const cap of capabilityElements(agentModel)) {
+      const stereo = CAPABILITY_STEREOTYPE[cap.type];
+      const name = (cap.name ?? '').trim();
+      if (!name) continue;
+      const key = `${stereo}::${name.toLowerCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const capId = emitCapabilityComponent(out, name, subsystemId, stereo, layout);
+      const edgeId = emitComponentDependency(out, agentCompId, capId, CAPABILITY_EDGE[stereo]);
+      // DQ7 — cross-diagram lineage faked to the linking BPMNTask id, keeping
+      // the sidecar's "derived → BPMN element" invariant. True AgentTool-element
+      // lineage is deferred.
+      elementMapping[capId] = task.id;
+      elementMapping[edgeId] = task.id;
+    }
+  }
+}
+
 // ── Emit helpers ────────────────────────────────────────────────────
 
 function emptyComponentModel(size: { width: number; height: number }): UMLModel {
@@ -322,6 +393,8 @@ interface LayoutCursor {
   skillRightOfLaneY: number;
   externalRowY: number;
   externalX: number;
+  capabilityRowX: number; // 16 — running x for the capability row
+  capabilityRowY: number; // 16 — y of the capability row (below lanes)
   currentSubsystemBounds: { x: number; y: number; width: number; height: number } | null;
   endSubsystem(): void;
 }
@@ -337,6 +410,8 @@ function makeLayoutCursor(): LayoutCursor {
     skillRightOfLaneY: 0,
     externalRowY: 0,
     externalX: -320,
+    capabilityRowX: 0,
+    capabilityRowY: 0,
     currentSubsystemBounds: null,
     endSubsystem(this: LayoutCursor) {
       if (this.currentSubsystemBounds) {
@@ -356,6 +431,8 @@ function emitSubsystem(out: UMLModel, pool: UMLElement, layout: LayoutCursor): s
   layout.currentSubsystemBounds = bounds;
   layout.laneInSubsystemX = bounds.x + 24;
   layout.skillRightOfLaneY = bounds.y + 40;
+  layout.capabilityRowX = bounds.x + 24; // 16 — capability row, left edge
+  layout.capabilityRowY = bounds.y + 40 + 80 + 24; // 16 — below the lane row
   out.elements[id] = {
     id,
     name: pool.name || 'Swarm',
@@ -382,6 +459,37 @@ function emitLaneComponent(out: UMLModel, lane: UMLElement, subsystemId: string,
   out.elements[id] = {
     id,
     name: lane.name || (isAgentic ? 'Agent' : 'Actor'),
+    type: 'Component',
+    owner: subsystemId,
+    bounds,
+    stereotype,
+    displayStereotype: true,
+  } as unknown as UMLElement;
+  return id;
+}
+
+// 16: a tool/skill Component, owned by the Subsystem (inside the swarm
+// boundary), placed in a row below the lane Components. Grows the
+// Subsystem bounds to fit (same-ref trick — emitSubsystem stores the same
+// bounds object on both layout.currentSubsystemBounds and the element).
+function emitCapabilityComponent(
+  out: UMLModel,
+  name: string,
+  subsystemId: string,
+  stereotype: 'tool' | 'skill',
+  layout: LayoutCursor,
+): string {
+  const id = newId();
+  const bounds = { x: layout.capabilityRowX, y: layout.capabilityRowY, width: 140, height: 70 };
+  layout.capabilityRowX += bounds.width + 24;
+  if (layout.currentSubsystemBounds) {
+    const b = layout.currentSubsystemBounds;
+    b.height = Math.max(b.height, bounds.y + bounds.height + 24 - b.y);
+    b.width = Math.max(b.width, bounds.x + bounds.width + 24 - b.x);
+  }
+  out.elements[id] = {
+    id,
+    name,
     type: 'Component',
     owner: subsystemId,
     bounds,
