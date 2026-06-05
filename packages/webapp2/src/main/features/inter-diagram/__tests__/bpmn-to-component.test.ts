@@ -334,6 +334,175 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
     });
   });
 
+  describe('16-FU2 — grouped capability mode (Skills / Tools zones)', () => {
+    // Single agentic lane → ad1 (tools WebSearch ×2 dup, skill Summarise).
+    const makeBpmn = () =>
+      ({
+        version: '3.0.0',
+        type: 'BPMNDiagram',
+        size: { width: 800, height: 600 },
+        elements: {
+          P1: {
+            id: 'P1',
+            type: 'BPMNPool',
+            name: 'Swarm',
+            owner: null,
+            bounds: { x: 0, y: 0, width: 400, height: 200 },
+          },
+          L1: {
+            id: 'L1',
+            type: 'BPMNSwimlane',
+            name: 'Researcher',
+            owner: 'P1',
+            isAgentic: true,
+            role: 'worker',
+            bounds: { x: 20, y: 0, width: 380, height: 200 },
+          },
+          T1: {
+            id: 'T1',
+            type: 'BPMNTask',
+            name: 'Search',
+            owner: 'L1',
+            agentDiagramRef: 'ad1',
+            bounds: { x: 40, y: 20, width: 100, height: 60 },
+          },
+        },
+        relationships: {},
+        interactive: { elements: {}, relationships: {} },
+        assessments: {},
+      }) as unknown as UMLModel;
+
+    // Two agentic lanes → ad1 + ad2; both list a tool named "WebSearch".
+    const makeTwoAgentBpmn = () =>
+      ({
+        version: '3.0.0',
+        type: 'BPMNDiagram',
+        size: { width: 800, height: 600 },
+        elements: {
+          P1: {
+            id: 'P1',
+            type: 'BPMNPool',
+            name: 'Swarm',
+            owner: null,
+            bounds: { x: 0, y: 0, width: 400, height: 400 },
+          },
+          L1: {
+            id: 'L1',
+            type: 'BPMNSwimlane',
+            name: 'Researcher',
+            owner: 'P1',
+            isAgentic: true,
+            role: 'worker',
+            bounds: { x: 20, y: 0, width: 380, height: 200 },
+          },
+          T1: {
+            id: 'T1',
+            type: 'BPMNTask',
+            name: 'Search',
+            owner: 'L1',
+            agentDiagramRef: 'ad1',
+            bounds: { x: 40, y: 20, width: 100, height: 60 },
+          },
+          L2: {
+            id: 'L2',
+            type: 'BPMNSwimlane',
+            name: 'Analyst',
+            owner: 'P1',
+            isAgentic: true,
+            role: 'worker',
+            bounds: { x: 20, y: 200, width: 380, height: 200 },
+          },
+          T2: {
+            id: 'T2',
+            type: 'BPMNTask',
+            name: 'Analyse',
+            owner: 'L2',
+            agentDiagramRef: 'ad2',
+            bounds: { x: 40, y: 220, width: 100, height: 60 },
+          },
+        },
+        relationships: {},
+        interactive: { elements: {}, relationships: {} },
+        assessments: {},
+      }) as unknown as UMLModel;
+
+    const cap = (type: string, name: string, id: string) => ({
+      id,
+      type,
+      name,
+      owner: null,
+      bounds: { x: 0, y: 0, width: 1, height: 1 },
+    });
+    const agentModel = (...els: Array<ReturnType<typeof cap>>) =>
+      ({
+        version: '3.0.0',
+        type: 'AgentDiagram',
+        size: { width: 100, height: 100 },
+        elements: Object.fromEntries(els.map((e) => [e.id, e])),
+        relationships: {},
+        interactive: { elements: {}, relationships: {} },
+        assessments: {},
+      }) as unknown as UMLModel;
+
+    const ad1 = agentModel(
+      cap('AgentTool', 'WebSearch', 't1a'),
+      cap('AgentTool', 'WebSearch', 't1b'),
+      cap('AgentSkill', 'Summarise', 's1'),
+    );
+    const ad2 = agentModel(cap('AgentTool', 'WebSearch', 't2a'), cap('AgentTool', 'Calculator', 't2b'));
+    const byId1 = new Map([['ad1', ad1]]);
+    const byId2 = new Map([
+      ['ad1', ad1],
+      ['ad2', ad2],
+    ]);
+    const grouped = { includeCapabilities: true } as const;
+
+    const subsystemsNamed = (m: UMLModel) =>
+      Object.values(m.elements)
+        .filter((e) => e.type === 'Subsystem')
+        .map((e) => e.name);
+    const byStereo = (m: UMLModel, s: string) =>
+      Object.values(m.elements).filter((e) => (e as unknown as { stereotype?: string }).stereotype === s);
+    const edgesByStereo = (m: UMLModel, s: string) =>
+      Object.values(m.relationships).filter((r) => (r as unknown as { stereotype?: string }).stereotype === s);
+
+    it('T-G1 — emits named Skills + Tools Subsystems holding the capabilities', () => {
+      const r = bpmnModelToComponentModel(makeBpmn(), { agentDiagramsById: byId1, ...grouped });
+      if (!r.ok) throw new Error('expected ok');
+      expect(subsystemsNamed(r.model).sort()).toEqual(['Skills', 'Swarm', 'Tools']);
+      expect(byStereo(r.model, 'tool')).toHaveLength(1); // WebSearch (dup collapsed)
+      expect(byStereo(r.model, 'skill')).toHaveLength(1); // Summarise
+      // capability Components are owned by a zone Subsystem, not the swarm
+      const tool = byStereo(r.model, 'tool')[0];
+      const owner = r.model.elements[(tool as unknown as { owner: string }).owner];
+      expect(owner.name).toBe('Tools');
+      expect(edgesByStereo(r.model, 'uses')).toHaveLength(1);
+      expect(edgesByStereo(r.model, 'has')).toHaveLength(1);
+    });
+
+    it('T-G2 — cross-agent global dedup: shared tool = 1 Component, N edges (D1)', () => {
+      const r = bpmnModelToComponentModel(makeTwoAgentBpmn(), { agentDiagramsById: byId2, ...grouped });
+      if (!r.ok) throw new Error('expected ok');
+      const tools = byStereo(r.model, 'tool');
+      expect(tools.map((t) => t.name).sort()).toEqual(['Calculator', 'WebSearch']); // 2 unique
+      const webSearch = tools.filter((t) => t.name === 'WebSearch');
+      expect(webSearch).toHaveLength(1); // shared name → ONE box
+      // ad1→WebSearch, ad2→WebSearch, ad2→Calculator = 3 `uses`
+      expect(edgesByStereo(r.model, 'uses')).toHaveLength(3);
+      const intoWebSearch = Object.values(r.model.relationships).filter(
+        (rel) => (rel as unknown as { target: { element: string } }).target.element === webSearch[0].id,
+      );
+      expect(intoWebSearch).toHaveLength(2); // two agents point at the one box
+    });
+
+    it('T-G3 — lineage: a grouped capability maps to a contributing BPMNTask', () => {
+      const r = bpmnModelToComponentModel(makeBpmn(), { agentDiagramsById: byId1, ...grouped });
+      if (!r.ok) throw new Error('expected ok');
+      const tool = byStereo(r.model, 'tool')[0];
+      expect(r.elementMapping[tool.id]).toBe('T1');
+    });
+  });
+
   describe('06-v2 — element-mapping output', () => {
     it('maps derived Subsystem → source Pool, Component → source Lane, ComponentDependency → source BPMNFlow', () => {
       const r = bpmnModelToComponentModel(minimalAgentic as unknown as UMLModel);

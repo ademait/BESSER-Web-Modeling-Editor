@@ -20,7 +20,10 @@ export type DerivationOpts = {
    *  capability traversal is skipped entirely (back-compatible). */
   agentDiagramsById?: Map<string, UMLModel>;
   /** DQ1 — opt-in. When false/undefined, no tool/skill Components are
-   *  emitted and the output is byte-for-byte the pre-16 derivation. */
+   *  emitted and the output is byte-for-byte the pre-16 derivation. When
+   *  true, each agent's tools/skills are pooled into shared "Skills"/
+   *  "Tools" Subsystems (16-FU2), deduped globally by name, with one
+   *  has/uses edge per (agent, capability). */
   includeCapabilities?: boolean;
 };
 
@@ -56,6 +59,12 @@ export function bpmnModelToComponentModel(bpmn: UMLModel, opts?: DerivationOpts)
   // pool-as-whole resolves to the Subsystem (the swarm boundary) rather
   // than an inner lane Component.
   const subsystemIdByPoolId = new Map<string, string>();
+  // 16-FU2 — grouped mode defers capability emission: Phase 1 fills this,
+  // Phase 1.5 drains it. Stays empty in per-agent mode. `capabilitiesTopY`
+  // captures the first Subsystem's y NOW (before the cursor advances) so
+  // the grouped zones can top-align with the swarm.
+  const collectedCaps: CollectedCapability[] = [];
+  const capabilitiesTopY = layout.subsystemY;
   for (const pool of pools) {
     const lanes = lanesByPool.get(pool.id) ?? [];
     if (lanes.length === 0) continue;
@@ -74,12 +83,21 @@ export function bpmnModelToComponentModel(bpmn: UMLModel, opts?: DerivationOpts)
           warnings.push({ kind: 'dropped-task-in-non-agentic-lane', taskId: t.id });
         }
       } else if (opts?.includeCapabilities && opts.agentDiagramsById) {
-        // 16 (DQ1/DQ4): an agentic lane = one agent. Lift the tools/skills
-        // of its tasks' linked Agent diagrams into capability Components.
-        emitLaneCapabilities(out, bpmn, lane, laneCompId, subsystemId, layout, opts.agentDiagramsById, elementMapping);
+        // 16 + 16-FU2 (DQ1/DQ4): an agentic lane = one agent. Collect its
+        // tasks' linked Agent-diagram tools/skills so Phase 1.5 can pool
+        // them into shared Skills/Tools Subsystems (the sole capability
+        // layout; per-agent columns retired 2026-06-05).
+        collectLaneCapabilities(bpmn, lane, laneCompId, opts.agentDiagramsById, collectedCaps);
       }
     }
     layout.endSubsystem();
+  }
+
+  // Phase 1.5 (16-FU2): grouped-capability layout — pool every agent's
+  // collected tools/skills into shared "Skills"/"Tools" Subsystems
+  // (global dedup by name, D1), placed to the right of the swarm.
+  if (opts?.includeCapabilities) {
+    emitGroupedCapabilities(out, collectedCaps, layout, elementMapping, capabilitiesTopY);
   }
 
   // Phase 2: lane-crossing sequence flows → ComponentDependency
@@ -316,6 +334,12 @@ function nonAgenticStereotype(laneName: string | undefined): 'human' | 'external
 
 // ── Capability traversal (16, plan 15 §4–§5) ────────────────────────
 
+// 16-FU2 — capability box geometry, used by emitGroupedCapabilities for the
+// Skills/Tools zone sizing and the stacked-component layout inside them.
+const CAP_W = 140; // capability Component width
+const CAP_H = 70; // capability Component height
+const CAP_GAP = 16; // vertical gap between stacked capabilities
+
 // Agent-diagram element type → Component stereotype. `agentic.py` Skill /
 // Tool (CAPABILITY_TOKENS). Drop the AgentSkill row for tools-only.
 const CAPABILITY_STEREOTYPE: Record<string, 'tool' | 'skill'> = {
@@ -334,19 +358,28 @@ function capabilityElements(agentModel: UMLModel): UMLElement[] {
   return Object.values(agentModel.elements).filter((e) => CAPABILITY_STEREOTYPE[e.type] !== undefined);
 }
 
-// One agentic lane's capabilities: union over its tasks' linked Agent
-// diagrams (DQ6 = task.agentDiagramRef), deduped per agent by
-// stereotype+name (DQ5). A dangling ref (deleted Agent diagram) is
-// skipped silently — the popup already surfaces dangling refs (guide 08/11).
-function emitLaneCapabilities(
-  out: UMLModel,
+// 16-FU2 — one agent's reference to a capability, gathered in Phase 1 and
+// drained by emitGroupedCapabilities. `agentCompId` is the lane Component
+// that has/uses it; `taskId` is the linking BPMNTask (lineage, DQ7/D4).
+type CollectedCapability = {
+  agentCompId: string;
+  stereo: 'tool' | 'skill';
+  name: string;
+  taskId: string;
+};
+
+// 16-FU2 (D2): one agentic lane's capabilities — union over its tasks'
+// linked Agent diagrams (DQ6 = task.agentDiagramRef), deduped per agent by
+// stereotype+name (DQ5). Pushes descriptors for Phase 1.5 instead of
+// emitting (zone box height needs the global count). A dangling ref
+// (deleted Agent diagram) is skipped silently — the popup already surfaces
+// dangling refs (guide 08/11).
+function collectLaneCapabilities(
   bpmn: UMLModel,
   lane: UMLElement,
   agentCompId: string,
-  subsystemId: string,
-  layout: LayoutCursor,
   agentDiagramsById: Map<string, UMLModel>,
-  elementMapping: ElementLineageMap,
+  out: CollectedCapability[],
 ): void {
   const seen = new Set<string>();
   for (const task of tasksInLane(bpmn, lane.id)) {
@@ -359,16 +392,84 @@ function emitLaneCapabilities(
       const name = (cap.name ?? '').trim();
       if (!name) continue;
       const key = `${stereo}::${name.toLowerCase()}`;
-      if (seen.has(key)) continue;
+      if (seen.has(key)) continue; // per-agent dedup (DQ5)
       seen.add(key);
-      const capId = emitCapabilityComponent(out, name, subsystemId, stereo, layout);
-      const edgeId = emitComponentDependency(out, agentCompId, capId, CAPABILITY_EDGE[stereo]);
-      // DQ7 — cross-diagram lineage faked to the linking BPMNTask id, keeping
-      // the sidecar's "derived → BPMN element" invariant. True AgentTool-element
-      // lineage is deferred.
-      elementMapping[capId] = task.id;
-      elementMapping[edgeId] = task.id;
+      out.push({ agentCompId, stereo, name, taskId: task.id });
     }
+  }
+}
+
+// 16-FU2 — grouped-capability layout. Pool every collected capability into
+// up to two shared Subsystems ("Skills" / "Tools"), deduped GLOBALLY by
+// name within its kind (D1), then draw one edge per (agent, capability).
+// Mirrors the worked example (unp-component.drawio): agents on the left,
+// capability zones on the right, has/uses edges crossing in.
+function emitGroupedCapabilities(
+  out: UMLModel,
+  collected: CollectedCapability[],
+  layout: LayoutCursor,
+  elementMapping: ElementLineageMap,
+  topY: number,
+): void {
+  if (collected.length === 0) return;
+
+  // Ordered unique names per kind + the first task that contributed each
+  // (first-wins lineage, D4 — mirrors EdgeDedup's representative rule).
+  const uniqueByKind: Record<'tool' | 'skill', Array<{ name: string; taskId: string }>> = { tool: [], skill: [] };
+  for (const c of collected) {
+    const list = uniqueByKind[c.stereo];
+    if (list.some((u) => u.name.toLowerCase() === c.name.toLowerCase())) continue;
+    list.push({ name: c.name, taskId: c.taskId });
+  }
+
+  // Geometry: zones to the RIGHT of the fixed-width pool column (D3),
+  // top-aligned with the first Subsystem.
+  const PAD = 20;
+  const HEADER = 40;
+  const boxW = CAP_W + 2 * PAD;
+  let boxX = layout.subsystemX + 640 + 80; // clears the 640-wide pool column
+
+  const capIdByKey = new Map<string, string>();
+  const emitZone = (stereo: 'tool' | 'skill', title: string): void => {
+    const list = uniqueByKind[stereo];
+    if (list.length === 0) return; // tools-only diagrams show just the Tools zone
+    const boxH = HEADER + list.length * (CAP_H + CAP_GAP) - CAP_GAP + PAD;
+    const zoneId = newId();
+    out.elements[zoneId] = {
+      id: zoneId,
+      name: title,
+      type: 'Subsystem',
+      owner: null,
+      bounds: { x: boxX, y: topY, width: boxW, height: boxH },
+      stereotype: 'subsystem',
+      displayStereotype: true,
+    } as unknown as UMLElement;
+    list.forEach((entry, i) => {
+      const capId = newId();
+      out.elements[capId] = {
+        id: capId,
+        name: entry.name,
+        type: 'Component',
+        owner: zoneId,
+        bounds: { x: boxX + PAD, y: topY + HEADER + i * (CAP_H + CAP_GAP), width: CAP_W, height: CAP_H },
+        stereotype: stereo,
+        displayStereotype: true,
+      } as unknown as UMLElement;
+      capIdByKey.set(`${stereo}::${entry.name.toLowerCase()}`, capId);
+      elementMapping[capId] = entry.taskId; // D4 — first-wins
+    });
+    boxX += boxW + 40;
+  };
+  emitZone('skill', 'Skills');
+  emitZone('tool', 'Tools');
+
+  // One edge per (agent, capability). `collected` is already per-agent
+  // deduped, so (agentCompId, capId) pairs are unique — no extra dedup.
+  for (const c of collected) {
+    const capId = capIdByKey.get(`${c.stereo}::${c.name.toLowerCase()}`);
+    if (!capId) continue;
+    const edgeId = emitComponentDependency(out, c.agentCompId, capId, CAPABILITY_EDGE[c.stereo]);
+    elementMapping[edgeId] = c.taskId;
   }
 }
 
@@ -393,8 +494,6 @@ interface LayoutCursor {
   skillRightOfLaneY: number;
   externalRowY: number;
   externalX: number;
-  capabilityRowX: number; // 16 — running x for the capability row
-  capabilityRowY: number; // 16 — y of the capability row (below lanes)
   currentSubsystemBounds: { x: number; y: number; width: number; height: number } | null;
   endSubsystem(): void;
 }
@@ -410,8 +509,6 @@ function makeLayoutCursor(): LayoutCursor {
     skillRightOfLaneY: 0,
     externalRowY: 0,
     externalX: -320,
-    capabilityRowX: 0,
-    capabilityRowY: 0,
     currentSubsystemBounds: null,
     endSubsystem(this: LayoutCursor) {
       if (this.currentSubsystemBounds) {
@@ -431,8 +528,6 @@ function emitSubsystem(out: UMLModel, pool: UMLElement, layout: LayoutCursor): s
   layout.currentSubsystemBounds = bounds;
   layout.laneInSubsystemX = bounds.x + 24;
   layout.skillRightOfLaneY = bounds.y + 40;
-  layout.capabilityRowX = bounds.x + 24; // 16 — capability row, left edge
-  layout.capabilityRowY = bounds.y + 40 + 80 + 24; // 16 — below the lane row
   out.elements[id] = {
     id,
     name: pool.name || 'Swarm',
@@ -459,37 +554,6 @@ function emitLaneComponent(out: UMLModel, lane: UMLElement, subsystemId: string,
   out.elements[id] = {
     id,
     name: lane.name || (isAgentic ? 'Agent' : 'Actor'),
-    type: 'Component',
-    owner: subsystemId,
-    bounds,
-    stereotype,
-    displayStereotype: true,
-  } as unknown as UMLElement;
-  return id;
-}
-
-// 16: a tool/skill Component, owned by the Subsystem (inside the swarm
-// boundary), placed in a row below the lane Components. Grows the
-// Subsystem bounds to fit (same-ref trick — emitSubsystem stores the same
-// bounds object on both layout.currentSubsystemBounds and the element).
-function emitCapabilityComponent(
-  out: UMLModel,
-  name: string,
-  subsystemId: string,
-  stereotype: 'tool' | 'skill',
-  layout: LayoutCursor,
-): string {
-  const id = newId();
-  const bounds = { x: layout.capabilityRowX, y: layout.capabilityRowY, width: 140, height: 70 };
-  layout.capabilityRowX += bounds.width + 24;
-  if (layout.currentSubsystemBounds) {
-    const b = layout.currentSubsystemBounds;
-    b.height = Math.max(b.height, bounds.y + bounds.height + 24 - b.y);
-    b.width = Math.max(b.width, bounds.x + bounds.width + 24 - b.x);
-  }
-  out.elements[id] = {
-    id,
-    name,
     type: 'Component',
     owner: subsystemId,
     bounds,
