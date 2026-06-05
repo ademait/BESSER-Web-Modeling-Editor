@@ -24,7 +24,16 @@ export type DerivationWarning =
   | { kind: 'multi-hop-gateway'; sourceTaskId: string; targetGatewayId: string }
   | { kind: 'flow-skipped-non-agentic-source'; flowId: string }
   | { kind: 'dropped-task-in-non-agentic-lane'; taskId: string }
-  | { kind: 'inferred-external-component'; messageFlowId: string };
+  | { kind: 'inferred-external-component'; messageFlowId: string }
+  // 16-FU3 (P2) — an agentic lane resolves to more than
+  // CAPABILITY_WARN_THRESHOLD distinct capabilities; its has/uses edges
+  // fan out and the grouped diagram gets busy. Advisory only — every
+  // capability is still emitted. `count` is the deduped total (DQ5).
+  | { kind: 'capability-heavy-agent'; laneId: string; count: number }
+  // 16-FU3 (P2, per-zone) — a single grouped zone (Skills or Tools) holds
+  // more than CAPABILITY_ZONE_WARN_THRESHOLD unique capability boxes; the
+  // zone is crowded even if no single agent is heavy. Advisory only.
+  | { kind: 'capability-heavy-zone'; zone: string; count: number };
 
 /**
  * Outcome of `componentModelToDeploymentModel`.

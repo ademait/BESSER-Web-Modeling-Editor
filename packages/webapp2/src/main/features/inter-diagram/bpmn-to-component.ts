@@ -87,7 +87,7 @@ export function bpmnModelToComponentModel(bpmn: UMLModel, opts?: DerivationOpts)
         // tasks' linked Agent-diagram tools/skills so Phase 1.5 can pool
         // them into shared Skills/Tools Subsystems (the sole capability
         // layout; per-agent columns retired 2026-06-05).
-        collectLaneCapabilities(bpmn, lane, laneCompId, opts.agentDiagramsById, collectedCaps);
+        collectLaneCapabilities(bpmn, lane, laneCompId, opts.agentDiagramsById, collectedCaps, warnings);
       }
     }
     layout.endSubsystem();
@@ -97,7 +97,7 @@ export function bpmnModelToComponentModel(bpmn: UMLModel, opts?: DerivationOpts)
   // collected tools/skills into shared "Skills"/"Tools" Subsystems
   // (global dedup by name, D1), placed to the right of the swarm.
   if (opts?.includeCapabilities) {
-    emitGroupedCapabilities(out, collectedCaps, layout, elementMapping, capabilitiesTopY);
+    emitGroupedCapabilities(out, collectedCaps, layout, elementMapping, capabilitiesTopY, warnings);
   }
 
   // Phase 2: lane-crossing sequence flows → ComponentDependency
@@ -151,6 +151,12 @@ export function bpmnModelToComponentModel(bpmn: UMLModel, opts?: DerivationOpts)
     if (!tgtTarget) continue;
     const edgeId = emitComponentDependency(out, srcTarget, tgtTarget, 'delegates');
     elementMapping[edgeId] = mf.id; // 06-v2 — ComponentDependency ← source BPMNFlow (message)
+  }
+
+  // 16-FU3-FU2 — grouped zones break the origin-centered layout; re-center so
+  // the diagram opens on-screen. Gated: plain output stays byte-for-byte.
+  if (opts?.includeCapabilities && collectedCaps.length > 0) {
+    recenterModelOnOrigin(out);
   }
 
   return { ok: true, model: out, warnings, elementMapping };
@@ -340,6 +346,18 @@ const CAP_W = 140; // capability Component width
 const CAP_H = 70; // capability Component height
 const CAP_GAP = 16; // vertical gap between stacked capabilities
 
+// 16-FU3 (P2, D2) — an agentic lane wired to MORE than this many distinct
+// capabilities (tools + skills, deduped) trips a `capability-heavy-agent`
+// advisory: its has/uses edges fan out and the grouped diagram reads busy.
+// Warn-only (D1) — nothing is truncated.
+const CAPABILITY_WARN_THRESHOLD = 10;
+
+// 16-FU3 (per-zone) — a grouped Skills/Tools zone holding MORE than this
+// many unique boxes trips a `capability-heavy-zone` advisory: the zone is
+// crowded even when no single agent crosses the per-agent threshold (the
+// "several moderate agents" case from manual testing). Warn-only.
+const CAPABILITY_ZONE_WARN_THRESHOLD = 12;
+
 // Agent-diagram element type → Component stereotype. `agentic.py` Skill /
 // Tool (CAPABILITY_TOKENS). Drop the AgentSkill row for tools-only.
 const CAPABILITY_STEREOTYPE: Record<string, 'tool' | 'skill'> = {
@@ -374,12 +392,17 @@ type CollectedCapability = {
 // emitting (zone box height needs the global count). A dangling ref
 // (deleted Agent diagram) is skipped silently — the popup already surfaces
 // dangling refs (guide 08/11).
+// 16-FU3 (P2, D2/D4): `seen.size` after the walk is the agent's deduped
+// capability total — which is exactly its has/uses edge count into the
+// zones. If it exceeds CAPABILITY_WARN_THRESHOLD, push an advisory
+// `capability-heavy-agent` warning (nothing is dropped — D1).
 function collectLaneCapabilities(
   bpmn: UMLModel,
   lane: UMLElement,
   agentCompId: string,
   agentDiagramsById: Map<string, UMLModel>,
   out: CollectedCapability[],
+  warnings: DerivationWarning[],
 ): void {
   const seen = new Set<string>();
   for (const task of tasksInLane(bpmn, lane.id)) {
@@ -397,6 +420,9 @@ function collectLaneCapabilities(
       out.push({ agentCompId, stereo, name, taskId: task.id });
     }
   }
+  if (seen.size > CAPABILITY_WARN_THRESHOLD) {
+    warnings.push({ kind: 'capability-heavy-agent', laneId: lane.id, count: seen.size });
+  }
 }
 
 // 16-FU2 — grouped-capability layout. Pool every collected capability into
@@ -410,6 +436,7 @@ function emitGroupedCapabilities(
   layout: LayoutCursor,
   elementMapping: ElementLineageMap,
   topY: number,
+  warnings: DerivationWarning[],
 ): void {
   if (collected.length === 0) return;
 
@@ -433,6 +460,9 @@ function emitGroupedCapabilities(
   const emitZone = (stereo: 'tool' | 'skill', title: string): void => {
     const list = uniqueByKind[stereo];
     if (list.length === 0) return; // tools-only diagrams show just the Tools zone
+    if (list.length > CAPABILITY_ZONE_WARN_THRESHOLD) {
+      warnings.push({ kind: 'capability-heavy-zone', zone: title, count: list.length });
+    }
     const boxH = HEADER + list.length * (CAP_H + CAP_GAP) - CAP_GAP + PAD;
     const zoneId = newId();
     out.elements[zoneId] = {
@@ -608,6 +638,48 @@ function emitComponentDependency(out: UMLModel, sourceId: string, targetId: stri
     stereotype,
   } as unknown as UMLRelationship;
   return id;
+}
+
+// 16-FU3-FU2 (scroll fix): the editor sizes the canvas symmetrically around
+// the origin (uml-diagram.ts) and the scroll container opens at top-left, so
+// emitted content must straddle (0,0) or the diagram opens scrolled into empty
+// space. A tall grouped Skills/Tools zone pushes the content bbox far below
+// origin; translate the whole model so its bbox midpoint is (0,0), restoring
+// the makeLayoutCursor design intent. Idempotent for already-centered content
+// (single-pool swarm → dx=dy=0). Translates relationships (bounds + path) by
+// the same delta so edges stay attached.
+function recenterModelOnOrigin(out: UMLModel): void {
+  const els = Object.values(out.elements);
+  if (els.length === 0) return;
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
+  for (const e of els) {
+    const b = (e as unknown as { bounds: { x: number; y: number; width: number; height: number } }).bounds;
+    minX = Math.min(minX, b.x);
+    minY = Math.min(minY, b.y);
+    maxX = Math.max(maxX, b.x + b.width);
+    maxY = Math.max(maxY, b.y + b.height);
+  }
+  const dx = -(minX + maxX) / 2;
+  const dy = -(minY + maxY) / 2;
+  if (dx === 0 && dy === 0) return;
+  for (const e of els) {
+    const b = (e as unknown as { bounds: { x: number; y: number } }).bounds;
+    b.x += dx;
+    b.y += dy;
+  }
+  for (const r of Object.values(out.relationships)) {
+    const rel = r as unknown as { bounds: { x: number; y: number }; path?: Array<{ x: number; y: number }> };
+    rel.bounds.x += dx;
+    rel.bounds.y += dy;
+    if (rel.path)
+      for (const p of rel.path) {
+        p.x += dx;
+        p.y += dy;
+      }
+  }
 }
 
 // ── Edge de-duplication (guide § 1 D-D4) ────────────────────────────

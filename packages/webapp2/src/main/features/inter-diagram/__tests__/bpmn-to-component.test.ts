@@ -503,6 +503,207 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
     });
   });
 
+  describe('16-FU3 — capability-heavy-agent warning (P2)', () => {
+    // One agentic worker lane → one task → an Agent diagram with `n` tools.
+    const makeBpmn = () =>
+      ({
+        version: '3.0.0',
+        type: 'BPMNDiagram',
+        size: { width: 800, height: 600 },
+        elements: {
+          P1: {
+            id: 'P1',
+            type: 'BPMNPool',
+            name: 'Swarm',
+            owner: null,
+            bounds: { x: 0, y: 0, width: 400, height: 200 },
+          },
+          L1: {
+            id: 'L1',
+            type: 'BPMNSwimlane',
+            name: 'Researcher',
+            owner: 'P1',
+            isAgentic: true,
+            role: 'worker',
+            bounds: { x: 20, y: 0, width: 380, height: 200 },
+          },
+          T1: {
+            id: 'T1',
+            type: 'BPMNTask',
+            name: 'Search',
+            owner: 'L1',
+            agentDiagramRef: 'ad1',
+            bounds: { x: 40, y: 20, width: 100, height: 60 },
+          },
+        },
+        relationships: {},
+        interactive: { elements: {}, relationships: {} },
+        assessments: {},
+      }) as unknown as UMLModel;
+
+    const cap = (type: string, name: string, id: string) => ({
+      id,
+      type,
+      name,
+      owner: null,
+      bounds: { x: 0, y: 0, width: 1, height: 1 },
+    });
+    const agentModelWithTools = (n: number) =>
+      ({
+        version: '3.0.0',
+        type: 'AgentDiagram',
+        size: { width: 100, height: 100 },
+        elements: Object.fromEntries(
+          Array.from({ length: n }, (_, i) => {
+            const e = cap('AgentTool', `Tool${i}`, `t${i}`);
+            return [e.id, e];
+          }),
+        ),
+        relationships: {},
+        interactive: { elements: {}, relationships: {} },
+        assessments: {},
+      }) as unknown as UMLModel;
+
+    const grouped = { includeCapabilities: true } as const;
+    const heavyWarnings = (m: { warnings: Array<{ kind: string }> }) =>
+      m.warnings.filter((w) => w.kind === 'capability-heavy-agent');
+
+    it('T-H1 — > threshold (11 tools) trips one capability-heavy-agent warning', () => {
+      const byId = new Map([['ad1', agentModelWithTools(11)]]);
+      const r = bpmnModelToComponentModel(makeBpmn(), { agentDiagramsById: byId, ...grouped });
+      if (!r.ok) throw new Error('expected ok');
+      const heavy = heavyWarnings(r);
+      expect(heavy).toHaveLength(1);
+      expect(heavy[0]).toMatchObject({ kind: 'capability-heavy-agent', laneId: 'L1', count: 11 });
+      // D1 — nothing truncated: all 11 tool Components still emitted.
+      expect(
+        Object.values(r.model.elements).filter((e) => (e as { stereotype?: string }).stereotype === 'tool'),
+      ).toHaveLength(11);
+    });
+
+    it('T-H2 — == threshold (10 tools) does NOT warn (boundary is strict >)', () => {
+      const byId = new Map([['ad1', agentModelWithTools(10)]]);
+      const r = bpmnModelToComponentModel(makeBpmn(), { agentDiagramsById: byId, ...grouped });
+      if (!r.ok) throw new Error('expected ok');
+      expect(heavyWarnings(r)).toHaveLength(0);
+    });
+
+    it('T-H3 — plain mode (includeCapabilities off) never warns', () => {
+      const byId = new Map([['ad1', agentModelWithTools(11)]]);
+      const r = bpmnModelToComponentModel(makeBpmn(), { agentDiagramsById: byId });
+      if (!r.ok) throw new Error('expected ok');
+      expect(heavyWarnings(r)).toHaveLength(0);
+    });
+
+    const zoneWarnings = (m: { warnings: Array<{ kind: string }> }) =>
+      m.warnings.filter((w) => w.kind === 'capability-heavy-zone');
+
+    it('T-H4 — > zone threshold (13 unique tools across agents) trips capability-heavy-zone', () => {
+      // 7 + 6 = 13 distinct tool names, split 7/6 across two lanes so NO
+      // single agent exceeds the per-agent threshold of 10 (the MH2 case).
+      const adA = agentModelWithTools(7); // Tool0..Tool6
+      const adB = {
+        version: '3.0.0',
+        type: 'AgentDiagram',
+        size: { width: 100, height: 100 },
+        elements: Object.fromEntries(
+          Array.from({ length: 6 }, (_, i) => {
+            const e = cap('AgentTool', `Other${i}`, `o${i}`);
+            return [e.id, e];
+          }),
+        ),
+        relationships: {},
+        interactive: { elements: {}, relationships: {} },
+        assessments: {},
+      } as unknown as UMLModel;
+      const bpmn = {
+        version: '3.0.0',
+        type: 'BPMNDiagram',
+        size: { width: 800, height: 600 },
+        elements: {
+          P1: {
+            id: 'P1',
+            type: 'BPMNPool',
+            name: 'Swarm',
+            owner: null,
+            bounds: { x: 0, y: 0, width: 400, height: 400 },
+          },
+          L1: {
+            id: 'L1',
+            type: 'BPMNSwimlane',
+            name: 'A',
+            owner: 'P1',
+            isAgentic: true,
+            role: 'worker',
+            bounds: { x: 20, y: 0, width: 380, height: 200 },
+          },
+          T1: {
+            id: 'T1',
+            type: 'BPMNTask',
+            name: 'a',
+            owner: 'L1',
+            agentDiagramRef: 'adA',
+            bounds: { x: 40, y: 20, width: 100, height: 60 },
+          },
+          L2: {
+            id: 'L2',
+            type: 'BPMNSwimlane',
+            name: 'B',
+            owner: 'P1',
+            isAgentic: true,
+            role: 'worker',
+            bounds: { x: 20, y: 200, width: 380, height: 200 },
+          },
+          T2: {
+            id: 'T2',
+            type: 'BPMNTask',
+            name: 'b',
+            owner: 'L2',
+            agentDiagramRef: 'adB',
+            bounds: { x: 40, y: 220, width: 100, height: 60 },
+          },
+        },
+        relationships: {},
+        interactive: { elements: {}, relationships: {} },
+        assessments: {},
+      } as unknown as UMLModel;
+      const byId = new Map([
+        ['adA', adA],
+        ['adB', adB],
+      ]);
+      const r = bpmnModelToComponentModel(bpmn, { agentDiagramsById: byId, ...grouped });
+      if (!r.ok) throw new Error('expected ok');
+      expect(heavyWarnings(r)).toHaveLength(0); // no single heavy agent (7, 6)
+      const zone = zoneWarnings(r);
+      expect(zone).toHaveLength(1);
+      expect(zone[0]).toMatchObject({ kind: 'capability-heavy-zone', zone: 'Tools', count: 13 });
+    });
+
+    it('T-H5 — == zone threshold (12) does NOT warn (strict >)', () => {
+      const byId = new Map([['ad1', agentModelWithTools(12)]]);
+      const r = bpmnModelToComponentModel(makeBpmn(), { agentDiagramsById: byId, ...grouped });
+      if (!r.ok) throw new Error('expected ok');
+      expect(zoneWarnings(r)).toHaveLength(0);
+      // a single 12-tool agent DOES trip the per-agent warning — that's > 10
+      expect(heavyWarnings(r)).toHaveLength(1);
+    });
+
+    it('T-H6 — grouped output is re-centered on the origin (scroll fix)', () => {
+      const byId = new Map([['ad1', agentModelWithTools(12)]]); // tall Tools zone
+      const r = bpmnModelToComponentModel(makeBpmn(), { agentDiagramsById: byId, ...grouped });
+      if (!r.ok) throw new Error('expected ok');
+      const bs = Object.values(r.model.elements).map(
+        (e) => (e as unknown as { bounds: { x: number; y: number; width: number; height: number } }).bounds,
+      );
+      const minX = Math.min(...bs.map((b) => b.x));
+      const maxX = Math.max(...bs.map((b) => b.x + b.width));
+      const minY = Math.min(...bs.map((b) => b.y));
+      const maxY = Math.max(...bs.map((b) => b.y + b.height));
+      expect(Math.abs((minX + maxX) / 2)).toBeLessThanOrEqual(0.5);
+      expect(Math.abs((minY + maxY) / 2)).toBeLessThanOrEqual(0.5);
+    });
+  });
+
   describe('06-v2 — element-mapping output', () => {
     it('maps derived Subsystem → source Pool, Component → source Lane, ComponentDependency → source BPMNFlow', () => {
       const r = bpmnModelToComponentModel(minimalAgentic as unknown as UMLModel);
