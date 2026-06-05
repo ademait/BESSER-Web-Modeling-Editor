@@ -130,6 +130,43 @@ export function componentModelToDeploymentModel(component: UMLModel): Deployment
     elementMapping[edgeId] = rel.id; // 06-v2 — DeploymentAssociation ← source ComponentDependency
   }
 
+  // 16-FU8 — center the generated diagram in the user's view. The layout
+  // cursor stacks Nodes rightward from x=-320, so the content bbox drifts
+  // right of origin; the editor opens its canvas centered on (0,0), so the
+  // diagram would otherwise open scrolled off-screen. Translate every element
+  // + edge so the bbox midpoint lands at the origin.
+  const placed = Object.values(out.elements);
+  if (placed.length > 0) {
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
+    for (const e of placed) {
+      const b = (e as unknown as { bounds: { x: number; y: number; width: number; height: number } }).bounds;
+      minX = Math.min(minX, b.x);
+      minY = Math.min(minY, b.y);
+      maxX = Math.max(maxX, b.x + b.width);
+      maxY = Math.max(maxY, b.y + b.height);
+    }
+    const dx = -(minX + maxX) / 2;
+    const dy = -(minY + maxY) / 2;
+    for (const e of placed) {
+      const b = (e as unknown as { bounds: { x: number; y: number } }).bounds;
+      b.x += dx;
+      b.y += dy;
+    }
+    for (const r of Object.values(out.relationships)) {
+      const rel = r as unknown as { bounds: { x: number; y: number }; path?: Array<{ x: number; y: number }> };
+      rel.bounds.x += dx;
+      rel.bounds.y += dy;
+      if (rel.path)
+        for (const p of rel.path) {
+          p.x += dx;
+          p.y += dy;
+        }
+    }
+  }
+
   return { ok: true, model: out, warnings, elementMapping };
 }
 
