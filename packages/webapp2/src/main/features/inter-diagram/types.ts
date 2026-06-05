@@ -33,7 +33,15 @@ export type DerivationWarning =
   // 16-FU3 (P2, per-zone) — a single grouped zone (Skills or Tools) holds
   // more than CAPABILITY_ZONE_WARN_THRESHOLD unique capability boxes; the
   // zone is crowded even if no single agent is heavy. Advisory only.
-  | { kind: 'capability-heavy-zone'; zone: string; count: number };
+  | { kind: 'capability-heavy-zone'; zone: string; count: number }
+  // 16-FU4 (P3) — a task in an agentic lane links an Agent diagram that is
+  // not in the project (deleted, or a cross-project paste with a dangling
+  // ref — guide 08/11). Its tools/skills are skipped silently; this surfaces
+  // the skip so the user learns why the capabilities didn't appear.
+  // Warn-only — nothing about the skip changes. `taskName` pinpoints the
+  // offending BPMN task (the dead ref UUID is not surfaced — it resolves to
+  // nothing the user recognises); `taskId` is the stable console id.
+  | { kind: 'dangling-agent-ref'; taskId: string; taskName: string };
 
 /**
  * Outcome of `componentModelToDeploymentModel`.

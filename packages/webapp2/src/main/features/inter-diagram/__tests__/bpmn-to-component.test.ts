@@ -704,6 +704,109 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
     });
   });
 
+  describe('16-FU4 — dangling agentDiagramRef warning (P3)', () => {
+    // One agentic worker lane → one task. `taskRef` is the ref under test;
+    // the agent map below only contains 'ad1', so any other ref dangles.
+    const makeBpmn = (taskRef: string) =>
+      ({
+        version: '3.0.0',
+        type: 'BPMNDiagram',
+        size: { width: 800, height: 600 },
+        elements: {
+          P1: {
+            id: 'P1',
+            type: 'BPMNPool',
+            name: 'Swarm',
+            owner: null,
+            bounds: { x: 0, y: 0, width: 400, height: 200 },
+          },
+          L1: {
+            id: 'L1',
+            type: 'BPMNSwimlane',
+            name: 'Researcher',
+            owner: 'P1',
+            isAgentic: true,
+            role: 'worker',
+            bounds: { x: 20, y: 0, width: 380, height: 200 },
+          },
+          T1: {
+            id: 'T1',
+            type: 'BPMNTask',
+            name: 'Search',
+            owner: 'L1',
+            agentDiagramRef: taskRef,
+            bounds: { x: 40, y: 20, width: 100, height: 60 },
+          },
+        },
+        relationships: {},
+        interactive: { elements: {}, relationships: {} },
+        assessments: {},
+      }) as unknown as UMLModel;
+
+    // BPMN whose single task carries NO agentDiagramRef at all.
+    const makeBpmnNoRef = () => {
+      const m = makeBpmn('x') as unknown as { elements: Record<string, { agentDiagramRef?: string }> };
+      delete m.elements.T1.agentDiagramRef;
+      return m as unknown as UMLModel;
+    };
+
+    const agentModel = {
+      version: '3.0.0',
+      type: 'AgentDiagram',
+      size: { width: 100, height: 100 },
+      elements: {
+        t1: {
+          id: 't1',
+          type: 'AgentTool',
+          name: 'WebSearch',
+          owner: null,
+          bounds: { x: 0, y: 0, width: 1, height: 1 },
+        },
+      },
+      relationships: {},
+      interactive: { elements: {}, relationships: {} },
+      assessments: {},
+    } as unknown as UMLModel;
+    const byId = new Map([['ad1', agentModel]]);
+
+    const danglingWarnings = (m: { warnings: Array<{ kind: string }> }) =>
+      m.warnings.filter((w) => w.kind === 'dangling-agent-ref');
+    const capStereos = (m: UMLModel) =>
+      Object.values(m.elements)
+        .map((e) => (e as unknown as { stereotype?: string }).stereotype)
+        .filter((s) => s === 'tool' || s === 'skill');
+
+    it('T-D1 — dangling ref in capability mode → one dangling-agent-ref warning, no caps', () => {
+      const r = bpmnModelToComponentModel(makeBpmn('gone'), { agentDiagramsById: byId, includeCapabilities: true });
+      if (!r.ok) throw new Error('expected ok');
+      const dangling = danglingWarnings(r);
+      expect(dangling).toHaveLength(1);
+      expect(dangling[0]).toMatchObject({ kind: 'dangling-agent-ref', taskId: 'T1', taskName: 'Search' });
+      // warn-only: still no capability Components (behaviour unchanged).
+      expect(capStereos(r.model)).toHaveLength(0);
+    });
+
+    it('T-D2 — valid ref → no dangling-agent-ref warning', () => {
+      const r = bpmnModelToComponentModel(makeBpmn('ad1'), { agentDiagramsById: byId, includeCapabilities: true });
+      if (!r.ok) throw new Error('expected ok');
+      expect(danglingWarnings(r)).toHaveLength(0);
+      // (and the tool IS emitted — proves the valid path is untouched)
+      expect(capStereos(r.model)).toHaveLength(1);
+    });
+
+    it('T-D3 — plain mode (includeCapabilities off) never warns, even with a dangling ref', () => {
+      const r = bpmnModelToComponentModel(makeBpmn('gone'), { agentDiagramsById: byId });
+      if (!r.ok) throw new Error('expected ok');
+      expect(danglingWarnings(r)).toHaveLength(0);
+    });
+
+    it('T-D4 — task with no agentDiagramRef is not "dangling" (no warning)', () => {
+      const r = bpmnModelToComponentModel(makeBpmnNoRef(), { agentDiagramsById: byId, includeCapabilities: true });
+      if (!r.ok) throw new Error('expected ok');
+      expect(danglingWarnings(r)).toHaveLength(0);
+    });
+  });
+
   describe('06-v2 — element-mapping output', () => {
     it('maps derived Subsystem → source Pool, Component → source Lane, ComponentDependency → source BPMNFlow', () => {
       const r = bpmnModelToComponentModel(minimalAgentic as unknown as UMLModel);

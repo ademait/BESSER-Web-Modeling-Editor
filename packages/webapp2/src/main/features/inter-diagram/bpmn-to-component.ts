@@ -409,7 +409,15 @@ function collectLaneCapabilities(
     const ref = (task as unknown as { agentDiagramRef?: string }).agentDiagramRef;
     if (!ref) continue;
     const agentModel = agentDiagramsById.get(ref);
-    if (!agentModel) continue; // dangling ref → skip
+    if (!agentModel) {
+      // 16-FU4 (P3, D1/D2): the task links an Agent diagram that is no
+      // longer in the project (deleted, or a cross-project paste — guide
+      // 08/11). The skip is still silent for the model; surface a warning
+      // (carrying the task NAME — the dead ref UUID is useless to the user)
+      // so they learn why these tools didn't appear. Warn-only.
+      warnings.push({ kind: 'dangling-agent-ref', taskId: task.id, taskName: task.name ?? '' });
+      continue; // dangling ref → skip (behaviour unchanged)
+    }
     for (const cap of capabilityElements(agentModel)) {
       const stereo = CAPABILITY_STEREOTYPE[cap.type];
       const name = (cap.name ?? '').trim();
