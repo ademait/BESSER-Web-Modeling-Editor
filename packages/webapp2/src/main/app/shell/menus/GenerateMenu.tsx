@@ -92,10 +92,15 @@ export const GenerateMenu: React.FC<GenerateMenuProps> = ({
         {activeDiagramType === 'BPMN' && onDeriveComponentDiagram && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => onDeriveComponentDiagram()}>Generate Component diagram</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onDeriveComponentDiagram({ includeTools: true })}>
-              Generate Component diagram (with agent tools)
-            </DropdownMenuItem>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>Generate Component diagram</DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuItem onClick={() => onDeriveComponentDiagram()}>Structure only</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onDeriveComponentDiagram({ includeTools: true })}>
+                  With tools &amp; skills
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
           </>
         )}
         {activeDiagramType === 'ComponentDiagram' && onDeriveDeploymentDiagram && (
