@@ -25,10 +25,17 @@ export type DerivationOpts = {
    *  "Tools" Subsystems (16-FU2), deduped globally by name, with one
    *  has/uses edge per (agent, capability). */
   includeCapabilities?: boolean;
+  /** 21 — the source BPMN diagram's ProjectDiagram id. When set, each
+   *  agentic lane-Component is stamped with `processModelRefs = [id]`
+   *  (BESSER `AgenticComponent.process_model_refs`, diagram-grained,
+   *  memo 17 § 5). Omitted → no refs emitted (back-compatible). */
+  sourceDiagramId?: string;
 };
 
 export function bpmnModelToComponentModel(bpmn: UMLModel, opts?: DerivationOpts): DerivationResult {
   const warnings: DerivationWarning[] = [];
+  // 21 — diagram-grained ref carrier; stamped onto agentic lane-Components.
+  const sourceDiagramId = opts?.sourceDiagramId;
 
   if (bpmn.type !== UMLDiagramType.BPMN) {
     return { ok: false, reason: 'not-a-bpmn-diagram', warnings };
@@ -73,7 +80,7 @@ export function bpmnModelToComponentModel(bpmn: UMLModel, opts?: DerivationOpts)
     elementMapping[subsystemId] = pool.id; // 06-v2 — Subsystem ← source Pool
     subsystemIdByPoolId.set(pool.id, subsystemId); // 14-FU2
     for (const lane of lanes) {
-      const laneCompId = emitLaneComponent(out, lane, subsystemId, layout);
+      const laneCompId = emitLaneComponent(out, lane, subsystemId, layout, sourceDiagramId);
       componentIdByLaneId.set(lane.id, laneCompId);
       elementMapping[laneCompId] = lane.id; // 06-v2 — Component ← source Lane
 
@@ -578,7 +585,13 @@ function emitSubsystem(out: UMLModel, pool: UMLElement, layout: LayoutCursor): s
   return id;
 }
 
-function emitLaneComponent(out: UMLModel, lane: UMLElement, subsystemId: string, layout: LayoutCursor): string {
+function emitLaneComponent(
+  out: UMLModel,
+  lane: UMLElement,
+  subsystemId: string,
+  layout: LayoutCursor,
+  sourceDiagramId?: string,
+): string {
   const id = newId();
   const isAgentic = (lane as unknown as { isAgentic?: boolean }).isAgentic === true;
   const stereotype = isAgentic ? 'solution' : nonAgenticStereotype(lane.name);
@@ -597,6 +610,12 @@ function emitLaneComponent(out: UMLModel, lane: UMLElement, subsystemId: string,
     bounds,
     stereotype,
     displayStereotype: true,
+    // 21 — BESSER `AgenticComponent.process_model_refs` (diagram-grained,
+    // memo 17 § 5): the source BPMN diagram this agent participates in.
+    // Only agentic lanes are agents; only set when the caller supplied the
+    // diagram id. Same value as derivedFrom.sourceDiagramId but a distinct
+    // structural ref (lineage is stripped from the payload in slice 1).
+    ...(isAgentic && sourceDiagramId ? { processModelRefs: [sourceDiagramId] } : {}),
   } as unknown as UMLElement;
   return id;
 }

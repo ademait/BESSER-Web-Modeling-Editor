@@ -24,6 +24,7 @@ export class UMLComponentComponent extends UMLComponent {
       stereotype: this.stereotype,
       displayStereotype: this.displayStereotype,
       realizes: this.realizes,
+      processModelRefs: this.processModelRefs,
     };
   }
 
@@ -38,5 +39,6 @@ export class UMLComponentComponent extends UMLComponent {
     this.stereotype = values.stereotype;
     this.displayStereotype = values.displayStereotype;
     this.realizes = values.realizes ?? [];
+    this.processModelRefs = values.processModelRefs ?? [];
   }
 }

@@ -105,3 +105,32 @@ describe('20 — Deployment Artifact manifests survives serialize round-trip', (
     expect(artifact.manifests).toEqual([]);
   });
 });
+
+describe('21 — Component processModelRefs survives serialize round-trip', () => {
+  it('UMLComponentComponent.serialize() emits processModelRefs', () => {
+    const component = new UMLComponentComponent({ name: 'Planner', stereotype: 'solution' });
+    component.processModelRefs = ['bpmn-1', 'bpmn-2'];
+
+    const serialized = component.serialize();
+
+    expect(serialized.processModelRefs).toEqual(['bpmn-1', 'bpmn-2']);
+  });
+
+  it('UMLComponentComponent.deserialize() restores processModelRefs', () => {
+    const original = new UMLComponentComponent({ name: 'Planner', stereotype: 'solution' });
+    original.processModelRefs = ['bpmn-1', 'bpmn-2'];
+
+    const restored = new UMLComponentComponent();
+    restored.deserialize(original.serialize());
+
+    expect(restored.processModelRefs).toEqual(['bpmn-1', 'bpmn-2']);
+  });
+
+  it('UMLComponentComponent.deserialize() defaults processModelRefs to [] when the key is absent (legacy back-compat)', () => {
+    const component = new UMLComponentComponent();
+    // Simulate a pre-21 serialized Component with no processModelRefs key.
+    component.deserialize({ id: 'c1', name: 'X', type: 'Component', stereotype: 'component' } as never);
+
+    expect(component.processModelRefs).toEqual([]);
+  });
+});

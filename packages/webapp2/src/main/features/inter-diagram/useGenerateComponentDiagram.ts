@@ -45,6 +45,9 @@ export function useGenerateComponentDiagram(): (opts?: { includeTools?: boolean 
       const result = bpmnModelToComponentModel(activeDiagram.model as UMLModel, {
         agentDiagramsById,
         includeCapabilities: opts?.includeTools === true,
+        // 21 — diagram-grained process ref: the source BPMN diagram id
+        // (same id recorded in derivedFrom below, different mechanism).
+        sourceDiagramId: activeDiagram.id,
       });
       if (!result.ok) return result;
 

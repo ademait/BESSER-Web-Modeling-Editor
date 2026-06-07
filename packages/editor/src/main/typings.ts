@@ -247,6 +247,7 @@ export type UMLComponentComponent = UMLElement & {
   stereotype: string;
   displayStereotype: boolean;
   realizes?: string[];
+  processModelRefs?: string[];
 };
 
 export type UMLPetriNetPlace = UMLElement & {

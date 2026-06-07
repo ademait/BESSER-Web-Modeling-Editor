@@ -162,6 +162,48 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
     });
   });
 
+  describe('21 — processModelRefs auto-derive (agentic Component → BPMN diagram)', () => {
+    it('T-P1 stamps processModelRefs on agentic Components when sourceDiagramId is passed', () => {
+      const r = bpmnModelToComponentModel(minimalAgentic as unknown as UMLModel, {
+        sourceDiagramId: 'bpmn-42',
+      });
+      if (!r.ok) throw new Error('expected ok');
+      const agents = Object.values(r.model.elements).filter(
+        (e) => e.type === 'Component' && (e as unknown as { stereotype?: string }).stereotype === 'solution',
+      );
+      expect(agents.length).toBeGreaterThan(0);
+      for (const a of agents) {
+        expect((a as unknown as { processModelRefs?: string[] }).processModelRefs).toEqual(['bpmn-42']);
+      }
+    });
+
+    it('T-P2 leaves non-agentic lane-Components without processModelRefs', () => {
+      const r = bpmnModelToComponentModel(divergeMerge as unknown as UMLModel, {
+        sourceDiagramId: 'bpmn-42',
+      });
+      if (!r.ok) throw new Error('expected ok');
+      const components = Object.values(r.model.elements).filter((e) => e.type === 'Component');
+      const nonAgentic = components.filter((e) => (e as unknown as { stereotype?: string }).stereotype !== 'solution');
+      expect(nonAgentic.length).toBeGreaterThan(0);
+      for (const c of nonAgentic) {
+        expect((c as unknown as { processModelRefs?: string[] }).processModelRefs).toBeUndefined();
+      }
+      // the agentic ones are still stamped
+      const agents = components.filter((e) => (e as unknown as { stereotype?: string }).stereotype === 'solution');
+      for (const a of agents) {
+        expect((a as unknown as { processModelRefs?: string[] }).processModelRefs).toEqual(['bpmn-42']);
+      }
+    });
+
+    it('T-P3 emits no processModelRefs without sourceDiagramId (back-compat)', () => {
+      const r = bpmnModelToComponentModel(minimalAgentic as unknown as UMLModel);
+      if (!r.ok) throw new Error('expected ok');
+      for (const e of Object.values(r.model.elements)) {
+        expect((e as unknown as { processModelRefs?: string[] }).processModelRefs).toBeUndefined();
+      }
+    });
+  });
+
   describe('pool-connected message flows target the Subsystem (14-FU2 / M9a+c)', () => {
     const r = bpmnModelToComponentModel(poolMessage as unknown as UMLModel);
 
