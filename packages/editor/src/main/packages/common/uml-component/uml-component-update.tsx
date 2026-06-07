@@ -16,6 +16,7 @@ import { StereotypeToggle } from '../../../components/controls/stereotype-toggle
 import { Dropdown } from '../../../components/controls/dropdown/dropdown';
 import { COMPONENT_STEREOTYPE_PRESETS } from '../agentic/agentic-tokens';
 import { LineageSourceLink } from '../../../components/lineage/LineageSourceLink';
+import { ElementPickerField } from '../../../components/element-picker/ElementPickerField';
 
 const Flex = styled.div`
   display: flex;
@@ -87,6 +88,20 @@ class ComponentUpdate extends Component<Props, State> {
             </PresetField>
           </Flex>
         </section>
+        {/* 19 — `realizes` picker: Component-diagram Component only (not the
+            Deployment diagram's Component). Self-gates to render nothing when
+            the host registers no element-picker provider. */}
+        {element.type === 'Component' && (
+          <section>
+            <Divider />
+            <ElementPickerField
+              label="Realizes"
+              selected={(element as IUMLComponent).realizes ?? []}
+              typeTokens={['Class', 'AbstractClass', 'Interface', 'Enumeration']}
+              onChange={this.onRealizesChange}
+            />
+          </section>
+        )}
         <StylePane
           open={this.state.colorOpen}
           element={element}
@@ -118,6 +133,11 @@ class ComponentUpdate extends Component<Props, State> {
   private onStereotypeRename = (value: string) => {
     const { element, update } = this.props;
     update<IUMLComponent>(element.id, { stereotype: value });
+  };
+
+  private onRealizesChange = (value: string[]) => {
+    const { element, update } = this.props;
+    update<IUMLComponent>(element.id, { realizes: value });
   };
 }
 

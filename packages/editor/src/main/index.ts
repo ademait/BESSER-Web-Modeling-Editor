@@ -50,6 +50,11 @@ export type { Patch } from './services/patcher';
 // (webapp2) implements this and passes it to `editor.setAgentDiagramLinker`.
 export type { AgentDiagramLinker } from './components/agent-diagram-linker/AgentDiagramLinkerContext';
 
+// 19 — public types for the cross-diagram element-picker provider; the host
+// (webapp2) implements `ElementPickerProvider` and passes it to
+// `editor.setElementPickerProvider` (see `useElementPickerProvider`).
+export type { ElementPickerProvider, PickableElement } from './components/element-picker/ElementPickerContext';
+
 // Export only the UMLModelCompat type for compatibility purposes
 // Provides type definitions for compatibility with different UML model versions
 export type { UMLModelCompat } from './compat';

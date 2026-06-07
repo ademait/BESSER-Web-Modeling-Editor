@@ -17,6 +17,7 @@ import {
 } from '../../../app/store/workspaceSlice';
 import { notifyError } from '../../../shared/utils/notifyError';
 import { useAgentDiagramLinker } from '../../inter-diagram/useAgentDiagramLinker';
+import { useElementPickerProvider } from '../../inter-diagram/useElementPickerProvider';
 
 export const ApollonEditorComponent: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -52,6 +53,9 @@ export const ApollonEditorComponent: React.FC = () => {
   const linker = useAgentDiagramLinker(editorRef);
   const linkerRef = useRef(linker);
   linkerRef.current = linker;
+
+  // 19 — host-side element-picker provider (cross-diagram `realizes`).
+  const elementPicker = useElementPickerProvider();
 
   const destroyEditorDeferred = useCallback((editor: ApollonEditor) => {
     return new Promise<void>((resolve) => {
@@ -237,6 +241,16 @@ export const ApollonEditorComponent: React.FC = () => {
       },
     });
   }, [dispatch, project, reduxDiagram, editorRevision]);
+
+  // 19 — register the element-picker provider on the current editor.
+  // Re-runs on editorRevision so each newly-mounted editor gets it, and on
+  // `elementPicker` identity (which changes when project/active diagram
+  // change). Mirror of the lineage registration effect above.
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.setElementPickerProvider(elementPicker);
+  }, [elementPicker, editorRevision]);
 
   // 08 — re-register the agent-diagram linker when its identity changes
   // (e.g. an Agent diagram was added/removed → `isRefAlive` changes →

@@ -22,6 +22,7 @@ import { ErrorBoundary } from './components/controls/error-boundary/ErrorBoundar
 import { replaceColorVariables } from './utils/replace-color-variables';
 import { UMLModelCompat } from './compat';
 import { LineageProvider, LineageProviderRoot } from './components/lineage/LineageContext';
+import { ElementPickerProvider, ElementPickerProviderRoot } from './components/element-picker/ElementPickerContext';
 import {
   AgentDiagramLinker,
   AgentDiagramLinkerProviderRoot,
@@ -132,6 +133,10 @@ export class ApollonEditor {
   private _lineageProvider: LineageProvider | null = null;
   private _lineageProviderUpdater: ((v: LineageProvider | null) => void) | null = null;
 
+  // 19 — element-picker provider, same lifecycle as `_lineageProvider`.
+  private _elementPickerProvider: ElementPickerProvider | null = null;
+  private _elementPickerProviderUpdater: ((v: ElementPickerProvider | null) => void) | null = null;
+
   // 08 — agent-diagram linker provider supplied by the host (webapp2).
   // Same pattern as `_lineageProvider`: the React provider root captures
   // an updater on mount so subsequent setAgentDiagramLinker calls flow
@@ -220,7 +225,17 @@ export class ApollonEditor {
       },
       linkedElement,
     );
-    const errorBoundary = createElement(ErrorBoundary, { onError: this.onErrorOccurred.bind(this) }, element);
+    const pickerElement = createElement(
+      ElementPickerProviderRoot,
+      {
+        initialValue: this._elementPickerProvider,
+        register: (listener: (v: ElementPickerProvider | null) => void) => {
+          this._elementPickerProviderUpdater = listener;
+        },
+      },
+      element,
+    );
+    const errorBoundary = createElement(ErrorBoundary, { onError: this.onErrorOccurred.bind(this) }, pickerElement);
     this.root = createRoot(container);
     this.root.render(errorBoundary);
     try {
@@ -292,6 +307,16 @@ export class ApollonEditor {
   setLineageProvider(provider: LineageProvider | null): void {
     this._lineageProvider = provider;
     this._lineageProviderUpdater?.(provider);
+  }
+
+  /**
+   * 19 — register an element-picker provider so cross-diagram pickers
+   * (`realizes`, `manifests`) can list elements from other diagrams.
+   * Pass `null` to clear. Safe before or after mount.
+   */
+  setElementPickerProvider(provider: ElementPickerProvider | null): void {
+    this._elementPickerProvider = provider;
+    this._elementPickerProviderUpdater?.(provider);
   }
 
   /**
@@ -612,7 +637,17 @@ export class ApollonEditor {
       },
       linkedElement,
     );
-    const errorBoundary = createElement(ErrorBoundary, { onError: this.onErrorOccurred.bind(this) }, element);
+    const pickerElement = createElement(
+      ElementPickerProviderRoot,
+      {
+        initialValue: this._elementPickerProvider,
+        register: (listener: (v: ElementPickerProvider | null) => void) => {
+          this._elementPickerProviderUpdater = listener;
+        },
+      },
+      element,
+    );
+    const errorBoundary = createElement(ErrorBoundary, { onError: this.onErrorOccurred.bind(this) }, pickerElement);
     this.root = createRoot(this.container);
     this.root.render(errorBoundary);
     this.componentDidMount();

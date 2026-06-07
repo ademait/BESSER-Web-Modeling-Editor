@@ -242,6 +242,7 @@ export type UMLComponentSubsystem = UMLElement & {
 export type UMLComponentComponent = UMLElement & {
   stereotype: string;
   displayStereotype: boolean;
+  realizes?: string[];
 };
 
 export type UMLPetriNetPlace = UMLElement & {

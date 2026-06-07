@@ -23,6 +23,7 @@ export class UMLComponentComponent extends UMLComponent {
       type: this.type as keyof typeof ComponentElementType,
       stereotype: this.stereotype,
       displayStereotype: this.displayStereotype,
+      realizes: this.realizes,
     };
   }
 
@@ -36,5 +37,6 @@ export class UMLComponentComponent extends UMLComponent {
     super.deserialize(values, children);
     this.stereotype = values.stereotype;
     this.displayStereotype = values.displayStereotype;
+    this.realizes = values.realizes ?? [];
   }
 }
