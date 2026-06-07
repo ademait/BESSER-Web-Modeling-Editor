@@ -1,4 +1,10 @@
-import { BesserProject, ProjectDiagram, SupportedDiagramType, getActiveDiagram, diagramHasContent } from '../../../shared/types/project';
+import {
+  BesserProject,
+  ProjectDiagram,
+  SupportedDiagramType,
+  getActiveDiagram,
+  diagramHasContent,
+} from '../../../shared/types/project';
 import { normalizeProjectName } from '../../../shared/utils/projectName';
 
 export type ExportableProjectPayload = Omit<BesserProject, 'diagrams'> & {
@@ -7,7 +13,7 @@ export type ExportableProjectPayload = Omit<BesserProject, 'diagrams'> & {
 
 export const buildExportableProjectPayload = (
   project: BesserProject,
-  selectedDiagramTypes?: SupportedDiagramType[]
+  selectedDiagramTypes?: SupportedDiagramType[],
 ): ExportableProjectPayload => {
   const projectClone = structuredClone(project) as ExportableProjectPayload;
   projectClone.name = normalizeProjectName(projectClone.name || 'project');
@@ -15,7 +21,11 @@ export const buildExportableProjectPayload = (
   // Filter out empty diagrams from each type, then remove types with no content
   const filtered: Record<string, ProjectDiagram[]> = {};
   for (const [type, diagrams] of Object.entries(projectClone.diagrams)) {
-    if (selectedDiagramTypes && selectedDiagramTypes.length > 0 && !selectedDiagramTypes.includes(type as SupportedDiagramType)) {
+    if (
+      selectedDiagramTypes &&
+      selectedDiagramTypes.length > 0 &&
+      !selectedDiagramTypes.includes(type as SupportedDiagramType)
+    ) {
       continue;
     }
     const arr = Array.isArray(diagrams) ? diagrams : [];
@@ -68,6 +78,21 @@ export const buildProjectPayloadForBackend = (
   } else {
     payload.diagrams = diagrams;
   }
+
+  // Strip WME-internal lineage sidecars (memo 17 §§ 3-4): `derivedFrom`
+  // (per-diagram provenance) and `elementLineage` (derived→source element
+  // map) have no B-UML referent — BESSER ignores them. They still
+  // round-trip through buildExportableProjectPayload (the WME project-file
+  // export), so the in-editor LineageSourceLink is unaffected; we only
+  // drop them from the backend request body.
+  for (const arr of Object.values(payload.diagrams)) {
+    if (Array.isArray(arr)) {
+      for (const diagram of arr as ProjectDiagram[]) {
+        delete diagram.derivedFrom;
+      }
+    }
+  }
+  delete (payload as BesserProject).elementLineage;
 
   return payload;
 };
