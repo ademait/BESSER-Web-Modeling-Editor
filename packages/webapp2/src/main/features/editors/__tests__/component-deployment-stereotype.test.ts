@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { UMLComponentComponent } from '../../../../../../editor/src/main/packages/uml-component-diagram/uml-component/uml-component-component';
 import { UMLDeploymentComponent } from '../../../../../../editor/src/main/packages/uml-deployment-diagram/uml-deployment-component/uml-component';
+import { UMLDeploymentArtifact } from '../../../../../../editor/src/main/packages/uml-deployment-diagram/uml-deployment-artifact/uml-deployment-artifact';
 
 /**
  * Regression guard for 02-construct-gaps-phase-a-guide.md § 2.2 / § 2.3.
@@ -73,5 +74,34 @@ describe('Phase A — Component/Deployment stereotype survives serialize round-t
     restored.deserialize(original.serialize());
 
     expect(restored.stereotype).toBe(original.stereotype);
+  });
+});
+
+describe('20 — Deployment Artifact manifests survives serialize round-trip', () => {
+  it('UMLDeploymentArtifact.serialize() emits manifests', () => {
+    const artifact = new UMLDeploymentArtifact({ name: 'OrderAgent' });
+    artifact.manifests = ['cmp-1', 'cmp-2'];
+
+    const serialized = artifact.serialize();
+
+    expect(serialized.manifests).toEqual(['cmp-1', 'cmp-2']);
+  });
+
+  it('UMLDeploymentArtifact.deserialize() restores manifests', () => {
+    const original = new UMLDeploymentArtifact({ name: 'OrderAgent' });
+    original.manifests = ['cmp-1', 'cmp-2'];
+
+    const restored = new UMLDeploymentArtifact();
+    restored.deserialize(original.serialize());
+
+    expect(restored.manifests).toEqual(['cmp-1', 'cmp-2']);
+  });
+
+  it('UMLDeploymentArtifact.deserialize() defaults manifests to [] when the key is absent (legacy back-compat)', () => {
+    const artifact = new UMLDeploymentArtifact();
+    // Simulate a pre-20 serialized Artifact with no manifests key.
+    artifact.deserialize({ id: 'a1', name: 'X', type: 'DeploymentArtifact' } as never);
+
+    expect(artifact.manifests).toEqual([]);
   });
 });

@@ -391,6 +391,13 @@ function emitDeploymentComponentPair(
     type: 'DeploymentArtifact',
     owner: nodeId, // inside the Node
     bounds: artifactBounds,
+    // 20 — BESSER `Artifact.manifests` (UML 2.5 § 19.4): the cross-diagram
+    // id of the source Component this artifact manifests. `source.id` is the
+    // Component-diagram Component's WME element id — the same id the paired
+    // DeploymentComponent's lineage uses (see elementMapping below) and the
+    // exact key BESSER's deployment validator resolves against
+    // (`Component.layout["id"]`). Auto-set here; no popup needed.
+    manifests: [source.id],
   } as unknown as UMLElement;
 
   // Manifest edge: dashed, arrow at Component end (D-D2).

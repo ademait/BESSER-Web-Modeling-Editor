@@ -229,6 +229,10 @@ export type UMLDeploymentNode = UMLElement & {
   displayStereotype: boolean;
 };
 
+export type UMLDeploymentArtifact = UMLElement & {
+  manifests?: string[];
+};
+
 export type UMLDeploymentComponent = UMLElement & {
   stereotype: string;
   displayStereotype: boolean;

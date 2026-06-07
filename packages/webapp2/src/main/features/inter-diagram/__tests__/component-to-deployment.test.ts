@@ -399,4 +399,49 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
       }
     });
   });
+
+  describe('20 — Artifact.manifests auto-derive', () => {
+    const m = makeBaseModel();
+    Object.assign(m.elements as Record<string, unknown>, {
+      s1: el('s1', 'Subsystem', 'Order', null),
+      s2: el('s2', 'Subsystem', 'Shipping', null),
+      c1: el('c1', 'Component', 'OrderAgent', 's1'),
+      c2: el('c2', 'Component', 'ShippingAgent', 's2'),
+    });
+    const r = componentModelToDeploymentModel(m);
+
+    it('T-M1 — every DeploymentArtifact carries manifests = [a source Component id]', () => {
+      if (!r.ok) throw new Error('expected ok');
+      const sourceComponentIds = new Set(
+        Object.values(m.elements as Record<string, { id: string; type: string }>)
+          .filter((e) => e.type === 'Component')
+          .map((e) => e.id),
+      );
+      const artifacts = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentArtifact');
+      expect(artifacts.length).toBeGreaterThan(0);
+      for (const a of artifacts) {
+        const manifests = (a as unknown as { manifests?: string[] }).manifests;
+        expect(manifests).toHaveLength(1);
+        expect(sourceComponentIds.has(manifests![0])).toBe(true);
+      }
+    });
+
+    it('T-M2 — an Artifact manifests the same source Component its paired DeploymentComponent projects', () => {
+      if (!r.ok) throw new Error('expected ok');
+      // Pair Artifact↔Component via the manifest DeploymentDependency
+      // (source = artifactId, target = componentId — see the 04-FU3 block).
+      const manifestEdges = Object.values(r.model.relationships).filter((rel) => rel.type === 'DeploymentDependency');
+      const elementById = r.model.elements as Record<string, { manifests?: string[] }>;
+      expect(manifestEdges.length).toBeGreaterThan(0);
+      for (const edge of manifestEdges) {
+        const artifactId = (edge as unknown as { source: { element: string } }).source.element;
+        const componentId = (edge as unknown as { target: { element: string } }).target.element;
+        const artifactManifests = elementById[artifactId].manifests;
+        expect(artifactManifests).toHaveLength(1);
+        // elementMapping lineages each DeploymentComponent to its source
+        // Component (06-v2). The Artifact must manifest that same source id.
+        expect(artifactManifests![0]).toBe(r.elementMapping[componentId]);
+      }
+    });
+  });
 });
