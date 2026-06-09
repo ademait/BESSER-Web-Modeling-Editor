@@ -89,5 +89,7 @@ export type AgentDerivationRefusalReason =
   | 'lane-not-agentic'
   | 'no-tasks-in-lane';
 
-// v1 core emits no warnings; the union is kept for parity + guide-30 growth.
-export type AgentDerivationWarning = { kind: 'placeholder' };
+// 30 — cross-lane I/O boundary states. A crossing flow whose in-lane endpoint
+// can't be resolved to a specific task is still acknowledged, attached to the
+// entry state, and surfaced here (never silently dropped).
+export type AgentDerivationWarning = { kind: 'io-attached-to-entry'; flowId: string };

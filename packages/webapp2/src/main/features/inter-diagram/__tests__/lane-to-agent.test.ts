@@ -97,4 +97,142 @@ describe('29 — laneToAgentModel', () => {
     expect(trans).toHaveLength(1); // A → B, gateway collapsed
     expect(Object.values(r.model.elements).filter((e) => e.type === 'StateInitialNode')).toHaveLength(1); // only A is entry
   });
+
+  describe('30 — cross-lane I/O boundary states', () => {
+    const laneB = (id: string, name: string) => ({
+      id,
+      name,
+      type: 'BPMNSwimlane',
+      owner: null,
+      isAgentic: false,
+      bounds: { x: 0, y: 300, width: 400, height: 200 },
+    });
+    const taskIn = (id: string, name: string, owner: string, x: number) => ({
+      id,
+      name,
+      type: 'BPMNTask',
+      owner,
+      bounds: { x, y: 0, width: 100, height: 60 },
+    });
+
+    it('emits an «input» boundary for an incoming cross-lane sequence flow', () => {
+      const m = bpmn();
+      Object.assign(m.elements, {
+        L: lane('L'),
+        R: laneB('R', 'Reviewer'),
+        t1: taskIn('t1', 'Work', 'L', 10),
+        r1: taskIn('r1', 'Review', 'R', 10),
+      });
+      Object.assign(m.relationships, { f1: seq('f1', 'r1', 't1') }); // Reviewer → worker
+      const res = laneToAgentModel(m, 'L');
+      if (!res.ok) throw new Error('expected ok');
+      const inputs = Object.values(res.model.elements).filter(
+        (e) => e.type === 'AgentState' && (e as { stereotype?: string }).stereotype === 'input',
+      );
+      expect(inputs).toHaveLength(1);
+      expect(inputs[0].name).toBe('from Reviewer');
+      // wired into the receiving task-state
+      const trans = Object.values(res.model.relationships).filter((e) => e.type === 'AgentStateTransition');
+      expect(trans.some((tr) => tr.source.element === inputs[0].id)).toBe(true);
+    });
+
+    it('emits an «output» boundary for an outgoing flow + dedups per external lane', () => {
+      const m = bpmn();
+      Object.assign(m.elements, {
+        L: lane('L'),
+        R: laneB('R', 'Reviewer'),
+        t1: taskIn('t1', 'A', 'L', 10),
+        t2: taskIn('t2', 'B', 'L', 200),
+        r1: taskIn('r1', 'X', 'R', 10),
+      });
+      // two outgoing flows from L to the SAME external lane R
+      Object.assign(m.relationships, { f1: seq('f1', 't1', 'r1'), f2: seq('f2', 't2', 'r1') });
+      const res = laneToAgentModel(m, 'L');
+      if (!res.ok) throw new Error('expected ok');
+      const outputs = Object.values(res.model.elements).filter(
+        (e) => e.type === 'AgentState' && (e as { stereotype?: string }).stereotype === 'output',
+      );
+      expect(outputs).toHaveLength(1); // deduped
+      expect(outputs[0].name).toBe('to Reviewer');
+      const toBoundary = Object.values(res.model.relationships).filter(
+        (e) => e.type === 'AgentStateTransition' && e.target.element === outputs[0].id,
+      );
+      expect(toBoundary).toHaveLength(2); // one per source task
+    });
+
+    it('does not emit boundaries for a self-contained lane', () => {
+      const m = bpmn();
+      Object.assign(m.elements, { L: lane('L'), t1: task('t1', 'A', 10), t2: task('t2', 'B', 200) });
+      Object.assign(m.relationships, { f1: seq('f1', 't1', 't2') });
+      const res = laneToAgentModel(m, 'L');
+      if (!res.ok) throw new Error('expected ok');
+      const boundaries = Object.values(res.model.elements).filter(
+        (e) => e.type === 'AgentState' && ['input', 'output'].includes((e as { stereotype?: string }).stereotype ?? ''),
+      );
+      expect(boundaries).toHaveLength(0);
+    });
+
+    // 30-FU1 (IO-4): an input-fed task must not also get a StateInitialNode —
+    // two start points is not a valid state machine.
+    it('suppresses the start marker on input-fed tasks (no double start)', () => {
+      const m = bpmn();
+      Object.assign(m.elements, {
+        L: lane('L'),
+        R: laneB('R', 'Reviewer'),
+        t1: taskIn('t1', 'A', 'L', 10),
+        t2: taskIn('t2', 'B', 'L', 200),
+        r1: taskIn('r1', 'X', 'R', 10),
+      });
+      Object.assign(m.relationships, { f1: seq('f1', 'r1', 't1'), f2: seq('f2', 'r1', 't2') });
+      const res = laneToAgentModel(m, 'L');
+      if (!res.ok) throw new Error('expected ok');
+      const inputs = Object.values(res.model.elements).filter(
+        (e) => e.type === 'AgentState' && (e as { stereotype?: string }).stereotype === 'input',
+      );
+      expect(inputs).toHaveLength(1); // deduped per external lane
+      const inTrans = Object.values(res.model.relationships).filter(
+        (e) => e.type === 'AgentStateTransition' && e.source.element === inputs[0].id,
+      );
+      expect(inTrans).toHaveLength(2); // one into each fed task
+      // both tasks are input-fed → NO cold-start markers (was 2 before 30-FU1).
+      expect(Object.values(res.model.elements).filter((e) => e.type === 'StateInitialNode')).toHaveLength(0);
+    });
+
+    // 30-FU1 (IO-6): a gateway-mediated input wires THROUGH to the downstream
+    // task (not the entry), and that task's double start is suppressed while a
+    // separate standalone task keeps its legitimate cold-start.
+    it('wires a gateway-mediated input to the downstream task and suppresses its double start', () => {
+      const m = bpmn();
+      Object.assign(m.elements, {
+        L: lane('L'),
+        R: laneB('R', 'Reviewer'),
+        impl: taskIn('impl', 'Implement', 'L', 10), // standalone cold-start entry
+        tnew: taskIn('tnew', 'Downstream', 'L', 200), // fed via the gateway
+        g: gw('g', 120), // gateway in L
+        r1: taskIn('r1', 'X', 'R', 10), // external source
+      });
+      Object.assign(m.relationships, { f1: seq('f1', 'r1', 'g'), f2: seq('f2', 'g', 'tnew') });
+      const res = laneToAgentModel(m, 'L');
+      if (!res.ok) throw new Error('expected ok');
+      const stateId = (name: string) =>
+        Object.values(res.model.elements).find((e) => e.type === 'AgentState' && e.name === name)!.id;
+      const inputs = Object.values(res.model.elements).filter(
+        (e) => e.type === 'AgentState' && (e as { stereotype?: string }).stereotype === 'input',
+      );
+      expect(inputs).toHaveLength(1);
+      expect(inputs[0].name).toBe('from Reviewer');
+      // input wires through the gateway to the downstream task, NOT the entry.
+      const inTrans = Object.values(res.model.relationships).filter(
+        (e) => e.type === 'AgentStateTransition' && e.source.element === inputs[0].id,
+      );
+      expect(inTrans).toHaveLength(1);
+      expect(inTrans[0].target.element).toBe(stateId('Downstream'));
+      // exactly one start point — on the standalone entry, not the input-fed task.
+      const inits = Object.values(res.model.elements).filter((e) => e.type === 'StateInitialNode');
+      expect(inits).toHaveLength(1);
+      const initTrans = Object.values(res.model.relationships).filter((e) => e.type === 'AgentStateTransitionInit');
+      expect(initTrans).toHaveLength(1);
+      expect(initTrans[0].target.element).toBe(stateId('Implement'));
+    });
+  });
 });
