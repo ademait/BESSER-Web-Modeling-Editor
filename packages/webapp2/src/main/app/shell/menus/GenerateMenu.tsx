@@ -23,7 +23,7 @@ interface GenerateMenuProps {
   activeDiagramType: SupportedDiagramType;
   onGenerate: (type: GeneratorType) => void;
   onSwitchDiagramType?: (type: SupportedDiagramType) => void;
-  onDeriveComponentDiagram?: (opts?: { includeTools?: boolean }) => void;
+  onDeriveComponentDiagram?: () => void;
   onDeriveDeploymentDiagram?: () => void;
 }
 
@@ -92,15 +92,7 @@ export const GenerateMenu: React.FC<GenerateMenuProps> = ({
         {activeDiagramType === 'BPMN' && onDeriveComponentDiagram && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>Generate Component diagram</DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                <DropdownMenuItem onClick={() => onDeriveComponentDiagram()}>Structure only</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onDeriveComponentDiagram({ includeTools: true })}>
-                  With tools &amp; skills
-                </DropdownMenuItem>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
+            <DropdownMenuItem onClick={() => onDeriveComponentDiagram()}>Generate Component diagram</DropdownMenuItem>
           </>
         )}
         {activeDiagramType === 'ComponentDiagram' && onDeriveDeploymentDiagram && (

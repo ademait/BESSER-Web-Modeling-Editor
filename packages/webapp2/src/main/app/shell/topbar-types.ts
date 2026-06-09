@@ -43,7 +43,7 @@ export interface WorkspaceTopBarProps {
   activeDiagramType: SupportedDiagramType;
   onSwitchUml: (type: UMLDiagramType) => void;
   onSwitchDiagramType: (type: SupportedDiagramType) => void;
-  onDeriveComponentDiagram?: (opts?: { includeTools?: boolean }) => void;
+  onDeriveComponentDiagram?: () => void;
   onDeriveDeploymentDiagram?: () => void;
   onNavigate: (path: string) => void;
   projectNameDraft: string;
