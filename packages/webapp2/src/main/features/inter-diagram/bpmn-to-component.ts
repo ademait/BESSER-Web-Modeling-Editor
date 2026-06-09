@@ -374,6 +374,10 @@ const CAPABILITY_WARN_THRESHOLD = 10;
 // "several moderate agents" case from manual testing). Warn-only.
 const CAPABILITY_ZONE_WARN_THRESHOLD = 12;
 
+// 32 — the full capability stereotype set. `tool`/`skill` come from agent-diagram
+// element TYPES (AgentTool/AgentSkill); `llm`/`db`/`rag` come from body REPLY-TYPES.
+type CapStereo = 'tool' | 'skill' | 'llm' | 'db' | 'rag';
+
 // Agent-diagram element type → Component stereotype. `agentic.py` Skill /
 // Tool (CAPABILITY_TOKENS). Drop the AgentSkill row for tools-only.
 const CAPABILITY_STEREOTYPE: Record<string, 'tool' | 'skill'> = {
@@ -381,15 +385,56 @@ const CAPABILITY_STEREOTYPE: Record<string, 'tool' | 'skill'> = {
   AgentSkill: 'skill',
 };
 
-// agent → capability edge kind, locked by agentic.py AgenticEdgeKind:
-// USES → Tool, HAS → Skill (DQ3).
-const CAPABILITY_EDGE: Record<'tool' | 'skill', 'uses' | 'has'> = {
+// agent → capability edge kind. tool→uses / skill→has locked by agentic.py
+// AgenticEdgeKind (USES→Tool, HAS→Skill, DQ3). llm/db/rag → `uses` for all
+// three (meeting 2026-06-08 O4 — resource-like, not skills).
+const CAPABILITY_EDGE: Record<CapStereo, 'uses' | 'has'> = {
   tool: 'uses',
   skill: 'has',
+  llm: 'uses',
+  db: 'uses',
+  rag: 'uses',
 };
 
 function capabilityElements(agentModel: UMLModel): UMLElement[] {
   return Object.values(agentModel.elements).filter((e) => CAPABILITY_STEREOTYPE[e.type] !== undefined);
+}
+
+// 32 (point 5): LLM/DB/RAG are not element types — they are the `replyType`
+// of an AgentStateBody / AgentStateFallbackBody (agent-state-member.ts). Map
+// the three resource reply-types to a stereotype; `text` (plain reply) and
+// `code` (Python — deferred) are intentionally absent.
+const REPLY_TYPE_STEREOTYPE: Record<string, 'llm' | 'db' | 'rag'> = {
+  llm: 'llm',
+  db_reply: 'db',
+  rag: 'rag',
+};
+const BODY_TYPES = new Set(['AgentStateBody', 'AgentStateFallbackBody']);
+
+// DQ-1 naming: a body has no meaningful element name (its `name` is reply
+// content), so name the Component per kind — fixed "LLM" (DQ-2: one shared
+// node, no model id in WME), the RAG database name, or the custom DB name,
+// each with a generic fallback.
+function resourceName(stereo: 'llm' | 'db' | 'rag', body: UMLElement): string {
+  const b = body as unknown as { ragDatabaseName?: string; dbCustomName?: string };
+  if (stereo === 'rag') return (b.ragDatabaseName ?? '').trim() || 'RAG';
+  if (stereo === 'db') return (b.dbCustomName ?? '').trim() || 'Database';
+  return 'LLM';
+}
+
+// DQ-3/DQ-6: every resource body (main OR fallback) in the agent diagram,
+// as {stereo, name}. Always-named (resourceName never returns empty), so the
+// caller needs no empty-name guard.
+function resourceBodies(agentModel: UMLModel): Array<{ stereo: 'llm' | 'db' | 'rag'; name: string }> {
+  const out: Array<{ stereo: 'llm' | 'db' | 'rag'; name: string }> = [];
+  for (const e of Object.values(agentModel.elements)) {
+    if (!BODY_TYPES.has(e.type)) continue;
+    const replyType = (e as unknown as { replyType?: string }).replyType;
+    const stereo = replyType ? REPLY_TYPE_STEREOTYPE[replyType] : undefined;
+    if (!stereo) continue;
+    out.push({ stereo, name: resourceName(stereo, e) });
+  }
+  return out;
 }
 
 // 16-FU2 — one agent's reference to a capability, gathered in Phase 1 and
@@ -397,17 +442,22 @@ function capabilityElements(agentModel: UMLModel): UMLElement[] {
 // that has/uses it; `taskId` is the linking BPMNTask (lineage, DQ7/D4).
 type CollectedCapability = {
   agentCompId: string;
-  stereo: 'tool' | 'skill';
+  stereo: CapStereo;
   name: string;
   taskId: string;
 };
 
-// 16-FU2 (D2): one agentic lane's capabilities — union over its tasks'
-// linked Agent diagrams (DQ6 = task.agentDiagramRef), deduped per agent by
-// stereotype+name (DQ5). Pushes descriptors for Phase 1.5 instead of
-// emitting (zone box height needs the global count). A dangling ref
-// (deleted Agent diagram) is skipped silently — the popup already surfaces
-// dangling refs (guide 08/11).
+// 16-FU2 (D2): one agentic lane's capabilities — union over the lane's
+// linked Agent diagrams, deduped per agent by stereotype+name (DQ5). Pushes
+// descriptors for Phase 1.5 instead of emitting (zone box height needs the
+// global count). A dangling ref (deleted Agent diagram) is skipped — the
+// popup already surfaces dangling refs (guide 08/11).
+// 32-FU1: the agent can be linked at the LANE level (popup "Define agent
+// behavior" on the lane — the canonical link post-2026-06-08 reversal, memory
+// task-agent-link-pivot) OR per-TASK. Collect the union over BOTH so a
+// lane-level agent's tools / skills / LLM-DB-RAG resources are not missed.
+// `sources` pairs each linked Agent model with the BPMN element it hangs off
+// (the lineage source id).
 // 16-FU3 (P2, D2/D4): `seen.size` after the walk is the agent's deduped
 // capability total — which is exactly its has/uses edge count into the
 // zones. If it exceeds CAPABILITY_WARN_THRESHOLD, push an advisory
@@ -421,17 +471,28 @@ function collectLaneCapabilities(
   warnings: DerivationWarning[],
 ): void {
   const seen = new Set<string>();
+
+  // 32-FU1 — the lane's own ref first, then every task's ref. `sourceId`
+  // is the BPMN element a capability hangs off for lineage (the lane for a
+  // lane-level agent, the task for a per-task agent); `label` names it in a
+  // dangling-ref warning.
+  const sources: Array<{ ref: string; sourceId: string; label: string }> = [];
+  const laneRef = (lane as unknown as { agentDiagramRef?: string }).agentDiagramRef;
+  if (laneRef) sources.push({ ref: laneRef, sourceId: lane.id, label: lane.name ?? '' });
   for (const task of tasksInLane(bpmn, lane.id)) {
     const ref = (task as unknown as { agentDiagramRef?: string }).agentDiagramRef;
-    if (!ref) continue;
+    if (ref) sources.push({ ref, sourceId: task.id, label: task.name ?? '' });
+  }
+
+  for (const { ref, sourceId, label } of sources) {
     const agentModel = agentDiagramsById.get(ref);
     if (!agentModel) {
-      // 16-FU4 (P3, D1/D2): the task links an Agent diagram that is no
+      // 16-FU4 (P3, D1/D2): the source links an Agent diagram that is no
       // longer in the project (deleted, or a cross-project paste — guide
       // 08/11). The skip is still silent for the model; surface a warning
-      // (carrying the task NAME — the dead ref UUID is useless to the user)
-      // so they learn why these tools didn't appear. Warn-only.
-      warnings.push({ kind: 'dangling-agent-ref', taskId: task.id, taskName: task.name ?? '' });
+      // (carrying the source NAME — the dead ref UUID is useless to the user)
+      // so they learn why these capabilities didn't appear. Warn-only.
+      warnings.push({ kind: 'dangling-agent-ref', taskId: sourceId, taskName: label });
       continue; // dangling ref → skip (behaviour unchanged)
     }
     for (const cap of capabilityElements(agentModel)) {
@@ -441,7 +502,16 @@ function collectLaneCapabilities(
       const key = `${stereo}::${name.toLowerCase()}`;
       if (seen.has(key)) continue; // per-agent dedup (DQ5)
       seen.add(key);
-      out.push({ agentCompId, stereo, name, taskId: task.id });
+      out.push({ agentCompId, stereo, name, taskId: sourceId });
+    }
+    // 32 (point 5): LLM/DB/RAG resources from the linked Agent diagram's
+    // body reply-types — same per-agent dedup (`seen`) and pipeline as
+    // tools/skills. A duplicate LLM/db-name/rag-name collapses to one node.
+    for (const res of resourceBodies(agentModel)) {
+      const key = `${res.stereo}::${res.name.toLowerCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ agentCompId, stereo: res.stereo, name: res.name, taskId: sourceId });
     }
   }
   if (seen.size > CAPABILITY_WARN_THRESHOLD) {
@@ -466,7 +536,13 @@ function emitGroupedCapabilities(
 
   // Ordered unique names per kind + the first task that contributed each
   // (first-wins lineage, D4 — mirrors EdgeDedup's representative rule).
-  const uniqueByKind: Record<'tool' | 'skill', Array<{ name: string; taskId: string }>> = { tool: [], skill: [] };
+  const uniqueByKind: Record<CapStereo, Array<{ name: string; taskId: string }>> = {
+    tool: [],
+    skill: [],
+    llm: [],
+    db: [],
+    rag: [],
+  };
   for (const c of collected) {
     const list = uniqueByKind[c.stereo];
     if (list.some((u) => u.name.toLowerCase() === c.name.toLowerCase())) continue;
@@ -478,23 +554,28 @@ function emitGroupedCapabilities(
   const PAD = 20;
   const HEADER = 40;
   const boxW = CAP_W + 2 * PAD;
-  let boxX = layout.subsystemX + 640 + 80; // clears the 640-wide pool column
+  // Skills/Tools to the RIGHT of the pool column (16-FU2); the new LLM/DB/RAG
+  // resource zones to the LEFT (DQ-4) so agent→resource `uses` edges fan left
+  // rather than crowding every has/uses edge onto the right.
+  let rightX = layout.subsystemX + 640 + 80; // clears the 640-wide pool column
+  let leftX = layout.subsystemX - 80 - boxW; // first left zone, just left of the pool column
 
   const capIdByKey = new Map<string, string>();
-  const emitZone = (stereo: 'tool' | 'skill', title: string): void => {
+  const emitZone = (stereo: CapStereo, title: string, side: 'left' | 'right' = 'right'): void => {
     const list = uniqueByKind[stereo];
-    if (list.length === 0) return; // tools-only diagrams show just the Tools zone
+    if (list.length === 0) return; // absent kinds show no (empty) zone
     if (list.length > CAPABILITY_ZONE_WARN_THRESHOLD) {
       warnings.push({ kind: 'capability-heavy-zone', zone: title, count: list.length });
     }
     const boxH = HEADER + list.length * (CAP_H + CAP_GAP) - CAP_GAP + PAD;
+    const zoneX = side === 'right' ? rightX : leftX;
     const zoneId = newId();
     out.elements[zoneId] = {
       id: zoneId,
       name: title,
       type: 'Subsystem',
       owner: null,
-      bounds: { x: boxX, y: topY, width: boxW, height: boxH },
+      bounds: { x: zoneX, y: topY, width: boxW, height: boxH },
       stereotype: 'subsystem',
       displayStereotype: true,
     } as unknown as UMLElement;
@@ -505,24 +586,40 @@ function emitGroupedCapabilities(
         name: entry.name,
         type: 'Component',
         owner: zoneId,
-        bounds: { x: boxX + PAD, y: topY + HEADER + i * (CAP_H + CAP_GAP), width: CAP_W, height: CAP_H },
+        bounds: { x: zoneX + PAD, y: topY + HEADER + i * (CAP_H + CAP_GAP), width: CAP_W, height: CAP_H },
         stereotype: stereo,
         displayStereotype: true,
       } as unknown as UMLElement;
       capIdByKey.set(`${stereo}::${entry.name.toLowerCase()}`, capId);
       elementMapping[capId] = entry.taskId; // D4 — first-wins
     });
-    boxX += boxW + 40;
+    if (side === 'right') rightX += boxW + 40;
+    else leftX -= boxW + 40; // stack further left
   };
   emitZone('skill', 'Skills');
   emitZone('tool', 'Tools');
+  // DQ-4 — resource zones on the LEFT, closest-to-pool first: Models, RAG, Databases.
+  emitZone('llm', 'Models', 'left');
+  emitZone('rag', 'RAG', 'left');
+  emitZone('db', 'Databases', 'left');
 
   // One edge per (agent, capability). `collected` is already per-agent
   // deduped, so (agentCompId, capId) pairs are unique — no extra dedup.
+  // Resource edges (left zones) exit the agent's LEFT and enter the zone's
+  // RIGHT so they don't wrap around the agent box (DQ-4).
+  const LEFT_ZONE: Record<CapStereo, boolean> = { skill: false, tool: false, llm: true, db: true, rag: true };
   for (const c of collected) {
     const capId = capIdByKey.get(`${c.stereo}::${c.name.toLowerCase()}`);
     if (!capId) continue;
-    const edgeId = emitComponentDependency(out, c.agentCompId, capId, CAPABILITY_EDGE[c.stereo]);
+    const left = LEFT_ZONE[c.stereo];
+    const edgeId = emitComponentDependency(
+      out,
+      c.agentCompId,
+      capId,
+      CAPABILITY_EDGE[c.stereo],
+      left ? 'Left' : 'Right',
+      left ? 'Right' : 'Left',
+    );
     elementMapping[edgeId] = c.taskId;
   }
 }
@@ -645,7 +742,14 @@ function emitExternalSubsystem(out: UMLModel, pool: UMLElement, layout: LayoutCu
   return id;
 }
 
-function emitComponentDependency(out: UMLModel, sourceId: string, targetId: string, stereotype: string): string {
+function emitComponentDependency(
+  out: UMLModel,
+  sourceId: string,
+  targetId: string,
+  stereotype: string,
+  srcDir: 'Left' | 'Right' = 'Right',
+  tgtDir: 'Left' | 'Right' = 'Left',
+): string {
   const id = newId();
   const src = (out.elements[sourceId] as unknown as { bounds: { x: number; y: number; width: number; height: number } })
     .bounds;
@@ -666,8 +770,8 @@ function emitComponentDependency(out: UMLModel, sourceId: string, targetId: stri
       { x: src.x + src.width / 2, y: src.y + src.height / 2 },
       { x: tgt.x + tgt.width / 2, y: tgt.y + tgt.height / 2 },
     ],
-    source: { element: sourceId, direction: 'Right' },
-    target: { element: targetId, direction: 'Left' },
+    source: { element: sourceId, direction: srcDir },
+    target: { element: targetId, direction: tgtDir },
     stereotype,
   } as unknown as UMLRelationship;
   return id;

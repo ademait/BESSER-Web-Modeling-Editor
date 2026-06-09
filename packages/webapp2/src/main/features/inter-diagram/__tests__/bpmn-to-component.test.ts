@@ -893,4 +893,149 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
       expect(r.elementMapping[dep!.id]).toBe(sourceFlowId);
     });
   });
+
+  describe('32 — LLM/DB/RAG resources as capability Components', () => {
+    const makeBpmn = (taskRef = 'res1') =>
+      ({
+        version: '3.0.0',
+        type: 'BPMNDiagram',
+        size: { width: 800, height: 600 },
+        elements: {
+          P1: {
+            id: 'P1',
+            type: 'BPMNPool',
+            name: 'Swarm',
+            owner: null,
+            bounds: { x: 0, y: 0, width: 400, height: 200 },
+          },
+          L1: {
+            id: 'L1',
+            type: 'BPMNSwimlane',
+            name: 'Researcher',
+            owner: 'P1',
+            isAgentic: true,
+            role: 'worker',
+            bounds: { x: 20, y: 0, width: 380, height: 200 },
+          },
+          T1: {
+            id: 'T1',
+            type: 'BPMNTask',
+            name: 'Answer',
+            owner: 'L1',
+            agentDiagramRef: taskRef,
+            bounds: { x: 40, y: 20, width: 100, height: 60 },
+          },
+        },
+        relationships: {},
+        interactive: { elements: {}, relationships: {} },
+        assessments: {},
+      }) as unknown as UMLModel;
+
+    const b = (id: string, replyType: string, extra: Record<string, unknown> = {}, type = 'AgentStateBody') => ({
+      id,
+      type,
+      name: '',
+      owner: 'st',
+      replyType,
+      bounds: { x: 0, y: 0, width: 1, height: 1 },
+      ...extra,
+    });
+
+    const resourceAgent = {
+      version: '3.0.0',
+      type: 'AgentDiagram',
+      size: { width: 100, height: 100 },
+      elements: {
+        st: { id: 'st', type: 'AgentState', name: 'Answer', owner: null, bounds: { x: 0, y: 0, width: 1, height: 1 } },
+        b1: b('b1', 'llm'),
+        b2: b('b2', 'llm'), // dup → one shared LLM (DQ-2)
+        b3: b('b3', 'rag', { ragDatabaseName: 'kb' }),
+        b4: b('b4', 'db_reply', { dbCustomName: 'orders' }),
+        b5: b('b5', 'text'), // plain reply → ignored
+        b6: b('b6', 'code'), // Python → ignored (deferred)
+        fb: b('fb', 'rag', { ragDatabaseName: 'kb' }, 'AgentStateFallbackBody'), // DQ-6 fallback, dup kb → deduped
+      },
+      relationships: {},
+      interactive: { elements: {}, relationships: {} },
+      assessments: {},
+    } as unknown as UMLModel;
+    const agentDiagramsById = new Map([['res1', resourceAgent]]);
+
+    const byStereo = (m: UMLModel, s: string) =>
+      Object.values(m.elements).filter((e) => (e as unknown as { stereotype?: string }).stereotype === s);
+
+    it('T-U6 — derives one llm + one db + one rag Component; text & code ignored', () => {
+      const r = bpmnModelToComponentModel(makeBpmn(), { agentDiagramsById, includeCapabilities: true });
+      if (!r.ok) throw new Error('expected ok');
+      expect(byStereo(r.model, 'llm')).toHaveLength(1);
+      expect(byStereo(r.model, 'llm')[0].name).toBe('LLM');
+      expect(byStereo(r.model, 'rag')).toHaveLength(1);
+      expect(byStereo(r.model, 'rag')[0].name).toBe('kb');
+      expect(byStereo(r.model, 'db')).toHaveLength(1);
+      expect(byStereo(r.model, 'db')[0].name).toBe('orders');
+      // text + code never become Components
+      expect(byStereo(r.model, 'text')).toHaveLength(0);
+      expect(byStereo(r.model, 'code')).toHaveLength(0);
+    });
+
+    it('T-U7 — all resource edges are `uses`', () => {
+      const r = bpmnModelToComponentModel(makeBpmn(), { agentDiagramsById, includeCapabilities: true });
+      if (!r.ok) throw new Error('expected ok');
+      const uses = Object.values(r.model.relationships).filter(
+        (rel) => (rel as unknown as { stereotype?: string }).stereotype === 'uses',
+      );
+      expect(uses).toHaveLength(3); // llm, rag, db
+      expect(
+        Object.values(r.model.relationships).some(
+          (rel) => (rel as unknown as { stereotype?: string }).stereotype === 'has',
+        ),
+      ).toBe(false);
+    });
+
+    it('T-U8 — resource zones sit to the LEFT of the agent Component (DQ-4)', () => {
+      const r = bpmnModelToComponentModel(makeBpmn(), { agentDiagramsById, includeCapabilities: true });
+      if (!r.ok) throw new Error('expected ok');
+      const agent = byStereo(r.model, 'solution')[0];
+      const xOf = (s: string) => (byStereo(r.model, s)[0].bounds as { x: number }).x;
+      // recenter shifts everything by one delta, so relative order is preserved
+      expect(xOf('llm')).toBeLessThan((agent.bounds as { x: number }).x);
+      expect(xOf('rag')).toBeLessThan((agent.bounds as { x: number }).x);
+      expect(xOf('db')).toBeLessThan((agent.bounds as { x: number }).x);
+    });
+
+    it('T-U9 — resource Component lineage maps to the linking BPMNTask', () => {
+      const r = bpmnModelToComponentModel(makeBpmn(), { agentDiagramsById, includeCapabilities: true });
+      if (!r.ok) throw new Error('expected ok');
+      const llm = byStereo(r.model, 'llm')[0];
+      expect(r.elementMapping[llm.id]).toBe('T1');
+    });
+
+    it('T-U10 — default (no opts): no resource Components (clean swarm)', () => {
+      const r = bpmnModelToComponentModel(makeBpmn());
+      if (!r.ok) throw new Error('expected ok');
+      expect(byStereo(r.model, 'llm')).toHaveLength(0);
+      expect(byStereo(r.model, 'rag')).toHaveLength(0);
+      expect(byStereo(r.model, 'db')).toHaveLength(0);
+    });
+
+    // 32-FU1 — the agent can be linked at the LANE level (popup "Define agent
+    // behavior" on the lane), not only per-task. A lane-level link must still
+    // surface the agent's resources, with lineage to the LANE.
+    const makeLaneLinkedBpmn = () => {
+      const m = makeBpmn() as unknown as { elements: Record<string, Record<string, unknown>> };
+      m.elements.L1.agentDiagramRef = 'res1'; // link at the lane
+      delete m.elements.T1.agentDiagramRef; // … and NOT at the task
+      return m as unknown as UMLModel;
+    };
+
+    it('T-U11 — a LANE-level agent link surfaces resources, lineage → lane', () => {
+      const r = bpmnModelToComponentModel(makeLaneLinkedBpmn(), { agentDiagramsById, includeCapabilities: true });
+      if (!r.ok) throw new Error('expected ok');
+      expect(byStereo(r.model, 'llm')).toHaveLength(1);
+      expect(byStereo(r.model, 'rag')).toHaveLength(1);
+      expect(byStereo(r.model, 'db')).toHaveLength(1);
+      // lineage of a lane-level resource maps to the LANE, not a task
+      expect(r.elementMapping[byStereo(r.model, 'llm')[0].id]).toBe('L1');
+    });
+  });
 });

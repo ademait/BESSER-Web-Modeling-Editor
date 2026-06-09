@@ -20,8 +20,13 @@ export const AGENT_CATEGORY_TOKENS = ['solution', 'supervision', 'consensus', 'c
 // implementation and is not shown in the Component view. The BPMN→Component
 // derivation skips non-agentic lanes entirely (see bpmn-to-component.ts).
 
-/** Component capability subtypes — `agentic.py` Skill / Tool. Not agents. */
-export const CAPABILITY_TOKENS = ['skill', 'tool'] as const;
+/** Component capability subtypes. `skill`/`tool` ← `agentic.py` Skill/Tool;
+ *  `llm`/`db`/`rag` (meeting 2026-06-08 §5) ← agent-diagram body reply-types
+ *  (LLMReply/DBReply/RAGReply), surfaced as Components by the BPMN→Component
+ *  derivation. All capabilities — NOT agents (no bot icon: isAgentStereotype
+ *  keys only on AGENT_CATEGORY_TOKENS). BESSER `uml_component/agentic.py` token
+ *  recognition for llm/db/rag is the cross-repo follow-up (5c). */
+export const CAPABILITY_TOKENS = ['skill', 'tool', 'llm', 'db', 'rag'] as const;
 
 /** Locality — base-MM `Locality` enum. Non-agentic; classifies any
  *  Component. Included as a stereotype suggestion for convenience. */

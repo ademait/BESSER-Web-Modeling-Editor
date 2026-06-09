@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   AGENT_CATEGORY_TOKENS,
   AGENTIC_EDGE_KIND_TOKENS,
+  CAPABILITY_TOKENS,
   isAgentStereotype,
   isAgenticEdgeStereotype,
   stereotypeTokens,
@@ -53,5 +54,15 @@ describe('Phase C — agentic token vocabulary', () => {
     expect(isAgenticEdgeStereotype('granted {permission: repo:write}')).toBe(true);
     expect(isAgenticEdgeStereotype('HTTPS')).toBe(false);
     expect(isAgenticEdgeStereotype('')).toBe(false);
+  });
+
+  it('CAPABILITY_TOKENS includes the LLM/DB/RAG resource tokens (point 5)', () => {
+    expect([...CAPABILITY_TOKENS]).toEqual(['skill', 'tool', 'llm', 'db', 'rag']);
+  });
+
+  it('llm/db/rag are capabilities, not agents (no bot overlay)', () => {
+    expect(isAgentStereotype('llm')).toBe(false);
+    expect(isAgentStereotype('db')).toBe(false);
+    expect(isAgentStereotype('rag')).toBe(false);
   });
 });
