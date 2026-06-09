@@ -16,6 +16,7 @@ import { ColorButton } from '../../../components/controls/color-button/color-but
 import { StylePane } from '../../../components/style-pane/style-pane';
 import { BPMNSwimlane } from './bpmn-swimlane';
 import { BPMNAgentRole, clampTrustScore, clampMultiplicity } from '../common/types';
+import { AgentDiagramLinkSection } from '../../../components/agent-diagram-linker/AgentDiagramLinkSection';
 
 interface OwnProps {
   element: BPMNSwimlane;
@@ -104,6 +105,16 @@ class BPMNSwimlaneUpdateComponent extends Component<Props, State> {
                 <Textfield value={String(element.multiplicity)} onChange={this.changeMultiplicity(element.id)} />
               </Flex>
             </section>
+            {/* 29 (4a) — re-mount the lane → Agent-diagram link (reverses guide 11's
+                lane-UI removal; the model/XML round-trip was never removed). The
+                section is element-agnostic — the `laneId`/`laneName` prop names are
+                the original 08 names; here they carry the lane's id/name. Clicking
+                Define runs the populating derivation (Step 3 wiring). */}
+            <AgentDiagramLinkSection
+              laneId={element.id}
+              laneName={element.name}
+              agentDiagramRef={element.agentDiagramRef}
+            />
           </>
         )}
       </div>

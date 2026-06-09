@@ -5,15 +5,20 @@ import type { ApollonEditor, UMLModel } from '@besser/wme';
 import { useAppDispatch, useAppSelector } from '../../app/store/hooks';
 import {
   addDiagramThunk,
+  bumpEditorRevision,
   selectActiveDiagram,
   selectActiveDiagramType,
+  setElementLineageThunk,
   switchDiagramIndexThunk,
   switchDiagramTypeThunk,
   updateDiagramModelThunk,
 } from '../../app/store/workspaceSlice';
 import { ProjectStorageRepository } from '../../shared/services/storage/ProjectStorageRepository';
 import { MAX_DIAGRAMS_PER_TYPE, isUMLModel, type ProjectDiagram } from '../../shared/types/project';
+import type { DiagramLineage } from '../../shared/types/project';
 import type { AgentDiagramLinker } from '@besser/wme';
+import { laneToAgentModel } from './lane-to-agent';
+import { hashUmlModel } from './lineage-hash';
 
 /**
  * 08 — webapp2-side linker passed to `editor.setAgentDiagramLinker(...)`.
@@ -85,6 +90,24 @@ export function useAgentDiagramLinker(editorRef: MutableRefObject<ApollonEditor 
         return null;
       }
 
+      // 29 — if the source element is a LANE, derive a populated Agent diagram
+      // (states from tasks). If it's a TASK (guide 11), leave the empty-diagram
+      // path untouched. A lane that refuses to derive (no tasks) falls back to
+      // empty so the link still works.
+      const sourceEl = sourceDiagram.model.elements?.[laneId] as { type?: string } | undefined;
+      const isLaneSource = sourceEl?.type === 'BPMNSwimlane';
+      const derivation = isLaneSource ? laneToAgentModel(sourceDiagram.model as UMLModel, laneId) : null;
+      const derivedFrom: DiagramLineage | undefined =
+        isLaneSource && derivation?.ok
+          ? {
+              sourceDiagramId,
+              sourceDiagramType: 'BPMN',
+              derivationKind: 'bpmn-to-agent',
+              derivedAt: new Date().toISOString(),
+              sourceModelHash: hashUmlModel(sourceDiagram.model as UMLModel),
+            }
+          : undefined;
+
       // Step 1 — flush the editor's in-memory BPMN to storage. Captures
       // any pending edits sitting in the 300ms debounce window (e.g. the
       // user just toggled isAgentic on, then immediately clicked Define).
@@ -106,7 +129,9 @@ export function useAgentDiagramLinker(editorRef: MutableRefObject<ApollonEditor 
       // addDiagramThunk does NOT update activeDiagramType — step 4 does.
       let newDiagramId: string;
       try {
-        const added = await dispatch(addDiagramThunk({ diagramType: 'AgentDiagram', title: suggestedTitle })).unwrap();
+        const added = await dispatch(
+          addDiagramThunk({ diagramType: 'AgentDiagram', title: suggestedTitle, derivedFrom }),
+        ).unwrap();
         newDiagramId = added.diagram.id;
       } catch (err) {
         console.error('[08] addDiagramThunk failed:', err);
@@ -162,6 +187,21 @@ export function useAgentDiagramLinker(editorRef: MutableRefObject<ApollonEditor 
         await dispatch(switchDiagramTypeThunk({ diagramType: 'AgentDiagram' })).unwrap();
       } catch (err) {
         console.error('[08] switchDiagramType failed:', err);
+      }
+
+      // 29 — populate the now-active Agent diagram from the lane derivation.
+      // MUST run after the switch so updateDiagramModelThunk targets the Agent
+      // diagram (it writes to the active diagram type/index), not the BPMN.
+      if (isLaneSource && derivation?.ok) {
+        try {
+          await dispatch(updateDiagramModelThunk({ model: derivation.model })).unwrap();
+          await dispatch(
+            setElementLineageThunk({ derivedDiagramId: newDiagramId, mapping: derivation.elementMapping }),
+          ).unwrap();
+          dispatch(bumpEditorRevision());
+        } catch (err) {
+          console.error('[29] populate Agent diagram failed:', err);
+        }
       }
 
       return newDiagramId;

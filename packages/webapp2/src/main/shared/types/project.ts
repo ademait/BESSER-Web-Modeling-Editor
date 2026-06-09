@@ -55,7 +55,7 @@ export interface DiagramLineage {
   /** which diagram type the source is, so the UI doesn't have to look it up. */
   sourceDiagramType: SupportedDiagramType;
   /** which transform produced this diagram. */
-  derivationKind: 'bpmn-to-component' | 'component-to-deployment';
+  derivationKind: 'bpmn-to-component' | 'component-to-deployment' | 'bpmn-to-agent';
   /** ISO timestamp at derivation time. */
   derivedAt: string;
   /** djb2 hash of the source UMLModel at derivation time (D-D2). */

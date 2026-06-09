@@ -72,3 +72,22 @@ export type DeploymentDerivationRefusalReason =
  * diagram, worth flagging.
  */
 export type DeploymentDerivationWarning = { kind: 'flat-scaffold' };
+
+/**
+ * 29 — Outcome of `laneToAgentModel(bpmn, laneId)`. Mirrors `DerivationResult`
+ * but for the BPMN-lane → Agent-diagram derivation. `model` is a populated
+ * AgentDiagram UMLModel; `elementMapping` maps derived AgentState id → source
+ * BPMN task id (lineage). Cross-lane I/O boundary states are guide 30.
+ */
+export type AgentDerivationResult =
+  | { ok: true; model: UMLModel; warnings: AgentDerivationWarning[]; elementMapping: ElementLineageMap }
+  | { ok: false; reason: AgentDerivationRefusalReason; warnings: AgentDerivationWarning[] };
+
+export type AgentDerivationRefusalReason =
+  | 'not-a-bpmn-diagram'
+  | 'lane-not-found'
+  | 'lane-not-agentic'
+  | 'no-tasks-in-lane';
+
+// v1 core emits no warnings; the union is kept for parity + guide-30 growth.
+export type AgentDerivationWarning = { kind: 'placeholder' };
