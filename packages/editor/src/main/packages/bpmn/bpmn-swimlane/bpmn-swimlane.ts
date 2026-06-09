@@ -8,7 +8,7 @@ import { ILayoutable } from '../../../services/layouter/layoutable';
 import { UMLContainer } from '../../../services/uml-container/uml-container';
 import { assign } from '../../../utils/fx/assign';
 import * as Apollon from '../../../typings';
-import { BPMNAgentRole, clampTrustScore } from '../common/types';
+import { BPMNAgentRole, clampTrustScore, clampMultiplicity } from '../common/types';
 
 export class BPMNSwimlane extends UMLContainer {
   static DEFAULT_HEIGHT = 80;
@@ -27,6 +27,7 @@ export class BPMNSwimlane extends UMLContainer {
   // separate element type. `role` / `trustScore` are only meaningful when set.
   static defaultRole: BPMNAgentRole = 'worker';
   static defaultTrustScore = 0;
+  static defaultMultiplicity = 1;
 
   static features: UMLElementFeatures = {
     ...UMLElement.features,
@@ -42,6 +43,9 @@ export class BPMNSwimlane extends UMLContainer {
   isAgentic: boolean;
   role: BPMNAgentRole;
   trustScore: number;
+  // Meeting 2026-06-08 §3: swarm size — N identical copies of this agent.
+  // Only meaningful when isAgentic; default 1. [[swarm-multiplicity-semantics]]
+  multiplicity: number;
   // 08 (07-plan D2): forward link to the BESSER Agent diagram that
   // defines this lane's agent. Set only when isAgentic === true and the
   // user has clicked "Define BESSER agent" on the popup. UUID-only —
@@ -55,6 +59,7 @@ export class BPMNSwimlane extends UMLContainer {
     this.isAgentic = values?.isAgentic ?? false;
     this.role = values?.role ?? BPMNSwimlane.defaultRole;
     this.trustScore = clampTrustScore(values?.trustScore ?? BPMNSwimlane.defaultTrustScore);
+    this.multiplicity = clampMultiplicity(values?.multiplicity ?? BPMNSwimlane.defaultMultiplicity);
     this.agentDiagramRef = values?.agentDiagramRef ?? undefined;
   }
 
@@ -65,6 +70,7 @@ export class BPMNSwimlane extends UMLContainer {
       isAgentic: this.isAgentic,
       role: this.role,
       trustScore: this.trustScore,
+      multiplicity: this.multiplicity,
       agentDiagramRef: this.agentDiagramRef,
     };
   }
@@ -74,6 +80,7 @@ export class BPMNSwimlane extends UMLContainer {
       isAgentic?: boolean;
       role?: BPMNAgentRole;
       trustScore?: number;
+      multiplicity?: number;
       agentDiagramRef?: string;
     },
     children?: Apollon.UMLModelElement[],
@@ -82,6 +89,7 @@ export class BPMNSwimlane extends UMLContainer {
     this.isAgentic = values.isAgentic ?? false;
     this.role = values.role ?? BPMNSwimlane.defaultRole;
     this.trustScore = clampTrustScore(values.trustScore ?? BPMNSwimlane.defaultTrustScore);
+    this.multiplicity = clampMultiplicity(values.multiplicity ?? BPMNSwimlane.defaultMultiplicity);
     this.agentDiagramRef = values.agentDiagramRef ?? undefined;
   }
 

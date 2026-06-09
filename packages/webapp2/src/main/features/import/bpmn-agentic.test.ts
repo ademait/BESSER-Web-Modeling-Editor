@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   clampTrustScore,
+  clampMultiplicity,
   mergingStrategiesFor,
   resolveUpstreamCollabMode,
   findDownstreamAgenticConstructs,
@@ -34,6 +35,16 @@ describe('clampTrustScore', () => {
     expect(clampTrustScore(100)).toBe(100);
     expect(clampTrustScore(80)).toBe(80);
     expect(clampTrustScore(42.6)).toBe(43);
+  });
+});
+
+describe('clampMultiplicity', () => {
+  it('floors at 1 and rounds', () => {
+    expect(clampMultiplicity(0)).toBe(1);
+    expect(clampMultiplicity(-5)).toBe(1);
+    expect(clampMultiplicity(1)).toBe(1);
+    expect(clampMultiplicity(3)).toBe(3);
+    expect(clampMultiplicity(2.6)).toBe(3);
   });
 });
 
@@ -79,6 +90,7 @@ describe('agentic round-trip (04D2)', () => {
     expect(lane?.isAgentic).toBe(true);
     expect(lane?.role).toBe('manager');
     expect(lane?.trustScore).toBe(90);
+    expect(lane?.multiplicity).toBe(3);
 
     const task = findEl('Review');
     expect(task?.isAgentic).toBe(true);
@@ -119,6 +131,21 @@ describe('agentic round-trip (04D2)', () => {
     expect(warnings.some((w) => w.code === 'agentic-bad-trust-score')).toBe(true);
     const lane = Object.values(model.elements).find((e) => (e as { name?: string }).name === 'AgentReviewer');
     expect(lane).toBeDefined();
+  });
+
+  it('warns on a malformed multiplicity and still loads the lane', () => {
+    const model = buildFixtureAgenticModel();
+    (model.elements as Record<string, { multiplicity?: number }>)['Lane_1'].multiplicity = 3;
+    const { xml } = apollonBpmnToXml(model);
+    const corrupted = xml.replace('multiplicity="3"', 'multiplicity="lots"');
+    const { warnings, model: parsed } = bpmnXmlToApollon(corrupted);
+    expect(warnings.some((w) => w.code === 'agentic-bad-multiplicity')).toBe(true);
+    const lane = Object.values(parsed.elements).find((e) => (e as { name?: string }).name === 'AgentReviewer');
+    expect(lane).toBeDefined();
+    // The importer leaves a bad value unset on the raw model JSON; the
+    // default-to-1 is applied later by BPMNSwimlane.deserialize when the
+    // editor instantiates the class (same posture as the trustScore test).
+    expect((lane as { multiplicity?: number }).multiplicity).toBeUndefined();
   });
 
   it('warns on an unknown enum value', () => {
@@ -433,6 +460,7 @@ function buildFixtureAgenticModel(): UMLModel {
         isAgentic: true,
         role: 'manager',
         trustScore: 90,
+        multiplicity: 3,
       } as unknown as UMLModel['elements'][string],
       Task_1: {
         id: 'Task_1',

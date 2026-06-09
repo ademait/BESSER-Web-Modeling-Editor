@@ -10,6 +10,7 @@ import {
   UMLRelationship,
   canSourceCarryDefault,
   clampTrustScore,
+  clampMultiplicity,
   findOrphanedMergingGateways,
   mergingStrategiesFor,
   resolveUpstreamDivergingGateway,
@@ -182,6 +183,7 @@ function parseAgenticExtension(
   collaborationMode?: BPMNCollaborationMode;
   mergingStrategy?: BPMNMergingStrategy;
   trustScore?: number;
+  multiplicity?: number;
   // 08 — lane-only ref. Free-form UUID; never validated here (the
   // target project may not even contain the diagram). C4 webapp2
   // post-validator handles the dead-ref toast per plan OQ-F.
@@ -231,6 +233,18 @@ function parseAgenticExtension(
       warnings.push({
         code: 'agentic-bad-trust-score',
         message: `Agentic trustScore="${tsRaw}" is not a number; ignored.`,
+      });
+    }
+  }
+  const mRaw = a.getAttribute('multiplicity');
+  if (mRaw !== null) {
+    const n = Number.parseInt(mRaw, 10);
+    if (Number.isFinite(n)) {
+      out.multiplicity = clampMultiplicity(n);
+    } else {
+      warnings.push({
+        code: 'agentic-bad-multiplicity',
+        message: `Agentic multiplicity="${mRaw}" is not a number; ignored.`,
       });
     }
   }

@@ -263,6 +263,7 @@ export type BPMNSwimlane = UMLElement & {
   isAgentic: boolean;
   role: BPMNAgentRole;
   trustScore: number;
+  multiplicity?: number;
   agentDiagramRef?: string;
 };
 

@@ -417,6 +417,7 @@ interface AnyAgentic {
   collaborationMode?: string;
   mergingStrategy?: string;
   trustScore?: number;
+  multiplicity?: number;
   agentDiagramRef?: string;
   governanceDsl?: string;
 }
@@ -441,6 +442,11 @@ function emitAgenticExtension(lines: string[], el: AnyAgentic, indent: string): 
     attrs.push(`mergingStrategy="${escapeAttr(el.mergingStrategy)}"`);
   }
   if (el.trustScore !== undefined) attrs.push(`trustScore="${el.trustScore}"`);
+  // Meeting 2026-06-08 §3: emit multiplicity only when > 1 — absence means the
+  // default 1, keeping the XML clean for the common single-agent lane.
+  if (el.multiplicity !== undefined && el.multiplicity > 1) {
+    attrs.push(`multiplicity="${el.multiplicity}"`);
+  }
   // 08/11 — agentDiagramRef rides the agentic extension block of whatever
   // construct carries it (guide 11: the agentic task; legacy: the lane).
   // Emitted only when set, so non-linked constructs add nothing.

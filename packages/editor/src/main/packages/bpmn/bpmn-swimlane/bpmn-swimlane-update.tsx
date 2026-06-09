@@ -15,7 +15,7 @@ import { UMLElementRepository } from '../../../services/uml-element/uml-element-
 import { ColorButton } from '../../../components/controls/color-button/color-button';
 import { StylePane } from '../../../components/style-pane/style-pane';
 import { BPMNSwimlane } from './bpmn-swimlane';
-import { BPMNAgentRole, clampTrustScore } from '../common/types';
+import { BPMNAgentRole, clampTrustScore, clampMultiplicity } from '../common/types';
 
 interface OwnProps {
   element: BPMNSwimlane;
@@ -97,6 +97,13 @@ class BPMNSwimlaneUpdateComponent extends Component<Props, State> {
                 <Textfield value={String(element.trustScore)} onChange={this.changeTrustScore(element.id)} />
               </Flex>
             </section>
+            <section>
+              <Divider />
+              <Flex>
+                <span>{this.props.translate('packages.BPMNDiagram.BPMNMultiplicity')}</span>
+                <Textfield value={String(element.multiplicity)} onChange={this.changeMultiplicity(element.id)} />
+              </Flex>
+            </section>
           </>
         )}
       </div>
@@ -116,6 +123,11 @@ class BPMNSwimlaneUpdateComponent extends Component<Props, State> {
   private changeTrustScore = (id: string) => (value: string) => {
     const parsed = Number.parseInt(value, 10);
     this.props.update<BPMNSwimlane>(id, { trustScore: clampTrustScore(Number.isFinite(parsed) ? parsed : 0) });
+  };
+
+  private changeMultiplicity = (id: string) => (value: string) => {
+    const parsed = Number.parseInt(value, 10);
+    this.props.update<BPMNSwimlane>(id, { multiplicity: clampMultiplicity(Number.isFinite(parsed) ? parsed : 1) });
   };
 
   private delete = (id: string) => () => this.props.delete(id);

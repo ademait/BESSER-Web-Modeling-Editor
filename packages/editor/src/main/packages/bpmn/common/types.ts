@@ -14,6 +14,11 @@ export type BPMNReflectionMode = 'none' | 'self' | 'cross' | 'human';
 
 export const clampTrustScore = (n: number): number => Math.min(100, Math.max(0, Math.round(n)));
 
+// Agentic lane multiplicity (meeting 2026-06-08 §3): the swarm-size count —
+// how many identical copies of this agent form the swarm. Integer ≥ 1,
+// default 1, no upper cap (O3d). [[swarm-multiplicity-semantics]]
+export const clampMultiplicity = (n: number): number => Math.max(1, Math.round(n));
+
 // Agentic BPMN — collaboration & gateways (04D1 — paper §4.3, Fig 4).
 // `CollaborationMode` is flattened from the paper's abstract hierarchy:
 // Cooperation (Voting/Role/Debate) + Competition. The merging strategy is a

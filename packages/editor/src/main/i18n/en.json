@@ -130,6 +130,7 @@
       "BPMNTask": "Task",
       "BPMNAgentic": "Agentic",
       "BPMNTrustScore": "Trust score (0-100)",
+      "BPMNMultiplicity": "Copies (≥1)",
       "BPMNAgentRoleWorker": "Worker",
       "BPMNAgentRoleManager": "Manager",
       "BPMNDefineAgentDiagram": "Define agent behavior",

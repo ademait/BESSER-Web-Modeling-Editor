@@ -50,6 +50,19 @@ export const BPMNSwimlaneComponent: FunctionComponent<Props> = ({ element, fillC
           >
             {element.trustScore}
           </text>
+          {element.multiplicity > 1 && (
+            <text
+              x={42}
+              y={element.bounds.height / 2 + 32}
+              fontSize={11}
+              fontWeight="bold"
+              textAnchor="middle"
+              fill={fg}
+              pointerEvents="none"
+            >
+              {`×${element.multiplicity}`}
+            </text>
+          )}
         </>
       )}
       {children}
