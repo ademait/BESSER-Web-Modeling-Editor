@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import type { UMLModel } from '@besser/wme';
+import type { BesserProject, ProjectDiagram } from '../../shared/types/project';
 import { useAppDispatch, useAppSelector } from '../../app/store/hooks';
 import {
   addDiagramThunk,
@@ -24,13 +25,21 @@ export function useGenerateDeploymentDiagram(): () => Promise<DeploymentDerivati
   const dispatch = useAppDispatch();
   const activeDiagram = useAppSelector((s) => s.workspace.activeDiagram);
   const activeDiagramType = useAppSelector((s) => s.workspace.activeDiagramType);
+  // 27 — the project carries the lineage sidecar (`elementLineage`) + the BPMN
+  // diagrams, both needed to trace artifact→Component→lane for swarm multiplicity.
+  const project = useAppSelector((s) => s.workspace.project);
 
   return useCallback(async () => {
     if (activeDiagramType !== 'ComponentDiagram' || !activeDiagram?.model) {
       return { ok: false, reason: 'not-a-component-diagram', warnings: [] };
     }
 
-    const result = componentModelToDeploymentModel(activeDiagram.model as UMLModel);
+    // 27 — trace each source Component back to its BPMN agentic lane via the
+    // lineage sidecars and read the lane's swarm size, so the derived Artifact
+    // can carry `[N]`. Empty when the Component diagram wasn't derived from BPMN.
+    const multiplicityByComponentId = resolveLaneMultiplicities(project, activeDiagram);
+
+    const result = componentModelToDeploymentModel(activeDiagram.model as UMLModel, multiplicityByComponentId);
     if (!result.ok) return result;
 
     const title = `${activeDiagram.title || 'Components'} — Deployment`;
@@ -58,5 +67,48 @@ export function useGenerateDeploymentDiagram(): () => Promise<DeploymentDerivati
     dispatch(bumpEditorRevision());
 
     return result;
-  }, [dispatch, activeDiagram, activeDiagramType]);
+  }, [dispatch, activeDiagram, activeDiagramType, project]);
+}
+
+/**
+ * 27 — Build `{ [componentElementId]: swarmSize }` for the Component→Deployment
+ * derivation by walking the lineage chain Component → BPMN lane → `multiplicity`.
+ *
+ * - `elementLineage[componentDiagram.id]` maps each derived element id back to its
+ *   BPMN source id (`bpmn-to-component.ts` `06-v2`); agent-Components map to their
+ *   **lane** id directly (line 102).
+ * - `derivedFrom.sourceDiagramId` names the BPMN diagram the lanes live in (`06-v1`).
+ *
+ * Returns `{}` (every artifact keeps its plain name) when the Component diagram is
+ * hand-built (no `derivedFrom`), has no lineage entry, the BPMN diagram is gone, or
+ * no lane has a count > 1. Only `BPMNSwimlane` sources with `multiplicity > 1` are
+ * recorded — pool/flow lineage entries and Components that resolve to N==1 are skipped.
+ */
+function resolveLaneMultiplicities(
+  project: BesserProject | null | undefined,
+  componentDiagram: ProjectDiagram | null | undefined,
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!project || !componentDiagram) return out;
+
+  const lineage = project.elementLineage?.[componentDiagram.id];
+  const bpmnDiagramId = componentDiagram.derivedFrom?.sourceDiagramId;
+  if (!lineage || !bpmnDiagramId) return out;
+
+  const bpmnDiagram = project.diagrams.BPMN?.find((d) => d.id === bpmnDiagramId);
+  const bpmnModel = bpmnDiagram?.model as UMLModel | undefined;
+  if (!bpmnModel?.elements) return out;
+
+  const componentElements = (componentDiagram.model as UMLModel | undefined)?.elements ?? {};
+
+  for (const [componentElementId, sourceElementId] of Object.entries(lineage)) {
+    // Only Component elements carry a swarm count; skip Subsystem←Pool / edge←flow rows.
+    if (componentElements[componentElementId]?.type !== 'Component') continue;
+    const laneEl = bpmnModel.elements[sourceElementId] as { type?: string; multiplicity?: number } | undefined;
+    if (laneEl?.type !== 'BPMNSwimlane') continue;
+    const n = laneEl.multiplicity ?? 1;
+    if (n > 1) out[componentElementId] = n;
+  }
+
+  return out;
 }

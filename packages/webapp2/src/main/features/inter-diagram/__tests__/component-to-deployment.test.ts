@@ -146,6 +146,45 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
     });
   });
 
+  describe('27 — swarm multiplicity → Artifact name [N]', () => {
+    const m = makeBaseModel();
+    Object.assign(m.elements as Record<string, unknown>, {
+      s1: el('s1', 'Subsystem', 'Coding', null),
+      c1: el('c1', 'Component', 'Coder', 's1', 'solution'), // ×3 swarm
+      c2: el('c2', 'Component', 'Reviewer', 's1', 'supervision'), // ×1
+    });
+
+    it('stamps [N] on the Artifact whose source Component has N>1', () => {
+      const r = componentModelToDeploymentModel(m, { c1: 3 });
+      if (!r.ok) throw new Error('expected ok');
+      const artifacts = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentArtifact');
+      const names = artifacts.map((a) => a.name).sort();
+      expect(names).toEqual(['Coder [3]', 'Reviewer']);
+    });
+
+    it('leaves the DeploymentComponent name count-free (only the Artifact carries [N])', () => {
+      const r = componentModelToDeploymentModel(m, { c1: 3 });
+      if (!r.ok) throw new Error('expected ok');
+      const comps = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentComponent');
+      const names = comps.map((c) => c.name).sort();
+      expect(names).toEqual(['Coder', 'Reviewer']);
+    });
+
+    it('emits no suffix when N==1 or the map omits the Component', () => {
+      const r = componentModelToDeploymentModel(m, { c1: 1 }); // explicit 1 + c2 absent
+      if (!r.ok) throw new Error('expected ok');
+      const artifacts = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentArtifact');
+      expect(artifacts.map((a) => a.name).sort()).toEqual(['Coder', 'Reviewer']);
+    });
+
+    it('is a no-op with no map argument (back-compat)', () => {
+      const r = componentModelToDeploymentModel(m);
+      if (!r.ok) throw new Error('expected ok');
+      const artifacts = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentArtifact');
+      expect(artifacts.every((a) => !/\[\d+\]/.test(a.name as string))).toBe(true);
+    });
+  });
+
   describe('flat-scaffold — no Subsystems', () => {
     const m = makeBaseModel();
     Object.assign(m.elements as Record<string, unknown>, {

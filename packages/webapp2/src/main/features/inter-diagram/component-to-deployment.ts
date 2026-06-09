@@ -23,7 +23,14 @@ import type { DeploymentDerivationResult, DeploymentDerivationWarning } from './
  * - Edge stereotypes (`delegates`/`supervises`/etc.) dropped silently
  *   (OQ-2). No `dropped-*` warnings.
  */
-export function componentModelToDeploymentModel(component: UMLModel): DeploymentDerivationResult {
+export function componentModelToDeploymentModel(
+  component: UMLModel,
+  // 27 — sourceComponentElementId → swarm size (N). Resolved by the caller
+  // from the lineage chain (artifact→Component→lane). Optional + defaulted so
+  // every existing caller and test (model-only) is unaffected; a missing or
+  // ≤1 entry yields no `[N]` suffix.
+  multiplicityByComponentId: Record<string, number> = {},
+): DeploymentDerivationResult {
   const warnings: DeploymentDerivationWarning[] = [];
 
   if (component.type !== UMLDiagramType.ComponentDiagram) {
@@ -86,7 +93,13 @@ export function componentModelToDeploymentModel(component: UMLModel): Deployment
     if (!nodeId) continue;
     const subComps = componentsBySubsystemId.get(sub.id) ?? [];
     for (let i = 0; i < subComps.length; i++) {
-      const { componentId } = emitDeploymentComponentPair(out, subComps[i], nodeId, i);
+      const { componentId } = emitDeploymentComponentPair(
+        out,
+        subComps[i],
+        nodeId,
+        i,
+        multiplicityByComponentId[subComps[i].id] ?? 1,
+      );
       nodeIdByCompId.set(subComps[i].id, nodeId);
       // 06-v2 — only the DeploymentComponent (logical projection) maps
       // to the source Component; the Artifact has no source counterpart.
@@ -98,7 +111,13 @@ export function componentModelToDeploymentModel(component: UMLModel): Deployment
     const hostId = emitDeploymentNode(out, 'Default Host', null, /*synthetic*/ true, layout, orphanComponents.length);
     // Default Host is synthetic — no entry in elementMapping (D-D1 per plan 05- § 3.3).
     for (let i = 0; i < orphanComponents.length; i++) {
-      const { componentId } = emitDeploymentComponentPair(out, orphanComponents[i], hostId, i);
+      const { componentId } = emitDeploymentComponentPair(
+        out,
+        orphanComponents[i],
+        hostId,
+        i,
+        multiplicityByComponentId[orphanComponents[i].id] ?? 1,
+      );
       nodeIdByCompId.set(orphanComponents[i].id, hostId);
       elementMapping[componentId] = orphanComponents[i].id;
     }
@@ -282,6 +301,14 @@ function makeLayoutCursor(): LayoutCursor {
 
 const newId = (): string => 'gen-' + Math.random().toString(36).slice(2, 11);
 
+// 27 — swarm multiplicity. Stamp the deployment **Artifact** name with the
+// UML `[N]` multiplicity suffix when the source agent-lane's swarm size > 1.
+// The `[N]` grammar already exists on the wire (BESSER parses it into
+// `structural.Multiplicity`); this only populates it. N==1 (the default) emits
+// no suffix — absence means "single instance", matching the lane XML convention
+// (guide 26: the attribute is omitted when 1).
+const appendMultiplicity = (base: string, n: number): string => (n > 1 ? `${base} [${n}]` : base);
+
 function emitDeploymentNode(
   out: UMLModel,
   name: string,
@@ -347,6 +374,8 @@ function emitDeploymentComponentPair(
   source: UMLElement,
   nodeId: string,
   slotIndex: number,
+  // 27 — swarm size for this source Component (defaults 1 = no suffix).
+  multiplicity: number,
 ): { componentId: string; artifactId: string } {
   const componentId = newId();
   const artifactId = newId();
@@ -387,7 +416,10 @@ function emitDeploymentComponentPair(
 
   out.elements[artifactId] = {
     id: artifactId,
-    name: source.name || 'Artifact',
+    // 27 — only the **Artifact** (physical packaging / runtime instance) carries
+    // the swarm count. The DeploymentComponent above stays count-free — it is the
+    // logical agent *type* projection (`25-…` § 8.2).
+    name: appendMultiplicity(source.name || 'Artifact', multiplicity),
     type: 'DeploymentArtifact',
     owner: nodeId, // inside the Node
     bounds: artifactBounds,
