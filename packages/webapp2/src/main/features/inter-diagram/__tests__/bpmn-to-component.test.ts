@@ -73,28 +73,48 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
     });
   });
 
-  describe('multi-pool-message — inter-pool message flow', () => {
+  describe('multi-pool-message — message flow to a non-agentic pool is dropped', () => {
     const r = bpmnModelToComponentModel(multiPoolMessage as unknown as UMLModel);
-    it('emits an `external`-stereotyped Component', () => {
+    it('drops the non-agentic Pool B entirely (no Subsystem, no external Component)', () => {
       if (!r.ok) throw new Error('expected ok');
-      const externals = Object.values(r.model.elements).filter(
-        (e) => (e as unknown as { stereotype?: string }).stereotype === 'external',
+      // Meeting 2026-06-08 §1 (refined): a Subsystem is emitted ONLY for a pool
+      // with an agentic lane — never via a message flow. Pool B's only lane is
+      // non-agentic, so it disappears; only SwarmA + its Coordinator remain.
+      const subsystems = Object.values(r.model.elements).filter((e) => e.type === 'Subsystem');
+      expect(subsystems).toHaveLength(1);
+      expect(subsystems[0].name).toBe('SwarmA');
+      const externalComps = Object.values(r.model.elements).filter(
+        (e) => e.type === 'Component' && (e as unknown as { stereotype?: string }).stereotype === 'external',
       );
-      expect(externals.length).toBeGreaterThanOrEqual(1);
+      expect(externalComps).toHaveLength(0);
     });
-    it('emits a `delegates` edge', () => {
+    it('drops the message flow that targeted the non-agentic pool', () => {
       if (!r.ok) throw new Error('expected ok');
       const delegates = Object.values(r.model.relationships).filter(
         (rel) => (rel as unknown as { stereotype?: string }).stereotype === 'delegates',
       );
-      expect(delegates.length).toBeGreaterThanOrEqual(1);
+      expect(delegates).toHaveLength(0);
     });
-    it('does NOT surface an `inferred-external-component` warning when target is a tracked lane', () => {
+    it('does NOT surface an `inferred-external-component` warning', () => {
       if (!r.ok) throw new Error('expected ok');
-      // F-D4 (2026-05-27): when the message-flow target resolves to a
-      // tracked lane, we connect to that lane's existing Component
-      // and do not synthesize an external (so we do not warn).
       expect(r.warnings.some((w) => w.kind === 'inferred-external-component')).toBe(false);
+    });
+
+    it('drops a POOL-targeted message flow too (real-editor case: flow attaches to the pool, not the lane)', () => {
+      // BPMN message flows commonly attach pool-to-pool, so the endpoint
+      // resolves to the pool (not a lane). A pool with lanes but no agentic
+      // lane must still NOT be synthesised as a Subsystem.
+      const model = JSON.parse(JSON.stringify(multiPoolMessage));
+      model.relationships['msg-flow'].target.element = 'pool-b';
+      const r2 = bpmnModelToComponentModel(model as unknown as UMLModel);
+      if (!r2.ok) throw new Error('expected ok');
+      const subsystems = Object.values(r2.model.elements).filter((e) => e.type === 'Subsystem');
+      expect(subsystems).toHaveLength(1);
+      expect(subsystems[0].name).toBe('SwarmA');
+      const delegates = Object.values(r2.model.relationships).filter(
+        (rel) => (rel as unknown as { stereotype?: string }).stereotype === 'delegates',
+      );
+      expect(delegates).toHaveLength(0);
     });
   });
 
@@ -120,45 +140,35 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
   describe('diverge-then-merge — surfaces supervises + revises + delegates (guide 13/14)', () => {
     const r = bpmnModelToComponentModel(divergeMerge as unknown as UMLModel);
 
-    it('produces a ComponentDiagram with 1 Subsystem + 3 Components', () => {
+    it('produces a ComponentDiagram with 1 Subsystem + 2 Components (non-agentic lane skipped)', () => {
       if (!r.ok) throw new Error('expected ok');
       const els = Object.values(r.model.elements);
       expect(els.filter((e) => e.type === 'Subsystem')).toHaveLength(1);
-      expect(els.filter((e) => e.type === 'Component')).toHaveLength(3);
+      expect(els.filter((e) => e.type === 'Component')).toHaveLength(2);
     });
 
-    it('marks the two agentic lanes `solution` and the non-agentic lane `human`', () => {
+    it('marks both agentic lanes `solution` and derives no Component for the non-agentic lane', () => {
       if (!r.ok) throw new Error('expected ok');
       const comps = Object.values(r.model.elements)
         .filter((e) => e.type === 'Component')
         .map((c) => (c as unknown as { stereotype?: string }).stereotype)
         .sort();
-      expect(comps).toEqual(['human', 'solution', 'solution']);
+      expect(comps).toEqual(['solution', 'solution']);
     });
 
-    it('emits exactly one delegates + one revises + one supervises edge', () => {
+    it('emits one revises + one supervises edge (the delegate-to-Maintainer is gone)', () => {
       if (!r.ok) throw new Error('expected ok');
       const stereotypes = Object.values(r.model.relationships)
         .map((rel) => (rel as unknown as { stereotype?: string }).stereotype)
         .sort();
-      expect(stereotypes).toEqual(['delegates', 'revises', 'supervises']);
+      expect(stereotypes).toEqual(['revises', 'supervises']);
     });
 
-    it('does NOT emit a spurious worker→Maintainer edge (cause (a) regression)', () => {
+    it('derives no Component from the non-agentic Maintainer lane', () => {
       if (!r.ok) throw new Error('expected ok');
-      const byId = r.model.elements;
-      const maintainer = Object.values(byId).find(
-        (e) => (e as unknown as { stereotype?: string }).stereotype === 'human',
-      );
-      const coder = Object.values(byId).find((e) => e.type === 'Component' && e.name === 'Coder');
-      expect(maintainer).toBeDefined();
-      expect(coder).toBeDefined();
-      const coderToMaintainer = Object.values(r.model.relationships).some(
-        (rel) =>
-          (rel as unknown as { source: { element: string } }).source.element === coder!.id &&
-          (rel as unknown as { target: { element: string } }).target.element === maintainer!.id,
-      );
-      expect(coderToMaintainer).toBe(false);
+      const comps = Object.values(r.model.elements).filter((e) => e.type === 'Component');
+      expect(comps.every((c) => (c as unknown as { stereotype?: string }).stereotype === 'solution')).toBe(true);
+      expect(comps.some((c) => c.name === 'Maintainer')).toBe(false);
     });
   });
 
@@ -177,20 +187,17 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
       }
     });
 
-    it('T-P2 leaves non-agentic lane-Components without processModelRefs', () => {
+    it('T-P2 skips non-agentic lanes; every emitted Component is a stamped agent', () => {
       const r = bpmnModelToComponentModel(divergeMerge as unknown as UMLModel, {
         sourceDiagramId: 'bpmn-42',
       });
       if (!r.ok) throw new Error('expected ok');
       const components = Object.values(r.model.elements).filter((e) => e.type === 'Component');
+      // Meeting 2026-06-08 §1: only agentic lanes become Components.
       const nonAgentic = components.filter((e) => (e as unknown as { stereotype?: string }).stereotype !== 'solution');
-      expect(nonAgentic.length).toBeGreaterThan(0);
-      for (const c of nonAgentic) {
-        expect((c as unknown as { processModelRefs?: string[] }).processModelRefs).toBeUndefined();
-      }
-      // the agentic ones are still stamped
-      const agents = components.filter((e) => (e as unknown as { stereotype?: string }).stereotype === 'solution');
-      for (const a of agents) {
+      expect(nonAgentic).toHaveLength(0);
+      expect(components.length).toBeGreaterThan(0);
+      for (const a of components) {
         expect((a as unknown as { processModelRefs?: string[] }).processModelRefs).toEqual(['bpmn-42']);
       }
     });

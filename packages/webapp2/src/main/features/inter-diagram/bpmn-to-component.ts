@@ -76,24 +76,34 @@ export function bpmnModelToComponentModel(bpmn: UMLModel, opts?: DerivationOpts)
     const lanes = lanesByPool.get(pool.id) ?? [];
     if (lanes.length === 0) continue;
 
+    // Meeting 2026-06-08 §1 (O1): only agentic lanes are agents → only they
+    // become Components. Non-agentic lanes (humans, external actors) are
+    // skipped entirely. Their tasks were never represented anyway (F-D1) —
+    // keep the advisory so the user sees they were dropped.
+    const agenticLanes = lanes.filter((l) => (l as unknown as { isAgentic?: boolean }).isAgentic === true);
+    for (const lane of lanes) {
+      if ((lane as unknown as { isAgentic?: boolean }).isAgentic === true) continue;
+      for (const t of tasksInLane(bpmn, lane.id)) {
+        warnings.push({ kind: 'dropped-task-in-non-agentic-lane', taskId: t.id });
+      }
+    }
+    // A pool with no agentic lane is not part of the swarm view — emit no
+    // Subsystem. A message flow that lands on one of its (skipped) lanes is
+    // dropped; only a flow to a laneless black-box pool synthesises an
+    // external Subsystem (Phase 3, 14-FU2).
+    if (agenticLanes.length === 0) continue;
+
     const subsystemId = emitSubsystem(out, pool, layout);
     elementMapping[subsystemId] = pool.id; // 06-v2 — Subsystem ← source Pool
     subsystemIdByPoolId.set(pool.id, subsystemId); // 14-FU2
-    for (const lane of lanes) {
+    for (const lane of agenticLanes) {
       const laneCompId = emitLaneComponent(out, lane, subsystemId, layout, sourceDiagramId);
       componentIdByLaneId.set(lane.id, laneCompId);
       elementMapping[laneCompId] = lane.id; // 06-v2 — Component ← source Lane
 
-      const isAgentic = (lane as unknown as { isAgentic?: boolean }).isAgentic === true;
-      if (!isAgentic) {
-        for (const t of tasksInLane(bpmn, lane.id)) {
-          warnings.push({ kind: 'dropped-task-in-non-agentic-lane', taskId: t.id });
-        }
-      } else if (opts?.includeCapabilities && opts.agentDiagramsById) {
+      if (opts?.includeCapabilities && opts.agentDiagramsById) {
         // 16 + 16-FU2 (DQ1/DQ4): an agentic lane = one agent. Collect its
-        // tasks' linked Agent-diagram tools/skills so Phase 1.5 can pool
-        // them into shared Skills/Tools Subsystems (the sole capability
-        // layout; per-agent columns retired 2026-06-05).
+        // tasks' linked Agent-diagram tools/skills (pooled in Phase 1.5).
         collectLaneCapabilities(bpmn, lane, laneCompId, opts.agentDiagramsById, collectedCaps, warnings);
       }
     }
@@ -130,18 +140,30 @@ export function bpmnModelToComponentModel(bpmn: UMLModel, opts?: DerivationOpts)
 
   // Phase 3: inter-pool message flows → ComponentDependency
   // 14-FU2: an endpoint that lands on a specific lane → that lane's
-  // Component; an endpoint on the pool-as-whole (header / black-box
+  // Component; an endpoint on a LANELESS black-box pool (header / black-box
   // participant, BPMN 2.0.2 § 9.2.1, or a shape in a laneless pool) →
-  // that pool's Subsystem (the swarm boundary, plan § 3). A black-box
-  // pool with no lanes gets a synthesised external Subsystem, once.
+  // that pool's synthesised Subsystem (the swarm boundary, plan § 3),
+  // emitted once.
   const resolveMessageEndpoint = (elementId: string): string | undefined => {
     const lane = laneForElement(bpmn, elementId);
+    // Meeting 2026-06-08 §1 (refined): if the endpoint is inside a lane, use
+    // that lane's Component. A skipped non-agentic lane has no entry here →
+    // returns undefined → the caller drops the flow (a non-agentic pool is
+    // never resurrected by a message flow).
     if (lane) return componentIdByLaneId.get(lane.id);
     const el = bpmn.elements[elementId];
     const poolId = el ? poolFor(bpmn, el) : null;
     if (!poolId) return undefined;
     const existing = subsystemIdByPoolId.get(poolId);
     if (existing) return existing;
+    // Meeting 2026-06-08 §1 (refined): a pool reaches here only if it has NO
+    // agentic lane (else it already owns a Subsystem above). Synthesise an
+    // external Subsystem ONLY when the pool is a genuine laneless black-box
+    // participant. A pool that HAS lanes but none agentic was deliberately
+    // skipped (Phase 1) — a message flow to it (or to its header/pool-as-whole)
+    // must NOT resurrect it as a Subsystem. ("All must go, no matter the
+    // message flows.")
+    if ((lanesByPool.get(poolId)?.length ?? 0) > 0) return undefined;
     const pool = bpmn.elements[poolId];
     if (!pool) return undefined;
     const subId = emitExternalSubsystem(out, pool, layout);
@@ -330,19 +352,6 @@ function resolveEdgeKind(srcLane: UMLElement, tgtLane: UMLElement, gateway: UMLE
   }
 
   return 'delegates';
-}
-
-// Guide 13 § 5.3 (Q3). In-pool non-agentic lanes are overwhelmingly
-// human-in-the-loop participants (User, Maintainer), so default to
-// `human`; promote to `external` only when the name reads as a system /
-// service. Truly-external INTER-POOL participants get a hardcoded
-// `external` via emitExternalComponent (Phase 3 synthetic path), so this
-// default does not mislabel them. (A second pool's in-lane non-agentic
-// actor reached by a message flow defaults `human` unless system-named —
-// accepted edge case; user-editable from the popup.)
-function nonAgenticStereotype(laneName: string | undefined): 'human' | 'external' {
-  const name = (laneName ?? '').toLowerCase();
-  return /(queue|api|service|system|database|db|broker|gateway)/.test(name) ? 'external' : 'human';
 }
 
 // ── Capability traversal (16, plan 15 §4–§5) ────────────────────────
@@ -592,9 +601,9 @@ function emitLaneComponent(
   layout: LayoutCursor,
   sourceDiagramId?: string,
 ): string {
+  // Only ever called for agentic lanes (meeting 2026-06-08 §1) — every
+  // emitted lane-Component is a `solution` agent.
   const id = newId();
-  const isAgentic = (lane as unknown as { isAgentic?: boolean }).isAgentic === true;
-  const stereotype = isAgentic ? 'solution' : nonAgenticStereotype(lane.name);
   const bounds = {
     x: layout.laneInSubsystemX,
     y: (layout.currentSubsystemBounds?.y ?? 0) + 40,
@@ -604,18 +613,15 @@ function emitLaneComponent(
   layout.laneInSubsystemX += bounds.width + 24;
   out.elements[id] = {
     id,
-    name: lane.name || (isAgentic ? 'Agent' : 'Actor'),
+    name: lane.name || 'Agent',
     type: 'Component',
     owner: subsystemId,
     bounds,
-    stereotype,
+    stereotype: 'solution',
     displayStereotype: true,
     // 21 — BESSER `AgenticComponent.process_model_refs` (diagram-grained,
     // memo 17 § 5): the source BPMN diagram this agent participates in.
-    // Only agentic lanes are agents; only set when the caller supplied the
-    // diagram id. Same value as derivedFrom.sourceDiagramId but a distinct
-    // structural ref (lineage is stripped from the payload in slice 1).
-    ...(isAgentic && sourceDiagramId ? { processModelRefs: [sourceDiagramId] } : {}),
+    ...(sourceDiagramId ? { processModelRefs: [sourceDiagramId] } : {}),
   } as unknown as UMLElement;
   return id;
 }
