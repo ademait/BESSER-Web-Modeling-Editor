@@ -830,4 +830,41 @@ describe('generateGovernanceDsl policyType (T1c)', () => {
     expect(dsl).toContain('WorkerLane');
     expect(dsl).not.toContain('TODO');
   });
+
+  it('includes a gateway-only manager lane as a participant (C-R3a fix)', () => {
+    // ManagerLane owns both gateways but has NO tasks — the BFS walk would
+    // miss it entirely without the explicit owner-seeding step.
+    const fixture = {
+      L_MGR: { id: 'L_MGR', type: 'BPMNSwimlane', name: 'ManagerLane', isAgentic: true, role: 'manager', trustScore: 90 },
+      L_WRK: { id: 'L_WRK', type: 'BPMNSwimlane', name: 'WorkerLane', isAgentic: true, role: 'worker', trustScore: 80 },
+      DIV: { id: 'DIV', type: 'BPMNGateway', isAgentic: true, gatewayRole: 'diverging', owner: 'L_MGR' },
+      T1: { id: 'T1', type: 'BPMNTask', owner: 'L_WRK' },
+      MR: { id: 'MR', type: 'BPMNGateway', name: 'Merge', isAgentic: true, gatewayRole: 'merging', owner: 'L_MGR', trustScore: 70 },
+      F1: { id: 'F1', type: 'BPMNFlow', flowType: 'sequence', source: { element: 'DIV' }, target: { element: 'T1' } },
+      F2: { id: 'F2', type: 'BPMNFlow', flowType: 'sequence', source: { element: 'T1' }, target: { element: 'MR' } },
+    } as Record<string, never>;
+    const dsl = generateGovernanceDsl('MR', fixture, 'MajorityPolicy');
+    expect(dsl).toContain('ManagerLane');
+    expect(dsl).toContain('WorkerLane');
+    expect(dsl).not.toContain('TODO');
+  });
+
+  it('LeaderDrivenPolicy uses only manager lanes as participants (C-R3b fix)', () => {
+    // Same block: manager lane (gateways only) + worker lane (task). For
+    // LeaderDrivenPolicy the participant list must show the manager, not the workers.
+    const fixture = {
+      L_MGR: { id: 'L_MGR', type: 'BPMNSwimlane', name: 'ManagerLane', isAgentic: true, role: 'manager', trustScore: 90 },
+      L_WRK: { id: 'L_WRK', type: 'BPMNSwimlane', name: 'WorkerLane', isAgentic: true, role: 'worker', trustScore: 80 },
+      DIV: { id: 'DIV', type: 'BPMNGateway', isAgentic: true, gatewayRole: 'diverging', owner: 'L_MGR' },
+      T1: { id: 'T1', type: 'BPMNTask', owner: 'L_WRK' },
+      MR: { id: 'MR', type: 'BPMNGateway', name: 'Merge', isAgentic: true, gatewayRole: 'merging', owner: 'L_MGR', trustScore: 70 },
+      F1: { id: 'F1', type: 'BPMNFlow', flowType: 'sequence', source: { element: 'DIV' }, target: { element: 'T1' } },
+      F2: { id: 'F2', type: 'BPMNFlow', flowType: 'sequence', source: { element: 'T1' }, target: { element: 'MR' } },
+    } as Record<string, never>;
+    const dsl = generateGovernanceDsl('MR', fixture, 'LeaderDrivenPolicy');
+    expect(dsl).toContain('ManagerLane');
+    expect(dsl).not.toContain('WorkerLane');
+    expect(dsl).toContain('role : manager');
+    expect(dsl).not.toContain('TODO');
+  });
 });

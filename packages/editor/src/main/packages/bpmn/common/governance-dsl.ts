@@ -86,12 +86,24 @@ export function generateGovernanceDsl(
 
   // Participants = the agentic lanes (agents) of the collaboration block. Spec
   // §4.2 — walk forward from the bounding diverging gateway and collect each
-  // task's owning lane if the lane is agentic. We check LANE-level isAgentic,
+  // element's owning lane if the lane is agentic. We check LANE-level isAgentic,
   // not task-level: a normal (non-agentic) task inside an agentic lane is a
   // valid participant because the lane is the agent, not the task.
   const lanes = new Map<string, AnyEl>();
   const diverging = resolveUpstreamDivergingGateway(mergingGatewayId, elementsById);
   if (diverging) {
+    // The diverging and merging gateways live in the manager lane and may be
+    // the ONLY elements there (no tasks). Seed from both owners explicitly —
+    // the diverging is never reached as a BFS target (it is the root), and the
+    // merging triggers `continue` before collection, so neither would be picked
+    // up by the walk below.
+    for (const ownerId of [diverging.owner, elementsById[mergingGatewayId]?.owner]) {
+      if (ownerId) {
+        const lane = elementsById[ownerId];
+        if (lane?.isAgentic) lanes.set(ownerId, lane);
+      }
+    }
+
     const bVisited = new Set<string>([diverging.id]);
     const bQueue: string[] = [diverging.id];
     while (bQueue.length > 0) {
@@ -107,21 +119,28 @@ export function generateGovernanceDsl(
         if (!tgt) continue;
         // Stop at the paired agentic merging gateway (block boundary).
         if (tgt.type === 'BPMNGateway' && tgt.isAgentic && tgt.gatewayRole === 'merging') continue;
-        if (tgt.type === 'BPMNTask') {
-          const laneId = tgt.owner;
-          if (laneId) {
-            const lane = elementsById[laneId];
-            if (lane?.isAgentic) lanes.set(laneId, lane);
-          }
+        // Collect the owner lane for any in-lane element (task, intermediate
+        // gateway, event…) — not just BPMNTask.
+        if (tgt.owner) {
+          const lane = elementsById[tgt.owner];
+          if (lane?.isAgentic) lanes.set(tgt.owner, lane);
         }
         bQueue.push(tgtId);
       }
     }
   }
 
+  // For LeaderDrivenPolicy the decision authority is the manager lane(s). If
+  // manager lanes exist in the block, restrict participants to them; fall back
+  // to all agentic lanes when none are present.
+  const allLanes = Array.from(lanes.values());
+  const managerLanes = allLanes.filter((l) => l.role === 'manager');
+  const participantLanes =
+    policyType === 'LeaderDrivenPolicy' && managerLanes.length > 0 ? managerLanes : allLanes;
+
   const agents: { id: string; confidence: string; role?: string }[] = [];
   const roles = new Set<string>();
-  for (const lane of lanes.values()) {
+  for (const lane of participantLanes) {
     const role = lane.role === 'manager' || lane.role === 'worker' ? lane.role : undefined;
     if (role) roles.add(role);
     agents.push({
