@@ -55,11 +55,11 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
       const solutions = components.filter((c) => (c as unknown as { stereotype?: string }).stereotype === 'solution');
       expect(solutions).toHaveLength(2);
     });
-    it('emits exactly 1 `delegates` edge (no `has` edges)', () => {
+    it('emits exactly 1 `supervises` edge (manager → worker, T1d; no `has` edges)', () => {
       if (!r.ok) throw new Error('expected ok');
       const rels = Object.values(r.model.relationships);
       const stereotypes = rels.map((rel) => (rel as unknown as { stereotype?: string }).stereotype).sort();
-      expect(stereotypes).toEqual(['delegates']);
+      expect(stereotypes).toEqual(['supervises']);
     });
   });
 
@@ -119,7 +119,7 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
   });
 
   describe('edge de-duplication', () => {
-    it('two parallel manager→worker flows collapse to one `delegates` edge', () => {
+    it('two parallel manager→worker flows collapse to one `supervises` edge', () => {
       const model = JSON.parse(JSON.stringify(minimalAgentic));
       const existingFlow = Object.values(model.relationships).find(
         (rel: unknown) => (rel as { type?: string; flowType?: string }).type === 'BPMNFlow',
@@ -130,10 +130,10 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
 
       const r = bpmnModelToComponentModel(model as unknown as UMLModel);
       if (!r.ok) throw new Error('expected ok');
-      const delegates = Object.values(r.model.relationships).filter(
-        (rel) => (rel as unknown as { stereotype?: string }).stereotype === 'delegates',
+      const supervises = Object.values(r.model.relationships).filter(
+        (rel) => (rel as unknown as { stereotype?: string }).stereotype === 'supervises',
       );
-      expect(delegates).toHaveLength(1);
+      expect(supervises).toHaveLength(1);
     });
   });
 

@@ -1,8 +1,6 @@
 import {
   BPMNAgentRole,
-  BPMNCollaborationMode,
   BPMNGatewayRole,
-  BPMNMergingStrategy,
   BPMNReflectionMode,
   UMLDiagramType,
   UMLElement,
@@ -12,8 +10,6 @@ import {
   clampTrustScore,
   clampMultiplicity,
   findOrphanedMergingGateways,
-  mergingStrategiesFor,
-  resolveUpstreamDivergingGateway,
 } from '@besser/wme';
 
 // Inverse of bpmn-xml-exporter.ts. See .claude/bpmn/04B-bpmn-xml-import-guide.md.
@@ -180,8 +176,6 @@ function parseAgenticExtension(
   role?: BPMNAgentRole;
   reflectionMode?: BPMNReflectionMode;
   gatewayRole?: BPMNGatewayRole;
-  collaborationMode?: BPMNCollaborationMode;
-  mergingStrategy?: BPMNMergingStrategy;
   trustScore?: number;
   multiplicity?: number;
   // 08 — lane-only ref. Free-form UUID; never validated here (the
@@ -212,18 +206,6 @@ function parseAgenticExtension(
   if (reflectionMode !== undefined) out.reflectionMode = reflectionMode;
   const gatewayRole = oneOf('gatewayRole', ['diverging', 'merging'] as const);
   if (gatewayRole !== undefined) out.gatewayRole = gatewayRole;
-  const collaborationMode = oneOf('collaborationMode', ['voting', 'role', 'debate', 'competition'] as const);
-  if (collaborationMode !== undefined) out.collaborationMode = collaborationMode;
-  const mergingStrategy = oneOf('mergingStrategy', [
-    'majority',
-    'absolute-majority',
-    'minority',
-    'leader-driven',
-    'composed',
-    'fastest',
-    'most-complete',
-  ] as const);
-  if (mergingStrategy !== undefined) out.mergingStrategy = mergingStrategy;
   const tsRaw = a.getAttribute('trustScore');
   if (tsRaw !== null) {
     const n = Number.parseInt(tsRaw, 10);
@@ -692,10 +674,10 @@ export function bpmnXmlToApollon(xml: string): ImportResult {
     assessments: {},
   };
 
-  // 04D2-followup F3: derive collaborationMode for downstream constructs and
-  // surface orphaned merging gateways. The validator helpers consume a unified
-  // elements + relationships map (per 04C FB1).
-  applyCollabModeDerivation(model, ctx.warnings);
+  // T1/P3′: collaborationMode is deleted, so the F3 mode-derivation post-pass
+  // is gone. Keep only the orphaned-merging-gateway warning (a merging gateway
+  // with no upstream diverging gateway is still a structural smell).
+  warnOrphanedMergingGateways(model, ctx.warnings);
 
   return { model, warnings: ctx.warnings, skipped: ctx.skipped };
 }
@@ -709,59 +691,11 @@ function unifiedElementsById(model: UMLModel): Record<string, { id: string; type
   return out;
 }
 
-// 04D2-followup F3 post-pass:
-//   1. Override stale collaborationMode on every agentic merging gateway +
-//      agentic task whose stored value disagrees with the upstream-resolved
-//      mode (the diverging gateway is the source of truth per paper §4.3).
-//      Snap each merging gateway's mergingStrategy to a valid value for the
-//      derived mode if the stored one is no longer valid.
-//   2. Surface a warning for every agentic merging gateway with no upstream
-//      diverging gateway — these are orphans (e.g., from hand-edited XML or a
-//      legacy Camunda export that doesn't follow the paper's structure).
-function applyCollabModeDerivation(model: UMLModel, warnings: ParseWarning[]): void {
+// T1/P3′: warn on agentic merging gateways with no upstream diverging gateway.
+// (Was the F3 post-pass that also re-derived the now-deleted collaborationMode
+// and aligned gateway types — both removed with the SEAA'25 merge vocabulary.)
+function warnOrphanedMergingGateways(model: UMLModel, warnings: ParseWarning[]): void {
   const unified = unifiedElementsById(model);
-
-  for (const id of Object.keys(model.elements)) {
-    const el = model.elements[id] as unknown as {
-      type?: string;
-      isAgentic?: boolean;
-      gatewayRole?: string;
-      collaborationMode?: BPMNCollaborationMode;
-      mergingStrategy?: BPMNMergingStrategy;
-      gatewayType?: string;
-    };
-    const isMergingGw = el.type === 'BPMNGateway' && el.isAgentic === true && el.gatewayRole === 'merging';
-    const isAgenticTask = el.type === 'BPMNTask' && el.isAgentic === true;
-    if (!isMergingGw && !isAgenticTask) continue;
-
-    const upstream = resolveUpstreamDivergingGateway(id, unified) as
-      | { collaborationMode?: BPMNCollaborationMode; gatewayType?: string }
-      | undefined;
-    if (upstream === undefined) continue; // orphan — warning emitted below
-
-    const derived = upstream.collaborationMode;
-    if (derived !== undefined && derived !== el.collaborationMode) {
-      el.collaborationMode = derived;
-      if (isMergingGw) {
-        const valid = mergingStrategiesFor(derived);
-        if (!el.mergingStrategy || !valid.includes(el.mergingStrategy)) {
-          el.mergingStrategy = valid[0];
-        }
-      }
-    }
-
-    // 04D2-followup O1 refinement: align merging gateway type with upstream
-    // diverging gateway. Paper §4.3: a collaboration block is enclosed by
-    // gateways of the same type (parallel or inclusive).
-    if (
-      isMergingGw &&
-      (upstream.gatewayType === 'parallel' || upstream.gatewayType === 'inclusive') &&
-      upstream.gatewayType !== el.gatewayType
-    ) {
-      el.gatewayType = upstream.gatewayType;
-    }
-  }
-
   const orphanIds = findOrphanedMergingGateways(unified);
   for (const id of orphanIds) {
     const el = model.elements[id] as unknown as { name?: string };

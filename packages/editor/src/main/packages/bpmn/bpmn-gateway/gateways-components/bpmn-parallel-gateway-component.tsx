@@ -3,8 +3,8 @@ import { ThemedPolyline } from '../../../../components/theme/themedComponents';
 import { Multiline } from '../../../../utils/svg/multiline';
 import { BPMNBotIcon } from '../../common/icons/bpmn-bot-icon';
 import { BPMNMergeMarkerIcon } from '../../common/icons/bpmn-merge-marker-icon';
-import { BPMNCollaborationMarkerIcon } from '../../common/icons/bpmn-collaboration-marker-icon';
-import { COLLAB_LETTER, MERGING_TWO_LETTER, Props } from '../bpmn-gateway-component';
+import { BPMNGovernanceBadgeIcon } from '../../common/icons/bpmn-governance-badge-icon';
+import { Props } from '../bpmn-gateway-component';
 
 export const BPMNParallelGatewayComponent: FunctionComponent<Props> = ({ element, fillColor }) => (
   <g>
@@ -37,27 +37,26 @@ export const BPMNParallelGatewayComponent: FunctionComponent<Props> = ({ element
     >
       {element.name}
     </Multiline>
-    {/* Agentic BPMN (04D1 — paper Table 2): bot icon top-left, collaboration /
-        merging marker bottom-right. Coords are first-pass; D-D5 — revisit on
-        manual review. */}
+    {/* Agentic BPMN (T1/P3′ rationalization): bot icon top-left marks the
+        agentic gateway. The diverging side carries NO bottom-right marker
+        (O3 — collaborationMode deleted, the BPMN gateway pair already shows
+        the block boundary). The merging side keeps the merge glyph and gains a
+        small "governed" badge when a governance policy is attached (O4). */}
     {element.isAgentic && (
       <>
         <BPMNBotIcon x={-4} y={-4} color={element.strokeColor} />
-        {element.gatewayRole === 'diverging' ? (
-          <BPMNCollaborationMarkerIcon
-            letter={COLLAB_LETTER[element.collaborationMode]}
-            x={element.bounds.width - 12}
-            y={element.bounds.height - 12}
-            color={element.strokeColor}
-          />
-        ) : (
+        {element.gatewayRole === 'merging' && (
           <BPMNMergeMarkerIcon
-            letter={MERGING_TWO_LETTER[element.mergingStrategy]}
             x={element.bounds.width - 12}
             y={element.bounds.height - 12}
             color={element.strokeColor}
           />
         )}
+        {element.gatewayRole === 'merging' &&
+          element.governanceDsl !== undefined &&
+          element.governanceDsl.trim() !== '' && (
+            <BPMNGovernanceBadgeIcon x={element.bounds.width - 12} y={-6} color={element.strokeColor} />
+          )}
       </>
     )}
   </g>

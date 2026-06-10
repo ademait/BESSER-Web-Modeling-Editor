@@ -5,27 +5,6 @@ import { BPMNExclusiveGatewayComponent } from './gateways-components/bpmn-exclus
 import { BPMNInclusiveGatewayComponent } from './gateways-components/bpmn-inclusive-gateway-component';
 import { BPMNParallelGatewayComponent } from './gateways-components/bpmn-parallel-gateway-component';
 import { BPMNComplexGatewayComponent } from './gateways-components/bpmn-complex-gateway-component';
-import { BPMNCollaborationMode, BPMNMergingStrategy } from '../common/types';
-
-// Agentic BPMN (04D1 — paper §4.4 / Table 2). Diverging gateways show a single-
-// letter collaboration marker; merging gateways show a two-letter strategy
-// marker. Shared by the parallel + inclusive components.
-export const COLLAB_LETTER: Record<BPMNCollaborationMode, string> = {
-  voting: 'v',
-  role: 'r',
-  debate: 'd',
-  competition: 'c',
-};
-
-export const MERGING_TWO_LETTER: Record<BPMNMergingStrategy, string> = {
-  majority: 'v-ma',
-  'absolute-majority': 'v-a',
-  minority: 'v-mi',
-  'leader-driven': 'r-l',
-  composed: 'r-c',
-  fastest: 'c-f',
-  'most-complete': 'c-mc',
-};
 
 export const BPMNGatewayComponent: FunctionComponent<Props> = (props) => {
   let GatewayComponent = BPMNExclusiveGatewayComponent;

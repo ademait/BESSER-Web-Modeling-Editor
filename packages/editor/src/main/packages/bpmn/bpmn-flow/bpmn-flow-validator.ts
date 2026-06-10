@@ -1,7 +1,6 @@
 import { UMLElementType } from '../../uml-element-type';
 import { BPMNFlowType } from './bpmn-flow';
 import { getAllowedBpmnFlowTypes } from './bpmn-flow-semantics';
-import { BPMNCollaborationMode } from '../common/types';
 
 // BPMN 2.0.2 § 8.3.13, p. 98 + §§ 10.5.4 / 10.5.6: a default outgoing sequence
 // flow may originate only from an Exclusive/Inclusive/Complex gateway or an
@@ -120,7 +119,6 @@ export function validateAllBpmnFlows(elementsById: Record<string, AnyElement>): 
 type AnyAgenticGateway = AnyElement & {
   isAgentic?: boolean;
   gatewayRole?: 'diverging' | 'merging';
-  collaborationMode?: BPMNCollaborationMode;
   gatewayType?: string;
 };
 
@@ -244,18 +242,6 @@ export function resolveUpstreamDivergingGateway(
   const divergingId = findUpstreamDivergingGatewayId(elementId, elementsById);
   if (divergingId === undefined) return undefined;
   return elementsById[divergingId];
-}
-
-/**
- * Return the `collaborationMode` of the upstream agentic diverging gateway
- * resolved by `resolveUpstreamDivergingGateway`, or undefined.
- */
-export function resolveUpstreamCollabMode(
-  elementId: string,
-  elementsById: Record<string, AnyElement>,
-): BPMNCollaborationMode | undefined {
-  const diverging = resolveUpstreamDivergingGateway(elementId, elementsById) as AnyAgenticGateway | undefined;
-  return diverging?.collaborationMode;
 }
 
 /**

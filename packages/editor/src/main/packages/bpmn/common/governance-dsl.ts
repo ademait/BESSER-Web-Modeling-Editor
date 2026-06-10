@@ -1,5 +1,4 @@
-import { BPMNCollaborationMode, BPMNMergingStrategy } from './types';
-import { findDownstreamAgenticConstructs, resolveUpstreamDivergingGateway } from '../bpmn-flow/bpmn-flow-validator';
+import { resolveUpstreamDivergingGateway } from '../bpmn-flow/bpmn-flow-validator';
 
 // Duck-typed read-only view over the unified elements+flows map (same shape the
 // FU1 walkers use — on the editor side this is Redux `state.elements`).
@@ -12,8 +11,6 @@ type AnyEl = {
   role?: string;
   trustScore?: number;
   gatewayRole?: string;
-  collaborationMode?: BPMNCollaborationMode;
-  mergingStrategy?: BPMNMergingStrategy;
 };
 
 // govdsl FLOAT requires a decimal point ([0-9]+ '.' [0-9]+) — always emit 2 dp.
@@ -29,39 +26,42 @@ function sanitizeId(raw: string | undefined, fallback: string): string {
   return s || fallback;
 }
 
-type PolicyType = 'MajorityPolicy' | 'AbsoluteMajorityPolicy' | 'LeaderDrivenPolicy' | 'VotingPolicy';
+// T1c (P3′): the user picks the governance policy directly from the merge-gateway
+// popup dropdown — there is no `mergingStrategy` to map from any more. This is the
+// offered set (LazyConsensus / Composed stay manual-only). The string values are
+// the govdsl PolicyType keywords, so the mapping is a near-identity.
+export type GovPolicyType =
+  | 'VotingPolicy'
+  | 'MajorityPolicy'
+  | 'AbsoluteMajorityPolicy'
+  | 'LeaderDrivenPolicy'
+  | 'ConsensusPolicy';
+
+export const GOV_POLICY_TYPES: readonly GovPolicyType[] = [
+  'VotingPolicy',
+  'MajorityPolicy',
+  'AbsoluteMajorityPolicy',
+  'LeaderDrivenPolicy',
+  'ConsensusPolicy',
+];
+
 interface PolicyChoice {
-  policyType: PolicyType;
-  ratio?: number; // undefined → no Parameters block (leader-driven)
-  todo?: string; // placeholder note for the unmapped strategies
+  policyType: GovPolicyType;
+  ratio?: number; // undefined → no Parameters block (leader-driven / consensus)
 }
 
-// Spec §3 — mergingStrategy-primary. ratio is a FIXED default, not trust-derived.
-function policyFor(strategy: BPMNMergingStrategy | undefined): PolicyChoice {
-  switch (strategy) {
-    case 'majority':
-      return { policyType: 'MajorityPolicy', ratio: 0.5 };
-    case 'absolute-majority':
-      return { policyType: 'AbsoluteMajorityPolicy', ratio: 0.5 };
-    case 'minority':
-      return { policyType: 'MajorityPolicy', ratio: 0.4 };
-    case 'leader-driven':
-      return { policyType: 'LeaderDrivenPolicy' };
-    case 'composed':
-      return {
-        policyType: 'VotingPolicy',
-        ratio: 0.5,
-        todo: "'composed' has no direct mapping — define a ComposedPolicy (Phases) manually.",
-      };
-    case 'fastest':
-    case 'most-complete':
-      return {
-        policyType: 'VotingPolicy',
-        ratio: 0.5,
-        todo: `'${strategy}' (competition) has no direct governance policy; VotingPolicy placeholder — replace with the intended policy.`,
-      };
-    default:
-      return { policyType: 'VotingPolicy', ratio: 0.5 };
+// T1c — the chosen policy type IS the policy. ratio is a FIXED default (mapping-
+// spec §4.4 — never trustScore-derived). The voting family takes a ratio; the
+// leader-driven and consensus skeletons omit Parameters (the user fills them in).
+function policyFor(policyType: GovPolicyType): PolicyChoice {
+  switch (policyType) {
+    case 'MajorityPolicy':
+    case 'AbsoluteMajorityPolicy':
+    case 'VotingPolicy':
+      return { policyType, ratio: 0.5 };
+    case 'LeaderDrivenPolicy':
+    case 'ConsensusPolicy':
+      return { policyType };
   }
 }
 
@@ -71,27 +71,51 @@ function policyFor(strategy: BPMNMergingStrategy | undefined): PolicyChoice {
  * unified elements map, returns a string. The caller persists it onto the
  * gateway's `governanceDsl` field.
  */
-export function generateGovernanceDsl(mergingGatewayId: string, elementsById: Record<string, AnyEl>): string {
+export function generateGovernanceDsl(
+  mergingGatewayId: string,
+  elementsById: Record<string, AnyEl>,
+  policyType: GovPolicyType,
+): string {
   const gw = elementsById[mergingGatewayId];
-  const mode = (gw?.collaborationMode ?? 'voting') as BPMNCollaborationMode;
-  const strategy = gw?.mergingStrategy as BPMNMergingStrategy | undefined;
   const trust = typeof gw?.trustScore === 'number' ? gw.trustScore : 0;
-  const choice = policyFor(strategy);
+  const choice = policyFor(policyType);
 
   // Scope = the merging gateway itself (the one-per-block anchor). Spec §4.1.
   const scopeId = sanitizeId(gw?.name, `MergeDecision_${mergingGatewayId.slice(0, 8)}`);
   const policyId = `${scopeId}Policy`;
 
   // Participants = the agentic lanes (agents) of the collaboration block. Spec
-  // §4.2 — walk forward from the bounding diverging gateway, map each agentic
-  // task to its owning lane, dedupe.
+  // §4.2 — walk forward from the bounding diverging gateway and collect each
+  // task's owning lane if the lane is agentic. We check LANE-level isAgentic,
+  // not task-level: a normal (non-agentic) task inside an agentic lane is a
+  // valid participant because the lane is the agent, not the task.
   const lanes = new Map<string, AnyEl>();
   const diverging = resolveUpstreamDivergingGateway(mergingGatewayId, elementsById);
   if (diverging) {
-    const { taskIds } = findDownstreamAgenticConstructs(diverging.id, elementsById);
-    for (const tid of taskIds) {
-      const laneId = elementsById[tid]?.owner;
-      if (laneId && elementsById[laneId]) lanes.set(laneId, elementsById[laneId]);
+    const bVisited = new Set<string>([diverging.id]);
+    const bQueue: string[] = [diverging.id];
+    while (bQueue.length > 0) {
+      const cur = bQueue.shift()!;
+      for (const el of Object.values(elementsById)) {
+        if (el.type !== 'BPMNFlow') continue;
+        const fl = el as unknown as { flowType?: string; source: { element: string }; target: { element: string } };
+        if (fl.flowType !== 'sequence' || fl.source.element !== cur) continue;
+        const tgtId = fl.target.element;
+        if (bVisited.has(tgtId)) continue;
+        bVisited.add(tgtId);
+        const tgt = elementsById[tgtId];
+        if (!tgt) continue;
+        // Stop at the paired agentic merging gateway (block boundary).
+        if (tgt.type === 'BPMNGateway' && tgt.isAgentic && tgt.gatewayRole === 'merging') continue;
+        if (tgt.type === 'BPMNTask') {
+          const laneId = tgt.owner;
+          if (laneId) {
+            const lane = elementsById[laneId];
+            if (lane?.isAgentic) lanes.set(laneId, lane);
+          }
+        }
+        bQueue.push(tgtId);
+      }
     }
   }
 
@@ -111,8 +135,7 @@ export function generateGovernanceDsl(mergingGatewayId: string, elementsById: Re
   // ── assemble ──
   const L: string[] = [];
   L.push(`// Generated from agentic merging gateway "${gw?.name ?? mergingGatewayId}"`);
-  L.push(`// collaborationMode=${mode}, mergingStrategy=${strategy ?? 'n/a'}, trustScore=${trust}`);
-  if (choice.todo) L.push(`// TODO: ${choice.todo}`);
+  L.push(`// policyType=${policyType}, trustScore=${trust}`);
 
   L.push('Scopes:');
   L.push('    Tasks:');

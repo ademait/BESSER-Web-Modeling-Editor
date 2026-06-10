@@ -312,46 +312,46 @@ function poolFor(bpmn: UMLModel, el: UMLElement): string | null {
   return null;
 }
 
-// ── Edge-kind heuristic (OQ-5, guide § 2) ───────────────────────────
+// ── Edge-kind heuristic (T1d — role-keyed) ──────────────────────────
+//
+// P3′ rationalization: the SEAA'25 collaborationMode / mergingStrategy were
+// deleted from the gateway, so the edge kind is now decided purely by the lane
+// ROLE PAIR. This table is intentionally a single, swappable lookup: when the
+// lane role axis migrates to profiles (T1h — e.g. solution / coder / supervisor),
+// swap LaneRole + ROLE_EDGE_MAP here without touching the call site.
+//
+// NOTE the collapse: a bare `manager → worker` handoff used to split into
+// `supervises` (role-cooperation gateway) vs `delegates` (voting). With the
+// gateway signal gone it resolves to ONE kind — `supervises` (memo 08 § 7).
+// Flip the 'manager->worker' entry to 'delegates' if you want delegation
+// semantics instead (see guide 03 § 0). `delegates` is otherwise the fallback
+// for unclassifiable / non-agentic edges.
+type LaneRole = 'manager' | 'worker';
 
-function resolveEdgeKind(srcLane: UMLElement, tgtLane: UMLElement, gateway: UMLElement | undefined): AgenticEdgeKind {
+const ROLE_EDGE_MAP: Record<`${LaneRole}->${LaneRole}`, AgenticEdgeKind> = {
+  'worker->manager': 'revises',
+  'manager->worker': 'supervises',
+  'worker->worker': 'collaborates',
+  'manager->manager': 'collaborates',
+};
+
+const isLaneRole = (r: unknown): r is LaneRole => r === 'manager' || r === 'worker';
+
+// `_gateway` is retained in the signature for call-site stability and a possible
+// future gateway-aware heuristic; T1d reads nothing off it (its agentic merge
+// fields were deleted in the rationalization).
+function resolveEdgeKind(srcLane: UMLElement, tgtLane: UMLElement, _gateway: UMLElement | undefined): AgenticEdgeKind {
   const srcAgentic = (srcLane as unknown as { isAgentic?: boolean }).isAgentic === true;
   const tgtAgentic = (tgtLane as unknown as { isAgentic?: boolean }).isAgentic === true;
 
-  // Role enum is meaningless on a human / external lane → plain delegation.
+  // Role pair is meaningless on a human / external lane → generic delegation.
   if (!srcAgentic || !tgtAgentic) return 'delegates';
 
-  const srcRole = (srcLane as unknown as { role?: 'manager' | 'worker' }).role;
-  const tgtRole = (tgtLane as unknown as { role?: 'manager' | 'worker' }).role;
+  const srcRole = (srcLane as unknown as { role?: unknown }).role;
+  const tgtRole = (tgtLane as unknown as { role?: unknown }).role;
+  if (!isLaneRole(srcRole) || !isLaneRole(tgtRole)) return 'delegates';
 
-  // Producer → reviewer (worker returns output up to the manager).
-  if (srcRole === 'worker' && tgtRole === 'manager') return 'revises';
-  // Peers, no authority asymmetry.
-  if (srcRole === tgtRole) return 'collaborates';
-
-  if (srcRole === 'manager' && tgtRole === 'worker') {
-    // Guide 13 § 5.2 (Q2) + 14-FU1 (FF2). A manager→worker handoff whose
-    // mediating AGENTIC gateway runs a role-cooperation merge is
-    // SUPERVISION: the manager drives/approves the merge → authority /
-    // oversight. We check whichever agentic gateway mediates the edge,
-    // REGARDLESS of its gatewayRole — in a natural diverge-then-merge the
-    // manager→worker edge is mediated by the DIVERGING gateway, whose
-    // user-facing field is `collaborationMode` ('role'). The popup
-    // auto-snaps `mergingStrategy` to leader-driven/composed
-    // (changeCollaborationMode, bpmn-gateway-update.tsx), so we read the
-    // mode first (intention-revealing, always populated) and fall back to
-    // the strategy for a merging gateway or an imported/out-of-sync model.
-    // A voting/majority merge stays plain delegation (workers self-decide).
-    if (gateway && (gateway as unknown as { isAgentic?: boolean }).isAgentic === true) {
-      const g = gateway as unknown as { mergingStrategy?: string; collaborationMode?: string };
-      const roleCooperation =
-        g.collaborationMode === 'role' || g.mergingStrategy === 'leader-driven' || g.mergingStrategy === 'composed';
-      if (roleCooperation) return 'supervises';
-    }
-    return 'delegates';
-  }
-
-  return 'delegates';
+  return ROLE_EDGE_MAP[`${srcRole}->${tgtRole}`] ?? 'delegates';
 }
 
 // ── Capability traversal (16, plan 15 §4–§5) ────────────────────────

@@ -6,7 +6,7 @@ import { UMLContainer } from '../../../services/uml-container/uml-container';
 import { DeepPartial } from 'redux';
 import { assign } from '../../../utils/fx/assign';
 import * as Apollon from '../../../typings';
-import { BPMNCollaborationMode, BPMNMarkerType, BPMNReflectionMode, clampTrustScore } from '../common/types';
+import { BPMNMarkerType, BPMNReflectionMode, clampTrustScore } from '../common/types';
 
 // Agentic-task layout reserves (px). Shared with bpmn-task-component.tsx so the
 // model's height floor and the component's text layout agree. See guide
@@ -36,11 +36,6 @@ export class BPMNTask extends UMLContainer {
   // when set.
   static defaultReflectionMode: BPMNReflectionMode = 'none';
   static defaultTrustScore = 0;
-  // Agentic BPMN — collaboration on the task is an extension to the paper
-  // (D-D1 of 04D1 guide). The paper's AgenticTask (Fig 3b) does NOT carry
-  // collaborationMode; we add it here as an optional attribute that future
-  // iterations may revisit.
-  static defaultCollaborationMode: BPMNCollaborationMode = 'voting';
   static supportedRelationships = [BPMNRelationshipType.BPMNFlow];
 
   type: UMLElementType = BPMNElementType.BPMNTask;
@@ -49,7 +44,6 @@ export class BPMNTask extends UMLContainer {
   isAgentic: boolean;
   reflectionMode: BPMNReflectionMode;
   trustScore: number;
-  collaborationMode: BPMNCollaborationMode;
   // 11 (retarget of 08 D2 from lane → task): forward link to the BESSER
   // Agent diagram that defines this task's internal agent behavior. Set
   // only when isAgentic === true and the user clicked "Define agent
@@ -65,7 +59,6 @@ export class BPMNTask extends UMLContainer {
     this.isAgentic = values?.isAgentic ?? false;
     this.reflectionMode = values?.reflectionMode || BPMNTask.defaultReflectionMode;
     this.trustScore = clampTrustScore(values?.trustScore ?? BPMNTask.defaultTrustScore);
-    this.collaborationMode = values?.collaborationMode ?? BPMNTask.defaultCollaborationMode;
     // Optional pass-through — undefined when not linked.
     this.agentDiagramRef = values?.agentDiagramRef ?? undefined;
   }
@@ -79,7 +72,6 @@ export class BPMNTask extends UMLContainer {
       isAgentic: this.isAgentic,
       reflectionMode: this.reflectionMode,
       trustScore: this.trustScore,
-      collaborationMode: this.collaborationMode,
       agentDiagramRef: this.agentDiagramRef,
     };
   }
@@ -91,7 +83,6 @@ export class BPMNTask extends UMLContainer {
       isAgentic?: boolean;
       reflectionMode?: BPMNReflectionMode;
       trustScore?: number;
-      collaborationMode?: BPMNCollaborationMode;
       agentDiagramRef?: string;
     },
     children?: Apollon.UMLModelElement[],
@@ -102,7 +93,6 @@ export class BPMNTask extends UMLContainer {
     this.isAgentic = values.isAgentic ?? false;
     this.reflectionMode = values.reflectionMode || BPMNTask.defaultReflectionMode;
     this.trustScore = clampTrustScore(values.trustScore ?? BPMNTask.defaultTrustScore);
-    this.collaborationMode = values.collaborationMode ?? BPMNTask.defaultCollaborationMode;
     this.agentDiagramRef = values.agentDiagramRef ?? undefined;
   }
 

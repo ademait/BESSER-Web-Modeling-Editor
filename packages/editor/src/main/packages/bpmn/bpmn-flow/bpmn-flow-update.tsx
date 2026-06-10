@@ -21,29 +21,6 @@ import { UMLElement } from '../../../services/uml-element/uml-element';
 import { getAllowedBpmnFlowTypes } from './bpmn-flow-semantics';
 import { canSourceCarryDefault } from './bpmn-flow-validator';
 import { UMLElementType } from '../../uml-element-type';
-import { BPMNCollaborationMode, BPMNMergingStrategy, clampTrustScore, mergingStrategiesFor } from '../common/types';
-
-// Map merging-strategy enum values to their i18n keys. Mirrors the gateway
-// popup helper of the same name (kept inline rather than shared to keep the
-// 04D1 diff minimal — extract if a third popup needs it).
-const strategyKey = (s: BPMNMergingStrategy): string => {
-  switch (s) {
-    case 'majority':
-      return 'BPMNStrategyMajority';
-    case 'absolute-majority':
-      return 'BPMNStrategyAbsoluteMajority';
-    case 'minority':
-      return 'BPMNStrategyMinority';
-    case 'leader-driven':
-      return 'BPMNStrategyLeaderDriven';
-    case 'composed':
-      return 'BPMNStrategyComposed';
-    case 'fastest':
-      return 'BPMNStrategyFastest';
-    case 'most-complete':
-      return 'BPMNStrategyMostComplete';
-  }
-};
 
 // BPMN 2.0.2 § 8.3.13: a default flow must be a sequence flow whose source can
 // carry a default. Source eligibility lives in the shared validator (04C / C2).
@@ -181,63 +158,6 @@ class BPMNFlowUpdateComponent extends Component<Props, State> {
             </section>
           </>
         )}
-        {/* Agentic BPMN (04D1 — paper §4.3): only message flows are eligible.
-            Toggle reveals the direction / mode / strategy / trust fields. */}
-        {element.flowType === 'message' && (
-          <>
-            <Divider />
-            <section>
-              <Switch
-                value={element.isAgentic ? 'agentic' : ''}
-                onChange={this.toggleAgentic(element.id)}
-                color="primary"
-              >
-                <Switch.Item value={'agentic'}>{this.props.translate('packages.BPMNDiagram.BPMNAgentic')}</Switch.Item>
-              </Switch>
-            </section>
-            {element.isAgentic && (
-              <>
-                {/* A single agentic message flow carries both collaborationMode
-                    (rendered at the source end) and mergingStrategy (rendered
-                    at the target end). Direction is encoded by source/target. */}
-                <section>
-                  <Divider />
-                  <Dropdown value={element.collaborationMode} onChange={this.changeCollaborationMode(element.id)}>
-                    <Dropdown.Item value={'voting'}>
-                      {this.props.translate('packages.BPMNDiagram.BPMNCollabVoting')}
-                    </Dropdown.Item>
-                    <Dropdown.Item value={'role'}>
-                      {this.props.translate('packages.BPMNDiagram.BPMNCollabRole')}
-                    </Dropdown.Item>
-                    <Dropdown.Item value={'debate'}>
-                      {this.props.translate('packages.BPMNDiagram.BPMNCollabDebate')}
-                    </Dropdown.Item>
-                    <Dropdown.Item value={'competition'}>
-                      {this.props.translate('packages.BPMNDiagram.BPMNCollabCompetition')}
-                    </Dropdown.Item>
-                  </Dropdown>
-                </section>
-                <section>
-                  <Divider />
-                  <Dropdown value={element.mergingStrategy} onChange={this.changeMergingStrategy(element.id)}>
-                    {mergingStrategiesFor(element.collaborationMode).map((s) => (
-                      <Dropdown.Item key={s} value={s}>
-                        {this.props.translate(`packages.BPMNDiagram.${strategyKey(s)}`)}
-                      </Dropdown.Item>
-                    ))}
-                  </Dropdown>
-                </section>
-                <section>
-                  <Divider />
-                  <Flex>
-                    <span>{this.props.translate('packages.BPMNDiagram.BPMNTrustScore')}</span>
-                    <Textfield value={String(element.trustScore)} onChange={this.changeTrustScore(element.id)} />
-                  </Flex>
-                </section>
-              </>
-            )}
-          </>
-        )}
         <StylePane
           open={this.state.colorOpen}
           element={element}
@@ -253,51 +173,8 @@ class BPMNFlowUpdateComponent extends Component<Props, State> {
     this.props.update(id, { name: value });
   };
 
-  /**
-   * Change the flow type. 04D1: if the new type is not 'message', clear
-   * `isAgentic` — the agentic flag is only meaningful on message flows.
-   */
   private changeFlowType = (id: string) => (value: string) => {
-    const newType = value as BPMNFlowType;
-    const patch: Partial<BPMNFlow> = { flowType: newType };
-    if (newType !== 'message' && this.props.element.isAgentic) {
-      patch.isAgentic = false;
-    }
-    this.props.update<BPMNFlow>(id, patch);
-  };
-
-  /**
-   * Toggle whether the flow is agentic (04D1 — message flows only).
-   */
-  private toggleAgentic = (id: string) => (_value: string) => {
-    this.props.update<BPMNFlow>(id, { isAgentic: !this.props.element.isAgentic });
-  };
-
-  /**
-   * Change the collaboration mode on a message flow. Always snap
-   * `mergingStrategy` to the first valid value of the new mode — keeps the
-   * canvas marker visually in sync with the mode (see gateway popup for the
-   * full rationale and debate-mode trade-off).
-   */
-  private changeCollaborationMode = (id: string) => (value: string) => {
-    const newMode = value as BPMNCollaborationMode;
-    const newStrategy = mergingStrategiesFor(newMode)[0];
-    this.props.update<BPMNFlow>(id, { collaborationMode: newMode, mergingStrategy: newStrategy });
-  };
-
-  /**
-   * Change the merging strategy on a message flow.
-   */
-  private changeMergingStrategy = (id: string) => (value: string) => {
-    this.props.update<BPMNFlow>(id, { mergingStrategy: value as BPMNMergingStrategy });
-  };
-
-  /**
-   * Change the trust score on a message flow, clamped to 0–100.
-   */
-  private changeTrustScore = (id: string) => (value: string) => {
-    const parsed = Number.parseInt(value, 10);
-    this.props.update<BPMNFlow>(id, { trustScore: clampTrustScore(Number.isFinite(parsed) ? parsed : 0) });
+    this.props.update<BPMNFlow>(id, { flowType: value as BPMNFlowType });
   };
 
   // BPMN 2.0.2 § 8.3.13: at most one default outgoing flow per source. When

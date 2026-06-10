@@ -414,8 +414,6 @@ interface AnyAgentic {
   role?: string;
   reflectionMode?: string;
   gatewayRole?: string;
-  collaborationMode?: string;
-  mergingStrategy?: string;
   trustScore?: number;
   multiplicity?: number;
   agentDiagramRef?: string;
@@ -432,15 +430,6 @@ function emitAgenticExtension(lines: string[], el: AnyAgentic, indent: string): 
   if (el.role !== undefined) attrs.push(`role="${escapeAttr(el.role)}"`);
   if (el.reflectionMode !== undefined) attrs.push(`reflectionMode="${escapeAttr(el.reflectionMode)}"`);
   if (el.gatewayRole !== undefined) attrs.push(`gatewayRole="${escapeAttr(el.gatewayRole)}"`);
-  if (el.collaborationMode !== undefined) attrs.push(`collaborationMode="${escapeAttr(el.collaborationMode)}"`);
-  // Paper §4.3: the merging strategy is set on the merging gateway, not the
-  // diverging one. The model holds the field on every gateway (single class)
-  // — skip emission for diverging gateways so the XML stays paper-faithful.
-  // Tasks / message flows have no gatewayRole and therefore keep emitting.
-  const isDivergingGateway = el.gatewayRole === 'diverging';
-  if (el.mergingStrategy !== undefined && !isDivergingGateway) {
-    attrs.push(`mergingStrategy="${escapeAttr(el.mergingStrategy)}"`);
-  }
   if (el.trustScore !== undefined) attrs.push(`trustScore="${el.trustScore}"`);
   // Meeting 2026-06-08 §3: emit multiplicity only when > 1 — absence means the
   // default 1, keeping the XML clean for the common single-agent lane.

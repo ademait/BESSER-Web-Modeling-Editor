@@ -14,13 +14,7 @@ import { BPMNIntermediateEventType } from './packages/bpmn/bpmn-intermediate-eve
 import { BPMNTaskType } from './packages/bpmn/bpmn-task/bpmn-task';
 import { BPMNFlowType } from './packages/bpmn/bpmn-flow/bpmn-flow';
 import { BPMNMarkerType } from './packages/bpmn/common/types';
-import {
-  BPMNAgentRole,
-  BPMNCollaborationMode,
-  BPMNGatewayRole,
-  BPMNMergingStrategy,
-  BPMNReflectionMode,
-} from './packages/bpmn/common/types';
+import { BPMNAgentRole, BPMNGatewayRole, BPMNReflectionMode } from './packages/bpmn/common/types';
 
 export { UMLDiagramType, UMLElementType, UMLRelationshipType, ApollonMode, Locale };
 export type { Styles };
@@ -283,7 +277,6 @@ export type BPMNTask = UMLElement & {
   isAgentic: boolean;
   reflectionMode: BPMNReflectionMode;
   trustScore: number;
-  collaborationMode: BPMNCollaborationMode;
   // 11 — cross-diagram link from an agentic task to the BESSER Agent
   // diagram that defines its internal behavior (retarget of 08 from lane).
   agentDiagramRef?: string;
@@ -293,8 +286,6 @@ export type BPMNGateway = UMLElement & {
   gatewayType: BPMNGatewayType;
   isAgentic: boolean;
   gatewayRole: BPMNGatewayRole;
-  collaborationMode: BPMNCollaborationMode;
-  mergingStrategy: BPMNMergingStrategy;
   trustScore: number;
   governanceDsl?: string;
 };
@@ -314,10 +305,6 @@ export type BPMNEndEvent = UMLElement & {
 export type BPMNFlow = UMLRelationship & {
   flowType: BPMNFlowType;
   isDefault?: boolean;
-  isAgentic?: boolean;
-  collaborationMode?: BPMNCollaborationMode;
-  mergingStrategy?: BPMNMergingStrategy;
-  trustScore?: number;
 };
 
 export type UMLReachabilityGraphMarking = UMLElement & {
