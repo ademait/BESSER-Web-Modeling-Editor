@@ -708,6 +708,12 @@ function emitLaneComponent(
     height: 80,
   };
   layout.laneInSubsystemX += bounds.width + 24;
+  // 33 (6b-1) — the agentic lane's link to its Agent diagram (guide 08/29,
+  // 1:1). Thread the UUID onto the agent-Component so Component→Deployment can
+  // carry it down to the Artifact (full-via-Artifact, memo 07 § 8). Only the
+  // BESSER deployment generator (6b-2) consumes it; absent when the lane was
+  // never linked.
+  const agentDiagramRef = (lane as unknown as { agentDiagramRef?: string }).agentDiagramRef;
   out.elements[id] = {
     id,
     name: lane.name || 'Agent',
@@ -719,6 +725,8 @@ function emitLaneComponent(
     // 21 — BESSER `AgenticComponent.process_model_refs` (diagram-grained,
     // memo 17 § 5): the source BPMN diagram this agent participates in.
     ...(sourceDiagramId ? { processModelRefs: [sourceDiagramId] } : {}),
+    // 33 (6b-1) — Agent-diagram UUID this agent is defined by.
+    ...(agentDiagramRef ? { agentModelRef: agentDiagramRef } : {}),
   } as unknown as UMLElement;
   return id;
 }

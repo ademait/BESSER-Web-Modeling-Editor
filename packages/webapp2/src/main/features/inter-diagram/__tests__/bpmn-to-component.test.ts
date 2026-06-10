@@ -1038,4 +1038,81 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
       expect(r.elementMapping[byStereo(r.model, 'llm')[0].id]).toBe('L1');
     });
   });
+
+  describe('33 (6b-1) — agentModelRef threading (BPMN→Component)', () => {
+    it('stamps agentModelRef on the lane-Component from lane.agentDiagramRef', () => {
+      const bpmn = {
+        version: '3.0.0',
+        type: 'BPMNDiagram',
+        size: { width: 800, height: 600 },
+        elements: {
+          P1: {
+            id: 'P1',
+            type: 'BPMNPool',
+            name: 'Swarm',
+            owner: null,
+            bounds: { x: 0, y: 0, width: 600, height: 200 },
+          },
+          L1: {
+            id: 'L1',
+            name: 'Researcher',
+            type: 'BPMNSwimlane',
+            owner: 'P1',
+            bounds: { x: 0, y: 0, width: 600, height: 100 },
+            isAgentic: true,
+            agentDiagramRef: 'agent-uuid-123',
+          },
+        },
+        interactive: { elements: {}, relationships: {} },
+        relationships: {},
+        assessments: {},
+      } as unknown as UMLModel;
+
+      const r = bpmnModelToComponentModel(bpmn);
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      const comp = Object.values(r.model.elements).find(
+        (e) => e.type === 'Component' && e.name === 'Researcher',
+      ) as unknown as { agentModelRef?: string };
+      expect(comp).toBeDefined();
+      expect(comp.agentModelRef).toBe('agent-uuid-123');
+    });
+
+    it('omits agentModelRef when the lane has no agentDiagramRef', () => {
+      const bpmn = {
+        version: '3.0.0',
+        type: 'BPMNDiagram',
+        size: { width: 800, height: 600 },
+        elements: {
+          P1: {
+            id: 'P1',
+            type: 'BPMNPool',
+            name: 'Swarm',
+            owner: null,
+            bounds: { x: 0, y: 0, width: 600, height: 200 },
+          },
+          L1: {
+            id: 'L1',
+            name: 'Researcher',
+            type: 'BPMNSwimlane',
+            owner: 'P1',
+            bounds: { x: 0, y: 0, width: 600, height: 100 },
+            isAgentic: true,
+          },
+        },
+        interactive: { elements: {}, relationships: {} },
+        relationships: {},
+        assessments: {},
+      } as unknown as UMLModel;
+
+      const r = bpmnModelToComponentModel(bpmn);
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      const comp = Object.values(r.model.elements).find(
+        (e) => e.type === 'Component' && e.name === 'Researcher',
+      ) as unknown as { agentModelRef?: string };
+      expect(comp).toBeDefined();
+      expect(comp.agentModelRef).toBeUndefined();
+    });
+  });
 });

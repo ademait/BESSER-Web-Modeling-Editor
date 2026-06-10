@@ -231,6 +231,11 @@ export type UMLDeploymentNode = UMLElement & {
 
 export type UMLDeploymentArtifact = UMLElement & {
   manifests?: string[];
+  // 33 (6b-1) — UUID of the Agent diagram this artifact deploys, threaded
+  // from the source agentic lane's `agentDiagramRef` via Component.agentModelRef.
+  // BESSER reads this as `Artifact.agent_model_ref` (guide 08-/6b-2) to resolve
+  // which BAF agent to bake into the artifact's build context.
+  agentModelRef?: string;
 };
 
 export type UMLDeploymentComponent = UMLElement & {
@@ -248,6 +253,11 @@ export type UMLComponentComponent = UMLElement & {
   displayStereotype: boolean;
   realizes?: string[];
   processModelRefs?: string[];
+  // 33 (6b-1) — UUID of the Agent diagram this agent-Component is defined by,
+  // copied from the source lane's `agentDiagramRef` during BPMN→Component
+  // derivation. Waypoint on the way to the Deployment Artifact (full-via-Artifact,
+  // memo 07 § 8).
+  agentModelRef?: string;
 };
 
 export type UMLPetriNetPlace = UMLElement & {

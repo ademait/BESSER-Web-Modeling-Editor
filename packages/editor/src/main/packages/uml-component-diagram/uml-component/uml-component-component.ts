@@ -11,6 +11,9 @@ export class UMLComponentComponent extends UMLComponent {
     ComponentRelationshipType.ComponentInterfaceRequired,
   ];
   type = ComponentElementType.Component;
+  // 33 (6b-1) — Agent-diagram UUID this agent-Component is defined by
+  // (from the source lane's `agentDiagramRef`). Optional, single (1:1 link).
+  agentModelRef?: string;
 
   constructor(values?: DeepPartial<IUMLComponent>) {
     super();
@@ -25,6 +28,7 @@ export class UMLComponentComponent extends UMLComponent {
       displayStereotype: this.displayStereotype,
       realizes: this.realizes,
       processModelRefs: this.processModelRefs,
+      agentModelRef: this.agentModelRef,
     };
   }
 
@@ -40,5 +44,6 @@ export class UMLComponentComponent extends UMLComponent {
     this.displayStereotype = values.displayStereotype;
     this.realizes = values.realizes ?? [];
     this.processModelRefs = values.processModelRefs ?? [];
+    this.agentModelRef = values.agentModelRef;
   }
 }

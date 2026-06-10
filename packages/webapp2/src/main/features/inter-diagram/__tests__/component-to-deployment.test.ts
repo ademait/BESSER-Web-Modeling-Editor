@@ -483,4 +483,38 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
       }
     });
   });
+
+  describe('33 (6b-1) — agentModelRef threading (Component→Deployment)', () => {
+    it('copies agentModelRef from the source Component onto its Artifact', () => {
+      const m = makeBaseModel();
+      Object.assign(m.elements as Record<string, unknown>, {
+        s1: el('s1', 'Subsystem', 'Order', null),
+        c1: { ...el('c1', 'Component', 'OrderAgent', 's1', 'solution'), agentModelRef: 'agent-uuid-123' },
+      });
+      const r = componentModelToDeploymentModel(m);
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      const artifact = Object.values(r.model.elements).find((e) => e.type === 'DeploymentArtifact') as unknown as {
+        agentModelRef?: string;
+      };
+      expect(artifact).toBeDefined();
+      expect(artifact.agentModelRef).toBe('agent-uuid-123');
+    });
+
+    it('omits agentModelRef on the Artifact when the source Component has none', () => {
+      const m = makeBaseModel();
+      Object.assign(m.elements as Record<string, unknown>, {
+        s1: el('s1', 'Subsystem', 'Order', null),
+        c1: el('c1', 'Component', 'OrderAgent', 's1', 'solution'),
+      });
+      const r = componentModelToDeploymentModel(m);
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      const artifact = Object.values(r.model.elements).find((e) => e.type === 'DeploymentArtifact') as unknown as {
+        agentModelRef?: string;
+      };
+      expect(artifact).toBeDefined();
+      expect(artifact.agentModelRef).toBeUndefined();
+    });
+  });
 });

@@ -414,6 +414,12 @@ function emitDeploymentComponentPair(
     displayStereotype: sourceDisplay,
   } as unknown as UMLElement;
 
+  // 33 (6b-1) — carry the agent-diagram UUID one step further down the chain:
+  // the source Component picked it up from its lane during BPMN→Component
+  // (Step 4); copy it onto the Artifact so BESSER's deployment generator can
+  // resolve Artifact → Agent diagram by exact id (full-via-Artifact, memo
+  // 07 § 8). Absent when the source Component was hand-drawn / never linked.
+  const sourceAgentModelRef = (source as unknown as { agentModelRef?: string }).agentModelRef;
   out.elements[artifactId] = {
     id: artifactId,
     // 27 — only the **Artifact** (physical packaging / runtime instance) carries
@@ -430,6 +436,8 @@ function emitDeploymentComponentPair(
     // exact key BESSER's deployment validator resolves against
     // (`Component.layout["id"]`). Auto-set here; no popup needed.
     manifests: [source.id],
+    // 33 (6b-1) — Agent-diagram UUID this artifact deploys (full-via-Artifact).
+    ...(sourceAgentModelRef ? { agentModelRef: sourceAgentModelRef } : {}),
   } as unknown as UMLElement;
 
   // Manifest edge: dashed, arrow at Component end (D-D2).
