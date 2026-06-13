@@ -130,7 +130,7 @@ describe('29 — laneToAgentModel', () => {
         (e) => e.type === 'AgentState' && (e as { stereotype?: string }).stereotype === 'input',
       );
       expect(inputs).toHaveLength(1);
-      expect(inputs[0].name).toBe('from Reviewer');
+      expect(inputs[0].name).toBe('from_Reviewer');
       // wired into the receiving task-state
       const trans = Object.values(res.model.relationships).filter((e) => e.type === 'AgentStateTransition');
       expect(trans.some((tr) => tr.source.element === inputs[0].id)).toBe(true);
@@ -153,7 +153,7 @@ describe('29 — laneToAgentModel', () => {
         (e) => e.type === 'AgentState' && (e as { stereotype?: string }).stereotype === 'output',
       );
       expect(outputs).toHaveLength(1); // deduped
-      expect(outputs[0].name).toBe('to Reviewer');
+      expect(outputs[0].name).toBe('to_Reviewer');
       const toBoundary = Object.values(res.model.relationships).filter(
         (e) => e.type === 'AgentStateTransition' && e.target.element === outputs[0].id,
       );
@@ -194,8 +194,8 @@ describe('29 — laneToAgentModel', () => {
         (e) => e.type === 'AgentStateTransition' && e.source.element === inputs[0].id,
       );
       expect(inTrans).toHaveLength(2); // one into each fed task
-      // both tasks are input-fed → NO cold-start markers (was 2 before 30-FU1).
-      expect(Object.values(res.model.elements).filter((e) => e.type === 'StateInitialNode')).toHaveLength(0);
+      // both tasks are input-fed → the loop skips both; item 17a guarantee-init adds one.
+      expect(Object.values(res.model.elements).filter((e) => e.type === 'StateInitialNode')).toHaveLength(1);
     });
 
     // 30-FU1 (IO-6): a gateway-mediated input wires THROUGH to the downstream
@@ -220,7 +220,7 @@ describe('29 — laneToAgentModel', () => {
         (e) => e.type === 'AgentState' && (e as { stereotype?: string }).stereotype === 'input',
       );
       expect(inputs).toHaveLength(1);
-      expect(inputs[0].name).toBe('from Reviewer');
+      expect(inputs[0].name).toBe('from_Reviewer');
       // input wires through the gateway to the downstream task, NOT the entry.
       const inTrans = Object.values(res.model.relationships).filter(
         (e) => e.type === 'AgentStateTransition' && e.source.element === inputs[0].id,

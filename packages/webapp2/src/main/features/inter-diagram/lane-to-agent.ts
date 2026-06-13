@@ -28,6 +28,19 @@ const BOUNDARY_H = 40;
 
 const newId = (): string => 'gen-' + Math.random().toString(36).slice(2, 11);
 
+/**
+ * 04 (item 17b) — BAF / the BESSER agent converter reject state names with
+ * spaces ("Name cannot contain spaces"). Collapse whitespace to underscores and
+ * trim so every derived AgentState.name is a valid identifier-ish token. Boundary
+ * states become `from_<Peer>` / `to_<Peer>` — the exact contract guide 05's
+ * generator matches on (it re-applies `_safe_service_name` to the suffix, so case
+ * and camelCase differences vs the service name are reconciled there).
+ */
+const sanitizeStateName = (raw: string): string => {
+  const s = (raw || '').trim().replace(/\s+/g, '_');
+  return s || 'State';
+};
+
 interface Bounds {
   x: number;
   y: number;
@@ -64,7 +77,7 @@ export function laneToAgentModel(bpmn: UMLModel, laneId: string): AgentDerivatio
     const id = newId();
     out.elements[id] = {
       id,
-      name: t.name || 'State',
+      name: sanitizeStateName(t.name || 'State'),
       type: 'AgentState',
       owner: null,
       bounds: { x: 0, y: i * (STATE_H + V_GAP), width: STATE_W, height: STATE_H },
@@ -103,9 +116,12 @@ export function laneToAgentModel(bpmn: UMLModel, laneId: string): AgentDerivatio
   const inputFedStateIds = appendBoundaryStates(out, bpmn, laneId, taskIds, stateIdByTask, entryStateId, warnings);
 
   // entry tasks → StateInitialNode + init, EXCEPT those an «input» already drives.
-  for (const t of entryTasks) {
-    const stateId = stateIdByTask.get(t.id)!;
-    if (inputFedStateIds.has(stateId)) continue; // 30-FU1 — already entered via «input»
+  // 04 (item 17a): BAF requires EXACTLY ONE initial state. When every entry task
+  // is «input»-fed, the loop below emits none → invalid agent. Track whether any
+  // init was emitted and, if not, force one on the first entry state so the
+  // derived agent always has a cold-start marker.
+  let emittedInit = false;
+  const emitInitFor = (stateId: string): void => {
     const sb = (out.elements[stateId] as unknown as { bounds: Bounds }).bounds;
     const initId = newId();
     out.elements[initId] = {
@@ -116,7 +132,16 @@ export function laneToAgentModel(bpmn: UMLModel, laneId: string): AgentDerivatio
       bounds: { x: sb.x - 110, y: sb.y - 2, width: INIT_SIZE, height: INIT_SIZE },
     } as unknown as UMLElement;
     emitTransition(out, initId, stateId, 'AgentStateTransitionInit', 'horizontal');
+    emittedInit = true;
+  };
+
+  for (const t of entryTasks) {
+    const stateId = stateIdByTask.get(t.id)!;
+    if (inputFedStateIds.has(stateId)) continue; // 30-FU1 — already entered via «input»
+    emitInitFor(stateId);
   }
+  // item 17a — all entries were «input»-fed (or none qualified): still guarantee one.
+  if (!emittedInit) emitInitFor(stateIdByTask.get(entryTasks[0].id)!);
 
   // 30-FU1 — final layout normalization: straddle the origin so the diagram
   // opens centered (mirrors bpmn-to-component recenterModelOnOrigin).
@@ -262,7 +287,7 @@ function appendBoundaryStates(
     const row = dir === 'input' ? inputRow++ : outputRow++;
     out.elements[id] = {
       id,
-      name: dir === 'input' ? `from ${name}` : `to ${name}`,
+      name: sanitizeStateName(dir === 'input' ? `from ${name}` : `to ${name}`),
       type: 'AgentState',
       owner: null,
       stereotype: dir, // «input» / «output»
