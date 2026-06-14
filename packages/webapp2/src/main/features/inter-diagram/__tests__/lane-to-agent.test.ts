@@ -234,5 +234,32 @@ describe('29 — laneToAgentModel', () => {
       expect(initTrans).toHaveLength(1);
       expect(initTrans[0].target.element).toBe(stateId('Implement'));
     });
+
+    it('item 22 — a lane-owned start event does NOT produce a from_<self> boundary', () => {
+      const startEvt = (id: string, owner: string) => ({
+        id,
+        name: '',
+        type: 'BPMNStartEvent',
+        owner,
+        bounds: { x: -80, y: 0, width: 30, height: 30 },
+      });
+      const m = bpmn();
+      Object.assign(m.elements, {
+        L: lane('L'), // agentic BPMNSwimlane, name 'Coder'
+        s1: startEvt('s1', 'L'), // start event OWNED by lane L
+        t1: task('t1', 'coordinate_work', 10), // outer helper hardcodes owner 'L'
+      });
+      // intra-lane: start event (owned by L) → the lane's entry task
+      Object.assign(m.relationships, { f1: seq('f1', 's1', 't1') });
+      const res = laneToAgentModel(m, 'L');
+      if (!res.ok) throw new Error('expected ok');
+      const boundaries = Object.values(res.model.elements).filter(
+        (e) => e.type === 'AgentState' && ['input', 'output'].includes((e as { stereotype?: string }).stereotype ?? ''),
+      );
+      expect(boundaries).toHaveLength(0); // no from_L / to_L
+      // and exactly one cold-start marker on the entry task
+      const inits = Object.values(res.model.elements).filter((e) => e.type === 'StateInitialNode');
+      expect(inits).toHaveLength(1);
+    });
   });
 });

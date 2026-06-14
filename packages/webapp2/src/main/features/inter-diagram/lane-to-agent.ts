@@ -361,10 +361,21 @@ function wireBoundary(
   else emitTransition(out, taskStateId, boundaryId, 'AgentStateTransition', 'horizontal');
 }
 
-/** True iff the node is a task or gateway owned by the lane. */
+/**
+ * True iff the node belongs to the lane. Membership is by OWNERSHIP, not element
+ * type: a lane owns its flow nodes — tasks, gateways AND events (start/end/
+ * intermediate). item 22 — the pre-fix test recognized only tasks/gateways, so a
+ * lane's own `BPMNStartEvent` read as *external*; the intra-lane `StartEvent →
+ * entryTask` flow was then misclassified as a cross-lane INPUT and produced a
+ * self-referential `from_<thisLane>` boundary (e.g. `from_supervisor` in the
+ * Supervisor's own diagram). Owner-based membership makes a same-lane flow never a
+ * crossing, so no `from_<self>` (or `to_<self>` for an in-lane end event) is emitted.
+ * A flow node owned by ANOTHER lane (incl. that lane's start event) is still
+ * external, so a genuine cross-lane `from_<OtherLane>` is unaffected.
+ */
 function isInLaneNode(bpmn: UMLModel, laneId: string, nodeId: string): boolean {
   const el = bpmn.elements[nodeId] as (UMLElement & { owner?: string }) | undefined;
-  return !!el && (el.type === 'BPMNTask' || el.type === 'BPMNGateway') && el.owner === laneId;
+  return !!el && el.owner === laneId;
 }
 
 /**
