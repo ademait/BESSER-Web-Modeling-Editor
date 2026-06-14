@@ -191,8 +191,18 @@ export function componentModelToDeploymentModel(
 
 // ── Collection helpers ──────────────────────────────────────────────
 
+/** Capability/resource stereotype tokens — these Components represent hosted
+ *  services (LLM API, DB, RAG store, skill modules), not deployable containers.
+ *  Keep in sync with _CAP_TOKENS in BESSER docker_compose_generator.py and
+ *  CAPABILITY_TOKENS in agentic-tokens.ts. */
+const CAPABILITY_STEREOTYPES = new Set(['skill', 'tool', 'llm', 'db', 'rag']);
+
 function collectComponents(model: UMLModel): UMLElement[] {
-  return Object.values(model.elements).filter((e) => e.type === 'Component');
+  return Object.values(model.elements).filter((e) => {
+    if (e.type !== 'Component') return false;
+    const stereo = ((e as unknown as { stereotype?: string }).stereotype ?? '').toLowerCase().trim();
+    return !CAPABILITY_STEREOTYPES.has(stereo);
+  });
 }
 
 function collectSubsystems(model: UMLModel): UMLElement[] {
