@@ -517,4 +517,110 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
       expect(artifact.agentModelRef).toBeUndefined();
     });
   });
+
+  describe('35 / Bug 18b — capability Components excluded from Deployment artifacts', () => {
+    it('Component with capability stereotype is not emitted as a DeploymentArtifact', () => {
+      const m = makeBaseModel();
+      Object.assign(m.elements as Record<string, unknown>, {
+        s1:    el('s1',    'Subsystem', 'Agents',   null),
+        agent: el('agent', 'Component', 'MyAgent',  's1', 'solution'),
+        llm:   el('llm',   'Component', 'LLMNode',  's1', 'llm'),
+        rag:   el('rag',   'Component', 'RAGStore', 's1', 'rag'),
+      });
+      const r = componentModelToDeploymentModel(m);
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      const artifacts = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentArtifact');
+      expect(artifacts).toHaveLength(1);
+      expect(artifacts[0].name).toBe('MyAgent');
+    });
+
+    it('all five capability stereotypes are excluded: skill, tool, llm, db, rag', () => {
+      const m = makeBaseModel();
+      Object.assign(m.elements as Record<string, unknown>, {
+        s1: el('s1', 'Subsystem', 'S', null),
+        a:  el('a',  'Component', 'Agent',  's1', 'solution'),
+        b:  el('b',  'Component', 'Skill1', 's1', 'skill'),
+        c:  el('c',  'Component', 'Tool1',  's1', 'tool'),
+        d:  el('d',  'Component', 'LLM1',   's1', 'llm'),
+        e:  el('e',  'Component', 'DB1',    's1', 'db'),
+        f:  el('f',  'Component', 'RAG1',   's1', 'rag'),
+      });
+      const r = componentModelToDeploymentModel(m);
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      const artifacts = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentArtifact');
+      expect(artifacts).toHaveLength(1);
+      expect(artifacts[0].name).toBe('Agent');
+    });
+  });
+
+  describe('35 / Bug 18a — capability-only Subsystem does not emit a DeploymentNode', () => {
+    it('Subsystem containing only capability Components is skipped (no empty Node)', () => {
+      const m = makeBaseModel();
+      Object.assign(m.elements as Record<string, unknown>, {
+        agents: el('agents', 'Subsystem', 'AgentPool',    null),
+        caps:   el('caps',   'Subsystem', 'Capabilities', null),
+        c1: el('c1', 'Component', 'Agent1',   'agents', 'solution'),
+        c2: el('c2', 'Component', 'LLMNode',  'caps',   'llm'),
+        c3: el('c3', 'Component', 'SkillBot', 'caps',   'skill'),
+      });
+      const r = componentModelToDeploymentModel(m);
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      const nodes = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentNode');
+      expect(nodes).toHaveLength(1);
+      expect(nodes[0].name).toBe('AgentPool');
+    });
+
+    it('two distinct agent Components produce exactly two artifacts — no duplicates', () => {
+      const m = makeBaseModel();
+      Object.assign(m.elements as Record<string, unknown>, {
+        s1: el('s1', 'Subsystem', 'Pool', null),
+        c1: el('c1', 'Component', 'Alpha', 's1', 'solution'),
+        c2: el('c2', 'Component', 'Beta',  's1', 'supervision'),
+      });
+      const r = componentModelToDeploymentModel(m);
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      const artifacts = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentArtifact');
+      expect(artifacts).toHaveLength(2);
+      const names = new Set(artifacts.map((a) => a.name));
+      expect(names.size).toBe(2);
+      expect(names.has('Alpha')).toBe(true);
+      expect(names.has('Beta')).toBe(true);
+    });
+  });
+
+  describe('35 / Bug 16 — multiplicity not applied to capability-stereotyped artifacts', () => {
+    it('agent gets [N] suffix; capability is excluded entirely (no [M] artifact)', () => {
+      const m = makeBaseModel();
+      Object.assign(m.elements as Record<string, unknown>, {
+        s1:    el('s1',    'Subsystem', 'A',      null),
+        agent: el('agent', 'Component', 'Solver', 's1', 'solution'),
+        llm:   el('llm',   'Component', 'LLM',    's1', 'llm'),
+      });
+      const r = componentModelToDeploymentModel(m, { agent: 3, llm: 5 });
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      const artifacts = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentArtifact');
+      expect(artifacts).toHaveLength(1);
+      expect(artifacts[0].name).toBe('Solver [3]');
+    });
+
+    it('agent without multiplicity entry produces a clean (no [N]) artifact name', () => {
+      const m = makeBaseModel();
+      Object.assign(m.elements as Record<string, unknown>, {
+        s1:   el('s1',   'Subsystem', 'A',      null),
+        agent: el('agent', 'Component', 'Worker', 's1', 'solution'),
+        tool:  el('tool',  'Component', 'MyTool', 's1', 'tool'),
+      });
+      const r = componentModelToDeploymentModel(m);
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      const artifacts = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentArtifact');
+      expect(artifacts).toHaveLength(1);
+      expect(artifacts[0].name).toBe('Worker');
+    });
+  });
 });

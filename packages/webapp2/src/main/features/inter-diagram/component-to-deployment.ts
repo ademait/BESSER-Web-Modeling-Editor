@@ -104,39 +104,45 @@ export function componentModelToDeploymentModel(
   // edge per source Component, into the Node matching its immediate
   // Subsystem parent (OQ-1) or the synthetic Default Host (if orphan).
   const nodeIdByCompId = new Map<string, string>(); // sourceComponentId → owning Node id (for cross-Node edge resolution)
+  // 35 (Bug 18a) — first-occurrence dedup: the same source Component id must
+  // never produce two artifact pairs. Capability Components are already excluded
+  // by collectComponents; this is a defence-in-depth guard.
+  const seenSourceCompIds = new Set<string>();
 
   for (const sub of subsystems) {
     const nodeId = nodeIdBySubsystemId.get(sub.id);
     if (!nodeId) continue;
     const subComps = componentsBySubsystemId.get(sub.id) ?? [];
-    for (let i = 0; i < subComps.length; i++) {
-      const { componentId } = emitDeploymentComponentPair(
-        out,
-        subComps[i],
-        nodeId,
-        i,
-        multiplicityByComponentId[subComps[i].id] ?? 1,
-      );
-      nodeIdByCompId.set(subComps[i].id, nodeId);
+    let slotIndex = 0;
+    for (const comp of subComps) {
+      if (seenSourceCompIds.has(comp.id)) continue; // Bug 18a: skip duplicate
+      seenSourceCompIds.add(comp.id);
+      // 35 (Bug 16) — capabilities are excluded by collectComponents, but gate
+      // multiplicity here explicitly so a stray capability never gets [N].
+      const stereo = ((comp as unknown as { stereotype?: string }).stereotype ?? '').toLowerCase().trim();
+      const multip = CAPABILITY_STEREOTYPES.has(stereo) ? 1 : (multiplicityByComponentId[comp.id] ?? 1);
+      const { componentId } = emitDeploymentComponentPair(out, comp, nodeId, slotIndex, multip);
+      slotIndex++;
+      nodeIdByCompId.set(comp.id, nodeId);
       // 06-v2 — only the DeploymentComponent (logical projection) maps
       // to the source Component; the Artifact has no source counterpart.
-      elementMapping[componentId] = subComps[i].id;
+      elementMapping[componentId] = comp.id;
     }
   }
 
   if (orphanComponents.length > 0) {
     const hostId = emitDeploymentNode(out, 'Default Host', null, /*synthetic*/ true, layout, orphanComponents.length);
     // Default Host is synthetic — no entry in elementMapping (D-D1 per plan 05- § 3.3).
-    for (let i = 0; i < orphanComponents.length; i++) {
-      const { componentId } = emitDeploymentComponentPair(
-        out,
-        orphanComponents[i],
-        hostId,
-        i,
-        multiplicityByComponentId[orphanComponents[i].id] ?? 1,
-      );
-      nodeIdByCompId.set(orphanComponents[i].id, hostId);
-      elementMapping[componentId] = orphanComponents[i].id;
+    let orphanSlot = 0;
+    for (const comp of orphanComponents) {
+      if (seenSourceCompIds.has(comp.id)) continue; // Bug 18a: skip duplicate
+      seenSourceCompIds.add(comp.id);
+      const stereo = ((comp as unknown as { stereotype?: string }).stereotype ?? '').toLowerCase().trim();
+      const multip = CAPABILITY_STEREOTYPES.has(stereo) ? 1 : (multiplicityByComponentId[comp.id] ?? 1);
+      const { componentId } = emitDeploymentComponentPair(out, comp, hostId, orphanSlot, multip);
+      orphanSlot++;
+      nodeIdByCompId.set(comp.id, hostId);
+      elementMapping[componentId] = comp.id;
     }
   }
 
