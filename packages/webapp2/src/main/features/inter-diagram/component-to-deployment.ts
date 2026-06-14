@@ -62,12 +62,24 @@ export function componentModelToDeploymentModel(
   // Artifacts AND the above-Node Components.
   const componentsBySubsystemId = new Map<string, UMLElement[]>();
   const orphanComponents: UMLElement[] = [];
+  // Walk each component's full owner chain to mark every ancestor Subsystem
+  // as "alive" — needed so that Subsystems whose only *direct* children are
+  // other Subsystems (OQ-1 nesting) are not incorrectly skipped.
+  const aliveSubsystemIds = new Set<string>();
   for (const c of components) {
     const parentSub = immediateSubsystemParent(component, c);
     if (parentSub) {
       const arr = componentsBySubsystemId.get(parentSub.id) ?? [];
       arr.push(c);
       componentsBySubsystemId.set(parentSub.id, arr);
+      // Mark entire ancestor chain as alive so nested Subsystems don't vanish.
+      let ownerId: string | null = (c as unknown as { owner?: string | null }).owner ?? null;
+      while (ownerId) {
+        const ownerEl = component.elements[ownerId];
+        if (!ownerEl) break;
+        if (ownerEl.type === 'Subsystem') aliveSubsystemIds.add(ownerId);
+        ownerId = (ownerEl as unknown as { owner?: string | null }).owner ?? null;
+      }
     } else {
       orphanComponents.push(c);
     }
@@ -78,6 +90,11 @@ export function componentModelToDeploymentModel(
   const nodeIdBySubsystemId = new Map<string, string>();
   for (const sub of subsystems) {
     const subComps = componentsBySubsystemId.get(sub.id) ?? [];
+    // Skip Subsystems whose entire subtree contained only capability Components
+    // (filtered out by collectComponents): they would produce an empty node.
+    // Subsystems that have no direct children but DO have descendant non-capability
+    // components (via nested child Subsystems) are kept via aliveSubsystemIds.
+    if (subComps.length === 0 && !aliveSubsystemIds.has(sub.id)) continue;
     const nodeId = emitDeploymentNode(out, sub.name, sub, /*synthetic*/ false, layout, subComps.length);
     nodeIdBySubsystemId.set(sub.id, nodeId);
     elementMapping[nodeId] = sub.id; // 06-v2 — DeploymentNode ← source Subsystem
