@@ -262,4 +262,110 @@ describe('29 — laneToAgentModel', () => {
       expect(inits).toHaveLength(1);
     });
   });
+
+  describe('item 17 — BUML validity: state-name sanitization + guaranteed init', () => {
+    it('Bug 1a: task name with spaces → underscored state name, no whitespace in output', () => {
+      const m = bpmn();
+      Object.assign(m.elements, { L: lane('L'), t1: task('t1', 'Plan Code', 10) });
+      const r = laneToAgentModel(m, 'L');
+      if (!r.ok) throw new Error('expected ok');
+      const states = Object.values(r.model.elements).filter((e) => e.type === 'AgentState');
+      expect(states.every((e) => !/\s/.test(e.name))).toBe(true);
+      const taskState = states.find((e) => !(e as { stereotype?: string }).stereotype);
+      expect(taskState?.name).toBe('Plan_Code');
+    });
+
+    it('Bug 1b: task name with hyphens/dots → underscored, no non-word chars', () => {
+      const m = bpmn();
+      Object.assign(m.elements, { L: lane('L'), t1: task('t1', 'Foo-Bar.Baz', 10) });
+      const r = laneToAgentModel(m, 'L');
+      if (!r.ok) throw new Error('expected ok');
+      const taskStates = Object.values(r.model.elements).filter(
+        (e) => e.type === 'AgentState' && !(e as { stereotype?: string }).stereotype,
+      );
+      expect(taskStates).toHaveLength(1);
+      expect(taskStates[0].name).toBe('Foo_Bar_Baz');
+      expect(/[^\w]/.test(taskStates[0].name)).toBe(false);
+    });
+
+    it('Bug 1c: external lane with a spaced name → «input» boundary state sanitized', () => {
+      const m = bpmn();
+      Object.assign(m.elements, {
+        L: lane('L'),
+        R: {
+          id: 'R',
+          name: 'Code Reviewer',
+          type: 'BPMNSwimlane',
+          owner: null,
+          isAgentic: false,
+          bounds: { x: 0, y: 300, width: 400, height: 200 },
+        },
+        t1: { id: 't1', name: 'Work', type: 'BPMNTask', owner: 'L', bounds: { x: 10, y: 0, width: 100, height: 60 } },
+        r1: { id: 'r1', name: 'Review', type: 'BPMNTask', owner: 'R', bounds: { x: 10, y: 0, width: 100, height: 60 } },
+      });
+      Object.assign(m.relationships, { f1: seq('f1', 'r1', 't1') });
+      const r = laneToAgentModel(m, 'L');
+      if (!r.ok) throw new Error('expected ok');
+      const inputs = Object.values(r.model.elements).filter(
+        (e) => e.type === 'AgentState' && (e as { stereotype?: string }).stereotype === 'input',
+      );
+      expect(inputs).toHaveLength(1);
+      expect(inputs[0].name).toBe('from_Code_Reviewer');
+      expect(inputs[0].name).not.toMatch(/\s/);
+    });
+
+    it('Bug 2: single task entirely driven by an «input» flow → still one StateInitialNode', () => {
+      const m = bpmn();
+      Object.assign(m.elements, {
+        L: lane('L'),
+        R: {
+          id: 'R',
+          name: 'Caller',
+          type: 'BPMNSwimlane',
+          owner: null,
+          isAgentic: false,
+          bounds: { x: 0, y: 300, width: 400, height: 200 },
+        },
+        t1: { id: 't1', name: 'Handle', type: 'BPMNTask', owner: 'L', bounds: { x: 10, y: 0, width: 100, height: 60 } },
+        r1: { id: 'r1', name: 'Trigger', type: 'BPMNTask', owner: 'R', bounds: { x: 10, y: 0, width: 100, height: 60 } },
+      });
+      Object.assign(m.relationships, { f1: seq('f1', 'r1', 't1') });
+      const r = laneToAgentModel(m, 'L');
+      if (!r.ok) throw new Error('expected ok');
+      const inits = Object.values(r.model.elements).filter((e) => e.type === 'StateInitialNode');
+      expect(inits).toHaveLength(1);
+      const initTrans = Object.values(r.model.relationships).filter((e) => e.type === 'AgentStateTransitionInit');
+      expect(initTrans).toHaveLength(1);
+    });
+
+    it('Bug 2: all state names are space-free even when guarantee-init fires on an input-fed task', () => {
+      const m = bpmn();
+      Object.assign(m.elements, {
+        L: lane('L'),
+        R: {
+          id: 'R',
+          name: 'External Agent',
+          type: 'BPMNSwimlane',
+          owner: null,
+          isAgentic: false,
+          bounds: { x: 0, y: 300, width: 400, height: 200 },
+        },
+        t1: {
+          id: 't1',
+          name: 'Process Request',
+          type: 'BPMNTask',
+          owner: 'L',
+          bounds: { x: 10, y: 0, width: 100, height: 60 },
+        },
+        r1: { id: 'r1', name: 'X', type: 'BPMNTask', owner: 'R', bounds: { x: 10, y: 0, width: 100, height: 60 } },
+      });
+      Object.assign(m.relationships, { f1: seq('f1', 'r1', 't1') });
+      const r = laneToAgentModel(m, 'L');
+      if (!r.ok) throw new Error('expected ok');
+      const allStateNames = Object.values(r.model.elements)
+        .filter((e) => e.type === 'AgentState')
+        .map((e) => e.name);
+      expect(allStateNames.every((n) => !/\s/.test(n))).toBe(true);
+    });
+  });
 });

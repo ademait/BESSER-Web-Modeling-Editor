@@ -37,7 +37,12 @@ const newId = (): string => 'gen-' + Math.random().toString(36).slice(2, 11);
  * and camelCase differences vs the service name are reconciled there).
  */
 const sanitizeStateName = (raw: string): string => {
-  const s = (raw || '').trim().replace(/\s+/g, '_');
+  const s = (raw || '')
+    .trim()
+    .replace(/\s+/g, '_')
+    .replace(/[^\w]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
   return s || 'State';
 };
 
