@@ -14,7 +14,11 @@ import {
   useImportDiagramToProjectWorkflow,
   useImportBpmnDiagramToProjectWorkflow,
 } from '../../features/import/useImportDiagram';
-import { useGenerateComponentDiagram, useGenerateDeploymentDiagram } from '../../features/inter-diagram';
+import {
+  useGenerateComponentDiagram,
+  useGenerateDeploymentDiagram,
+  useGenerateDockerCompose,
+} from '../../features/inter-diagram';
 import { buildExportableProjectPayload } from '../../features/export/utils/projectExportUtils';
 import {
   besserLibraryRepositoryLink,
@@ -436,6 +440,11 @@ export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({
     }
   }, [deriveDeploymentDiagram]);
 
+  const { generate: generateDockerCompose, isLoading: isDockerComposing } = useGenerateDockerCompose();
+  const handleGenerateDockerCompose = useCallback(async () => {
+    await generateDockerCompose();
+  }, [generateDockerCompose]);
+
   const handleSwitchUml = useCallback(
     (type: UMLDiagramType) => {
       if (location.pathname !== '/') {
@@ -598,7 +607,7 @@ export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({
         primaryGenerateClass={primaryGenerateClass}
         showQualityCheck={showQualityCheck}
         generatorMode={generatorMode}
-        isGenerating={isGenerating}
+        isGenerating={isGenerating || isDockerComposing}
         locationPath={location.pathname}
         activeUmlType={activeUmlType}
         isAuthenticated={isAuthenticated}
@@ -634,6 +643,7 @@ export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({
         onSwitchDiagramType={handleSwitchDiagramType}
         onDeriveComponentDiagram={handleDeriveComponentDiagram}
         onDeriveDeploymentDiagram={handleDeriveDeploymentDiagram}
+        onGenerateDockerCompose={handleGenerateDockerCompose}
         onNavigate={handleNavigate}
         projectNameDraft={projectNameDraft}
         onProjectNameDraftChange={setProjectNameDraft}

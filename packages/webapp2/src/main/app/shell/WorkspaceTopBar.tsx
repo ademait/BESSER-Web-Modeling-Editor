@@ -53,6 +53,7 @@ const WorkspaceTopBarInner: React.FC<WorkspaceTopBarProps> = ({
   onSwitchDiagramType,
   onDeriveComponentDiagram,
   onDeriveDeploymentDiagram,
+  onGenerateDockerCompose,
   onNavigate,
   projectNameDraft,
   onProjectNameDraftChange,
@@ -114,6 +115,7 @@ const WorkspaceTopBarInner: React.FC<WorkspaceTopBarProps> = ({
             onSwitchDiagramType={onSwitchDiagramType}
             onDeriveComponentDiagram={onDeriveComponentDiagram}
             onDeriveDeploymentDiagram={onDeriveDeploymentDiagram}
+            onGenerateDockerCompose={onGenerateDockerCompose}
           />
           <DeployMenu
             outlineButtonClass={outlineButtonClass}

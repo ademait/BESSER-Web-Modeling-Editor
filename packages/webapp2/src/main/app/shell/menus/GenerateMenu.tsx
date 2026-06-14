@@ -25,6 +25,7 @@ interface GenerateMenuProps {
   onSwitchDiagramType?: (type: SupportedDiagramType) => void;
   onDeriveComponentDiagram?: () => void;
   onDeriveDeploymentDiagram?: () => void;
+  onGenerateDockerCompose?: () => void;
 }
 
 const renderGeneratorMenuEntry = (entry: GeneratorMenuEntry, onGenerate: (type: GeneratorType) => void) => {
@@ -67,6 +68,7 @@ export const GenerateMenu: React.FC<GenerateMenuProps> = ({
   onSwitchDiagramType,
   onDeriveComponentDiagram,
   onDeriveDeploymentDiagram,
+  onGenerateDockerCompose,
 }) => {
   const menuEntries = GENERATOR_MENU_CONFIG[mode];
 
@@ -99,6 +101,12 @@ export const GenerateMenu: React.FC<GenerateMenuProps> = ({
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onDeriveDeploymentDiagram}>Generate Deployment diagram</DropdownMenuItem>
+          </>
+        )}
+        {activeDiagramType === 'DeploymentDiagram' && onGenerateDockerCompose && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onGenerateDockerCompose}>Generate Docker Compose</DropdownMenuItem>
           </>
         )}
       </DropdownMenuContent>
