@@ -120,33 +120,43 @@ export function laneToAgentModel(bpmn: UMLModel, laneId: string): AgentDerivatio
   const entryStateId = stateIdByTask.get(entryTasks[0].id)!;
   const inputFedStateIds = appendBoundaryStates(out, bpmn, laneId, taskIds, stateIdByTask, entryStateId, warnings);
 
-  // entry tasks → StateInitialNode + init, EXCEPT those an «input» already drives.
-  // 04 (item 17a): BAF requires EXACTLY ONE initial state. When every entry task
-  // is «input»-fed, the loop below emits none → invalid agent. Track whether any
-  // init was emitted and, if not, force one on the first entry state so the
-  // derived agent always has a cold-start marker.
-  let emittedInit = false;
-  const emitInitFor = (stateId: string): void => {
-    const sb = (out.elements[stateId] as unknown as { bounds: Bounds }).bounds;
-    const initId = newId();
-    out.elements[initId] = {
-      id: initId,
-      name: '',
-      type: 'StateInitialNode',
-      owner: null,
-      bounds: { x: sb.x - 110, y: sb.y - 2, width: INIT_SIZE, height: INIT_SIZE },
-    } as unknown as UMLElement;
-    emitTransition(out, initId, stateId, 'AgentStateTransitionInit', 'horizontal');
-    emittedInit = true;
-  };
-
-  for (const t of entryTasks) {
-    const stateId = stateIdByTask.get(t.id)!;
-    if (inputFedStateIds.has(stateId)) continue; // 30-FU1 — already entered via «input»
-    emitInitFor(stateId);
-  }
-  // item 17a — all entries were «input»-fed (or none qualified): still guarantee one.
-  if (!emittedInit) emitInitFor(stateIdByTask.get(entryTasks[0].id)!);
+  // 36 — BAF greeting wrapper: a thin initial state so the agent never enters an
+  // LLM-body state on session start (session.event is None then → AttributeError:
+  // 'NoneType' has no attribute 'message' in reply_llm.predict). BAF pattern:
+  //   StateInitialNode → greeting (no body, always safe to enter without an event)
+  //   greeting → first-entry via when_no_intent_matched (fires on the first user
+  //   message when session.event is set). The self-loop on the LLM state
+  //   (when_no_intent_matched().go_to(self)) is NOT emitted here — the derivation
+  //   does not know which states will get LLM bodies; the user adds it manually.
+  const greetName = sanitizeStateName((lane.name || 'Agent') + '_greet');
+  const greetId = newId();
+  const greetY = -(STATE_H + V_GAP); // one layout-row above first task (y=0)
+  out.elements[greetId] = {
+    id: greetId,
+    name: greetName,
+    type: 'AgentState',
+    owner: null,
+    bounds: { x: 0, y: greetY, width: STATE_W, height: STATE_H },
+    bodies: [],
+    fallbackBodies: [],
+  } as unknown as UMLElement;
+  const initId = newId();
+  out.elements[initId] = {
+    id: initId,
+    name: '',
+    type: 'StateInitialNode',
+    owner: null,
+    bounds: { x: -110, y: greetY - 2, width: INIT_SIZE, height: INIT_SIZE },
+  } as unknown as UMLElement;
+  emitTransition(out, initId, greetId, 'AgentStateTransitionInit', 'horizontal');
+  // If the first entry task is driven by an «input» boundary, wire greeting →
+  // that boundary (greeting → boundary → task) so the when_no_intent_matched
+  // path flows through the existing data-flow gateway state, not around it.
+  // Falls back to the task-state directly when no boundary can be found.
+  const greetTarget = inputFedStateIds.has(entryStateId)
+    ? (findInputBoundaryFor(out, entryStateId) ?? entryStateId)
+    : entryStateId;
+  emitTransition(out, greetId, greetTarget, 'AgentStateTransition', 'vertical', 'when_no_intent_matched');
 
   // 30-FU1 — final layout normalization: straddle the origin so the diagram
   // opens centered (mirrors bpmn-to-component recenterModelOnOrigin).
@@ -227,6 +237,7 @@ function emitTransition(
   tgtId: string,
   type: 'AgentStateTransition' | 'AgentStateTransitionInit',
   orientation: 'vertical' | 'horizontal',
+  predefinedType?: string,
 ): void {
   const id = newId();
   const sb = (out.elements[srcId] as unknown as { bounds: Bounds }).bounds;
@@ -251,6 +262,16 @@ function emitTransition(
     source: { element: srcId, direction: orientation === 'vertical' ? 'Down' : 'Right' },
     target: { element: tgtId, direction: orientation === 'vertical' ? 'Up' : 'Left' },
     isManuallyLayouted: false,
+    // 36 — when_no_intent_matched (and other predefined types) need these three
+    // fields so the BESSER backend's AgentStateTransition deserializer reads the
+    // correct predefinedType instead of falling back to 'when_intent_matched'.
+    ...(predefinedType !== undefined
+      ? {
+          transitionType: 'predefined' as const,
+          predefined: { predefinedType, conditionValue: '' },
+          custom: { condition: [] as string[] },
+        }
+      : {}),
   } as unknown as UMLRelationship;
 }
 
@@ -364,6 +385,22 @@ function wireBoundary(
   // input: boundary → task; output: task → boundary.
   if (dir === 'input') emitTransition(out, boundaryId, taskStateId, 'AgentStateTransition', 'horizontal');
   else emitTransition(out, taskStateId, boundaryId, 'AgentStateTransition', 'horizontal');
+}
+
+/**
+ * 36 — find the first «input» boundary state that wires into `taskStateId`.
+ * Used by the greeting-wrapper to chain greeting → boundary → task instead of
+ * greeting → task directly (preserving the input-boundary as the data-flow gateway).
+ * Returns null when the task has no input boundary (normal cold-start path).
+ */
+function findInputBoundaryFor(out: UMLModel, taskStateId: string): string | null {
+  for (const rel of Object.values(out.relationships)) {
+    if (rel.type !== 'AgentStateTransition') continue;
+    if (rel.target.element !== taskStateId) continue;
+    const src = out.elements[rel.source.element] as unknown as { stereotype?: string };
+    if (src?.stereotype === 'input') return rel.source.element;
+  }
+  return null;
 }
 
 /**

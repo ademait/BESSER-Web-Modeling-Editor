@@ -77,10 +77,10 @@ describe('29 — laneToAgentModel', () => {
         .filter((e) => e.type === 'AgentState')
         .map((e) => e.name)
         .sort(),
-    ).toEqual(['Code', 'Plan']);
-    expect(els.filter((e) => e.type === 'StateInitialNode')).toHaveLength(1); // t1 is the only entry
+    ).toEqual(['Code', 'Coder_greet', 'Plan']); // 36 — greeting state added
+    expect(els.filter((e) => e.type === 'StateInitialNode')).toHaveLength(1); // → greeting
     const rels = Object.values(r.model.relationships);
-    expect(rels.filter((e) => e.type === 'AgentStateTransition')).toHaveLength(1);
+    expect(rels.filter((e) => e.type === 'AgentStateTransition')).toHaveLength(2); // 36 — +1 greeting→Plan
     expect(rels.filter((e) => e.type === 'AgentStateTransitionInit')).toHaveLength(1);
     // lineage maps state → task
     const planState = els.find((e) => e.name === 'Plan')!;
@@ -94,8 +94,8 @@ describe('29 — laneToAgentModel', () => {
     const r = laneToAgentModel(m, 'L');
     if (!r.ok) throw new Error('expected ok');
     const trans = Object.values(r.model.relationships).filter((e) => e.type === 'AgentStateTransition');
-    expect(trans).toHaveLength(1); // A → B, gateway collapsed
-    expect(Object.values(r.model.elements).filter((e) => e.type === 'StateInitialNode')).toHaveLength(1); // only A is entry
+    expect(trans).toHaveLength(2); // 36 — Coder_greet → A + A → B (gateway collapsed)
+    expect(Object.values(r.model.elements).filter((e) => e.type === 'StateInitialNode')).toHaveLength(1); // → greeting
   });
 
   describe('30 — cross-lane I/O boundary states', () => {
@@ -194,7 +194,7 @@ describe('29 — laneToAgentModel', () => {
         (e) => e.type === 'AgentStateTransition' && e.source.element === inputs[0].id,
       );
       expect(inTrans).toHaveLength(2); // one into each fed task
-      // both tasks are input-fed → the loop skips both; item 17a guarantee-init adds one.
+      // 36 — both tasks are input-fed; greeting is always the StateInitialNode target.
       expect(Object.values(res.model.elements).filter((e) => e.type === 'StateInitialNode')).toHaveLength(1);
     });
 
@@ -232,7 +232,17 @@ describe('29 — laneToAgentModel', () => {
       expect(inits).toHaveLength(1);
       const initTrans = Object.values(res.model.relationships).filter((e) => e.type === 'AgentStateTransitionInit');
       expect(initTrans).toHaveLength(1);
-      expect(initTrans[0].target.element).toBe(stateId('Implement'));
+      // 36 — init now targets the greeting state, not the task directly
+      const greetState = Object.values(res.model.elements).find(
+        (e) => e.type === 'AgentState' && e.name === 'Coder_greet',
+      )!;
+      expect(initTrans[0].target.element).toBe(greetState.id);
+      // greeting → Implement via when_no_intent_matched (impl is the non-input-fed entry)
+      const greetToImpl = Object.values(res.model.relationships).find(
+        (e) => e.type === 'AgentStateTransition' && e.source.element === greetState.id,
+      );
+      expect(greetToImpl).toBeDefined();
+      expect(greetToImpl!.target.element).toBe(stateId('Implement'));
     });
 
     it('item 22 — a lane-owned start event does NOT produce a from_<self> boundary', () => {
@@ -280,8 +290,10 @@ describe('29 — laneToAgentModel', () => {
       Object.assign(m.elements, { L: lane('L'), t1: task('t1', 'Foo-Bar.Baz', 10) });
       const r = laneToAgentModel(m, 'L');
       if (!r.ok) throw new Error('expected ok');
+      // 36 — greeting state also has no stereotype; isolate task-derived states
+      // via elementMapping (greeting is synthetic and has no mapping entry).
       const taskStates = Object.values(r.model.elements).filter(
-        (e) => e.type === 'AgentState' && !(e as { stereotype?: string }).stereotype,
+        (e) => e.type === 'AgentState' && r.elementMapping[e.id],
       );
       expect(taskStates).toHaveLength(1);
       expect(taskStates[0].name).toBe('Foo_Bar_Baz');
@@ -366,6 +378,89 @@ describe('29 — laneToAgentModel', () => {
         .filter((e) => e.type === 'AgentState')
         .map((e) => e.name);
       expect(allStateNames.every((n) => !/\s/.test(n))).toBe(true);
+    });
+  });
+
+  describe('36 — greeting-wrapper state (BAF-safe initial)', () => {
+    it('emits a <Lane>_greet state and makes it the StateInitialNode target', () => {
+      const m = bpmn();
+      Object.assign(m.elements, { L: lane('L'), t1: task('t1', 'Respond', 10) });
+      const r = laneToAgentModel(m, 'L');
+      if (!r.ok) throw new Error('expected ok');
+      // greeting state present and named from the lane
+      const greetState = Object.values(r.model.elements).find(
+        (e) => e.type === 'AgentState' && e.name === 'Coder_greet',
+      );
+      expect(greetState).toBeDefined();
+      // StateInitialNode → greeting
+      const initTrans = Object.values(r.model.relationships).filter((e) => e.type === 'AgentStateTransitionInit');
+      expect(initTrans).toHaveLength(1);
+      expect(initTrans[0].target.element).toBe(greetState!.id);
+    });
+
+    it('first task-state is NOT the AgentStateTransitionInit target; greeting wires to it via when_no_intent_matched', () => {
+      const m = bpmn();
+      Object.assign(m.elements, { L: lane('L'), t1: task('t1', 'LLM_reply', 10) });
+      const r = laneToAgentModel(m, 'L');
+      if (!r.ok) throw new Error('expected ok');
+      const taskState = Object.values(r.model.elements).find(
+        (e) => e.type === 'AgentState' && r.elementMapping[e.id],
+      )!;
+      const initTrans = Object.values(r.model.relationships).find((e) => e.type === 'AgentStateTransitionInit')!;
+      // init does NOT go to the task
+      expect(initTrans.target.element).not.toBe(taskState.id);
+      // greeting → task via when_no_intent_matched
+      const greetState = Object.values(r.model.elements).find((e) => e.name === 'Coder_greet')!;
+      const noIntentTrans = Object.values(r.model.relationships).find(
+        (e) =>
+          e.type === 'AgentStateTransition' &&
+          e.source.element === greetState.id &&
+          e.target.element === taskState.id,
+      );
+      expect(noIntentTrans).toBeDefined();
+      expect(
+        (noIntentTrans as unknown as { predefined?: { predefinedType?: string } }).predefined?.predefinedType,
+      ).toBe('when_no_intent_matched');
+    });
+
+    it('input-fed entry: greeting connects to the «input» boundary (not the task directly)', () => {
+      const m = bpmn();
+      const laneB = (id: string, nm: string) => ({
+        id,
+        name: nm,
+        type: 'BPMNSwimlane',
+        owner: null,
+        isAgentic: false,
+        bounds: { x: 0, y: 300, width: 400, height: 200 },
+      });
+      const taskIn = (id: string, nm: string, owner: string, x: number) => ({
+        id,
+        name: nm,
+        type: 'BPMNTask',
+        owner,
+        bounds: { x, y: 0, width: 100, height: 60 },
+      });
+      Object.assign(m.elements, {
+        L: lane('L'),
+        R: laneB('R', 'Caller'),
+        t1: taskIn('t1', 'Handle', 'L', 10),
+        r1: taskIn('r1', 'Trigger', 'R', 10),
+      });
+      Object.assign(m.relationships, { f1: seq('f1', 'r1', 't1') });
+      const r = laneToAgentModel(m, 'L');
+      if (!r.ok) throw new Error('expected ok');
+      const greetState = Object.values(r.model.elements).find((e) => e.name === 'Coder_greet')!;
+      const inputBoundary = Object.values(r.model.elements).find(
+        (e) => e.type === 'AgentState' && (e as unknown as { stereotype?: string }).stereotype === 'input',
+      )!;
+      // greeting → input-boundary (not task directly)
+      const greetEdge = Object.values(r.model.relationships).find(
+        (e) => e.type === 'AgentStateTransition' && e.source.element === greetState.id,
+      )!;
+      expect(greetEdge.target.element).toBe(inputBoundary.id);
+      expect(
+        (greetEdge as unknown as { predefined?: { predefinedType?: string } }).predefined?.predefinedType,
+      ).toBe('when_no_intent_matched');
     });
   });
 });
