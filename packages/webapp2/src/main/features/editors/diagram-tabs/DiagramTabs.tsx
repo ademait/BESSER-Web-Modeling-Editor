@@ -256,6 +256,27 @@ export const DiagramTabs: React.FC = () => {
   const selectClasses =
     'h-6 min-w-[120px] rounded-md border border-brand/15 bg-card px-2 text-[11px] font-medium text-foreground shadow-sm transition-colors hover:border-brand/30 focus:border-brand/40 focus:outline-none focus:ring-1 focus:ring-brand/20';
 
+  // 37-fix: compute lane back-link once so the "Derived from" badge can be
+  // suppressed when "Implementation of" will show (they reference the same source).
+  const agentLaneRef = (() => {
+    if (currentDiagramType !== 'AgentDiagram' || !activeDiagram) return null;
+    const freshProject = ProjectStorageRepository.getCurrentProject();
+    const bpmnDiagrams = freshProject?.diagrams.BPMN ?? currentProject?.diagrams.BPMN ?? [];
+    for (let i = 0; i < bpmnDiagrams.length; i++) {
+      const d = bpmnDiagrams[i];
+      if (!isUMLModel(d.model)) continue;
+      const lane = Object.values(d.model.elements ?? {}).find(
+        (el) =>
+          (el as { type?: string }).type === 'BPMNSwimlane' &&
+          (el as { agentDiagramRef?: string }).agentDiagramRef === activeDiagram.id,
+      ) as { name?: string } | undefined;
+      if (lane) {
+        return { diagramIndex: i, laneName: lane.name?.trim() || '(unnamed lane)', diagram: d };
+      }
+    }
+    return null;
+  })();
+
   return (
     <div className="relative overflow-visible border-b border-brand/12 bg-card/80 backdrop-blur-sm">
       {/* Top row: tabs */}
@@ -350,7 +371,7 @@ export const DiagramTabs: React.FC = () => {
           Renders only when the active diagram has `derivedFrom`. Clicking
           navigates to the source diagram. Amber when source has changed
           since derivation (hash mismatch). */}
-      {activeDiagram?.derivedFrom &&
+      {activeDiagram?.derivedFrom && !agentLaneRef &&
         (() => {
           const lineage = activeDiagram.derivedFrom!;
           const sourceDiagrams = currentProject?.diagrams[lineage.sourceDiagramType] ?? [];
@@ -417,61 +438,25 @@ export const DiagramTabs: React.FC = () => {
           );
         })()}
 
-      {/* 12: back-link from an Agent diagram to the BPMN task that defines it.
-          Reverse-lookup — scan BPMN tasks for a forward agentDiagramRef pointing
-          at this diagram; no stored field, no editor-package change. */}
-      {currentDiagramType === 'AgentDiagram' &&
-        activeDiagram &&
-        (() => {
-          // 12-FU1: scan FRESH storage, not Redux currentProject. The linker
-          // writes the task's agentDiagramRef via
-          // ProjectStorageRepository.withoutNotify (to avoid a sync loop while
-          // the BPMN editor is torn down on Define), so currentProject lags
-          // until a later thunk re-syncs it — which is why the badge was
-          // missing right after "Define agent behavior" but appeared after
-          // creating another diagram. Storage is authoritative and already
-          // holds the ref by the time the post-Define switch re-renders us.
-          const freshProject = ProjectStorageRepository.getCurrentProject();
-          const bpmnDiagrams = freshProject?.diagrams.BPMN ?? currentProject?.diagrams.BPMN ?? [];
-          let sourceIndex = -1;
-          let sourceTaskName = '';
-          let sourceDiagram: ProjectDiagram | undefined;
-          for (let i = 0; i < bpmnDiagrams.length; i++) {
-            const d = bpmnDiagrams[i];
-            if (!isUMLModel(d.model)) continue;
-            const task = Object.values(d.model.elements ?? {}).find(
-              (el) =>
-                (el as { type?: string }).type === 'BPMNTask' &&
-                (el as { agentDiagramRef?: string }).agentDiagramRef === activeDiagram.id,
-            ) as { name?: string } | undefined;
-            if (task) {
-              sourceIndex = i;
-              sourceTaskName = task.name?.trim() || '(unnamed task)';
-              sourceDiagram = d;
-              break;
-            }
-          }
-          if (!sourceDiagram || sourceIndex < 0) return null;
-          const onJumpToTask = () => {
-            if (location.pathname !== '/') {
-              navigate('/');
-            }
-            const wireType = toUMLDiagramType('BPMN');
-            dispatch(switchDiagramTypeThunk({ diagramType: wireType ?? 'BPMN' }));
-            dispatch(switchDiagramIndexThunk({ diagramType: 'BPMN', index: sourceIndex }));
-          };
-          return (
-            <div className="flex items-center gap-2 border-t border-border/40 bg-muted/30 px-3 py-1.5">
-              <button
-                type="button"
-                className="text-[11px] font-medium text-brand hover:underline"
-                onClick={onJumpToTask}
-              >
-                ← Implementing <em>{sourceTaskName}</em> of <em>{sourceDiagram.title}</em>
-              </button>
-            </div>
-          );
-        })()}
+      {/* 12 (37-fix): back-link from an Agent diagram to the BPMN lane that
+          defines it. `agentLaneRef` is computed pre-return; it also suppresses
+          the "Derived from" badge above so only this banner shows. */}
+      {agentLaneRef && (
+        <div className="flex items-center gap-2 border-t border-border/40 bg-muted/30 px-3 py-1.5">
+          <button
+            type="button"
+            className="text-[11px] font-medium text-brand hover:underline"
+            onClick={() => {
+              if (location.pathname !== '/') navigate('/');
+              const wireType = toUMLDiagramType('BPMN');
+              dispatch(switchDiagramTypeThunk({ diagramType: wireType ?? 'BPMN' }));
+              dispatch(switchDiagramIndexThunk({ diagramType: 'BPMN', index: agentLaneRef.diagramIndex }));
+            }}
+          >
+            ← Implementation of <em>{agentLaneRef.laneName}</em>
+          </button>
+        </div>
+      )}
 
       {/* Linked Diagrams reference section (below tabs) */}
       {hasReferences && !refsCollapsed && (
