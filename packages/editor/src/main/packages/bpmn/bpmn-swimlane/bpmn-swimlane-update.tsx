@@ -12,8 +12,12 @@ import { localized } from '../../../components/i18n/localized';
 import { ModelState } from '../../../components/store/model-state';
 import { styled } from '../../../components/theme/styles';
 import { UMLElementRepository } from '../../../services/uml-element/uml-element-repository';
+import { UMLElementActionTypes } from '../../../services/uml-element/uml-element-types';
+import { LayouterRepository } from '../../../services/layouter/layouter-repository';
 import { ColorButton } from '../../../components/controls/color-button/color-button';
 import { StylePane } from '../../../components/style-pane/style-pane';
+import { BPMNElementType } from '..';
+import { IUMLContainer, UMLContainer } from '../../../services/uml-container/uml-container';
 import { BPMNSwimlane } from './bpmn-swimlane';
 import { BPMNAgentRole, clampTrustScore, clampMultiplicity } from '../common/types';
 import { AgentDiagramLinkSection } from '../../../components/agent-diagram-linker/AgentDiagramLinkSection';
@@ -21,19 +25,60 @@ import { AgentDiagramLinkSection } from '../../../components/agent-diagram-linke
 interface OwnProps {
   element: BPMNSwimlane;
 }
-type StateProps = {};
+interface StateProps {
+  prevLaneId: string | null;
+  nextLaneId: string | null;
+  prevLaneBounds: { x: number; y: number; width: number; height: number } | null;
+  nextLaneBounds: { x: number; y: number; width: number; height: number } | null;
+}
+type IBounds = { x: number; y: number; width: number; height: number };
 interface DispatchProps {
   update: typeof UMLElementRepository.update;
   delete: typeof UMLElementRepository.delete;
+  swapLaneBounds: (idA: string, boundsA: IBounds, idB: string, boundsB: IBounds) => void;
 }
 type Props = OwnProps & StateProps & DispatchProps & I18nContext;
 
+const mapStateToProps = (state: ModelState, ownProps: OwnProps): StateProps => {
+  const { element } = ownProps;
+  const empty: StateProps = { prevLaneId: null, nextLaneId: null, prevLaneBounds: null, nextLaneBounds: null };
+  if (!element.owner) return empty;
+  const owner = state.elements[element.owner];
+  if (!owner || !UMLContainer.isUMLContainer(owner)) return empty;
+  const sortedLanes = (owner as IUMLContainer).ownedElements
+    .map((id) => state.elements[id])
+    .filter((el) => !!el && el.type === BPMNElementType.BPMNSwimlane)
+    .sort((a, b) => a.bounds.y - b.bounds.y);
+  const idx = sortedLanes.findIndex((lane) => lane.id === element.id);
+  if (idx === -1) return empty;
+  const prev = idx > 0 ? sortedLanes[idx - 1] : null;
+  const next = idx < sortedLanes.length - 1 ? sortedLanes[idx + 1] : null;
+  return {
+    prevLaneId: prev ? prev.id : null,
+    prevLaneBounds: prev ? prev.bounds : null,
+    nextLaneId: next ? next.id : null,
+    nextLaneBounds: next ? next.bounds : null,
+  };
+};
+
 const enhance = compose<ComponentClass<OwnProps>>(
   localized,
-  connect<StateProps, DispatchProps, OwnProps, ModelState>(null, {
-    update: UMLElementRepository.update,
-    delete: UMLElementRepository.delete,
-  }),
+  connect<StateProps, DispatchProps, OwnProps, ModelState>(
+    mapStateToProps,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (dispatch: any) => ({
+      update: (id: any, values: any) => dispatch(UMLElementRepository.update(id, values)),
+      delete: (id?: any) => dispatch(UMLElementRepository.delete(id)),
+      swapLaneBounds: (idA: string, boundsA: IBounds, idB: string, boundsB: IBounds) => {
+        dispatch({
+          type: UMLElementActionTypes.UPDATE,
+          payload: { values: [{ id: idA, bounds: boundsA }, { id: idB, bounds: boundsB }] },
+          undoable: false,
+        });
+        dispatch(LayouterRepository.layout());
+      },
+    }),
+  ),
 );
 
 const Flex = styled.div`
@@ -58,6 +103,12 @@ class BPMNSwimlaneUpdateComponent extends Component<Props, State> {
         <section>
           <Flex>
             <Textfield value={element.name} onChange={this.rename(element.id)} autoFocus />
+            <Button color="link" tabIndex={-1} onClick={this.moveUp} disabled={this.props.prevLaneId === null}>
+              ▲
+            </Button>
+            <Button color="link" tabIndex={-1} onClick={this.moveDown} disabled={this.props.nextLaneId === null}>
+              ▼
+            </Button>
             <ColorButton onClick={this.toggleColor} />
             <Button color="link" tabIndex={-1} onClick={this.delete(element.id)}>
               <TrashIcon />
@@ -120,6 +171,24 @@ class BPMNSwimlaneUpdateComponent extends Component<Props, State> {
       </div>
     );
   }
+
+  private moveUp = () => {
+    const { element, prevLaneId, prevLaneBounds } = this.props;
+    if (!prevLaneId || !prevLaneBounds) return;
+    this.props.swapLaneBounds(
+      element.id, { ...element.bounds, y: prevLaneBounds.y },
+      prevLaneId, { ...prevLaneBounds, y: element.bounds.y },
+    );
+  };
+
+  private moveDown = () => {
+    const { element, nextLaneId, nextLaneBounds } = this.props;
+    if (!nextLaneId || !nextLaneBounds) return;
+    this.props.swapLaneBounds(
+      element.id, { ...element.bounds, y: nextLaneBounds.y },
+      nextLaneId, { ...nextLaneBounds, y: element.bounds.y },
+    );
+  };
 
   private rename = (id: string) => (value: string) => this.props.update(id, { name: value });
 
