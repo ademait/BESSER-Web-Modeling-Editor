@@ -31,6 +31,7 @@ import {
   SoftwarePatternTemplate,
   SoftwarePatternType,
 } from './create-diagram-from-template-modal/software-pattern/software-pattern-types';
+import { centerEditorViewport } from '../assistant/hooks/useModelInjection';
 
 interface TemplateLibraryDialogProps {
   open: boolean;
@@ -42,6 +43,7 @@ const categoryOrder: SoftwarePatternCategory[] = [
   SoftwarePatternCategory.BEHAVIORAL,
   SoftwarePatternCategory.CREATIONAL,
   SoftwarePatternCategory.STATE_MACHINE,
+  SoftwarePatternCategory.BPMN,
   SoftwarePatternCategory.AGENT,
   SoftwarePatternCategory.QUANTUM_CIRCUIT,
 ];
@@ -49,6 +51,7 @@ const categoryOrder: SoftwarePatternCategory[] = [
 const diagramTypeToCategory: Partial<Record<SupportedDiagramType, SoftwarePatternCategory>> = {
   ClassDiagram: SoftwarePatternCategory.STRUCTURAL,
   StateMachineDiagram: SoftwarePatternCategory.STATE_MACHINE,
+  BPMN: SoftwarePatternCategory.BPMN,
   AgentDiagram: SoftwarePatternCategory.AGENT,
   QuantumCircuitDiagram: SoftwarePatternCategory.QUANTUM_CIRCUIT,
 };
@@ -58,6 +61,7 @@ const categoryColor: Record<SoftwarePatternCategory, string> = {
   [SoftwarePatternCategory.BEHAVIORAL]: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-300',
   [SoftwarePatternCategory.CREATIONAL]: 'bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-300',
   [SoftwarePatternCategory.STATE_MACHINE]: 'bg-indigo-100 text-indigo-900 dark:bg-indigo-900/30 dark:text-indigo-300',
+  [SoftwarePatternCategory.BPMN]: 'bg-teal-100 text-teal-900 dark:bg-teal-900/30 dark:text-teal-300',
   [SoftwarePatternCategory.AGENT]: 'bg-fuchsia-100 text-fuchsia-900 dark:bg-fuchsia-900/30 dark:text-fuchsia-300',
   [SoftwarePatternCategory.QUANTUM_CIRCUIT]: 'bg-violet-100 text-violet-900 dark:bg-violet-900/30 dark:text-violet-300',
 };
@@ -193,7 +197,7 @@ export const TemplateLibraryDialog: React.FC<TemplateLibraryDialogProps> = ({ op
 
         navigate('/');
       }
-
+      centerEditorViewport(selectedTemplate.diagram, 300);
       // toast.success(`Loaded template: ${selectedTemplate.type}`);
       onOpenChange(false);
     } catch (error) {
@@ -212,7 +216,7 @@ export const TemplateLibraryDialog: React.FC<TemplateLibraryDialogProps> = ({ op
             Load Template
           </DialogTitle>
           <DialogDescription>
-            Start from ready-made UML, agent, state machine, and quantum templates.
+            Start from ready-made UML, BPMN, agent, state machine, and quantum templates.
           </DialogDescription>
         </DialogHeader>
 

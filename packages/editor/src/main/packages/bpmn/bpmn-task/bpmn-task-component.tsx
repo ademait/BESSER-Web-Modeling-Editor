@@ -6,6 +6,7 @@ import {
   AGENTIC_TASK_CAP_HEIGHT,
   AGENTIC_TASK_SIDE_INSET,
   AGENTIC_TASK_REFLECTION_RESERVE,
+  TASK_ICON_SIDE_INSET,
 } from './bpmn-task';
 import { ThemedRect } from '../../../components/theme/themedComponents';
 import { Multiline } from '../../../utils/svg/multiline';
@@ -88,7 +89,8 @@ export const BPMNTaskComponent: FunctionComponent<Props> = ({ element, fillColor
   // reflection mode is set, a bottom band is reserved so the name shifts up and
   // clears the reflection marker. The height floor lives in BPMNTask.render().
   // Non-agentic tasks keep the plain full-width centre. (Guide 06-followup1.)
-  const sideInset = element.isAgentic ? AGENTIC_TASK_SIDE_INSET : 0;
+  const hasTypeIcon = element.taskType !== 'default';
+  const sideInset = element.isAgentic ? AGENTIC_TASK_SIDE_INSET : hasTypeIcon ? TASK_ICON_SIDE_INSET : 0;
   const bottomReserve = element.isAgentic && reflectionLetter ? AGENTIC_TASK_REFLECTION_RESERVE : 0;
   const textWidth = Math.max(1, element.bounds.width - 2 * sideInset);
   const textCenterY = (element.bounds.height - bottomReserve) / 2;

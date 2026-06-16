@@ -29,11 +29,30 @@ import { stopTimer, startTimer } from './useStreamingResponse';
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
+export function centerEditorViewport(model: any, delayMs = 200): void {
+  setTimeout(() => {
+    const sc = document.querySelector('[data-editor-scroll="1"]') as HTMLElement | null;
+    if (!sc) return;
+    const elements = Object.values((model?.elements || {}) as Record<string, any>);
+    let cx = 0;
+    let cy = 0;
+    if (elements.length) {
+      const xs = elements.flatMap((e: any) => [e.bounds?.x ?? 0, (e.bounds?.x ?? 0) + (e.bounds?.width ?? 0)]);
+      const ys = elements.flatMap((e: any) => [e.bounds?.y ?? 0, (e.bounds?.y ?? 0) + (e.bounds?.height ?? 0)]);
+      cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+      cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+    }
+    sc.scrollLeft = Math.max(0, (sc.scrollWidth - sc.clientWidth) / 2 + cx);
+    sc.scrollTop = Math.max(0, (sc.scrollHeight - sc.clientHeight) / 2 + cy);
+  }, delayMs);
+}
+
 const UML_DIAGRAM_TYPES = new Set([
   'ClassDiagram',
   'ObjectDiagram',
   'StateMachineDiagram',
   'AgentDiagram',
+  'BPMN',
 ]);
 const isUmlDiagramType = (t?: string): boolean => (t ? UML_DIAGRAM_TYPES.has(t) : false);
 
@@ -266,7 +285,8 @@ export function useModelInjection({
                 command.systemSpec.classes ??
                   command.systemSpec.states ??
                   command.systemSpec.objects ??
-                  command.systemSpec.intents,
+                  command.systemSpec.intents ??
+                  command.systemSpec.nodes,
               )
             ) {
               const { ConverterFactory } = await import('../services/converters');
@@ -318,6 +338,16 @@ export function useModelInjection({
             break;
 
           case 'modify_model':
+            // elementFound: false = agent refusal (no matching element).
+            // Surface the message as a text reply without touching the model.
+            if (
+              Array.isArray(command.modifications) &&
+              command.modifications.length === 0 &&
+              (command as any).elementFound === false
+            ) {
+              applied = true;
+              break;
+            }
             if (Array.isArray(command.modifications) && command.modifications.length > 0) {
               const { ModifierFactory } = await import('../services/modifiers/factory');
               const modifier = ModifierFactory.getModifier(targetDiagramType as any);
@@ -362,6 +392,7 @@ export function useModelInjection({
         if (newModel && !applied) {
           await dispatch(updateDiagramModelThunk({ model: newModel }));
           dispatch(bumpEditorRevision());
+          centerEditorViewport(newModel);
           applied = true;
         }
       }

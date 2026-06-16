@@ -21,7 +21,7 @@ export const AGENTIC_ELIGIBLE_GATEWAY_TYPES: ReadonlySet<BPMNGatewayType> = new 
 ]);
 
 export class BPMNGateway extends UMLContainer {
-  static features: UMLElementFeatures = { ...UMLContainer.features, resizable: false };
+  static features: UMLElementFeatures = { ...UMLContainer.features, resizable: false, droppable: false };
   static defaultGatewayType: BPMNGatewayType = 'exclusive';
   static supportedRelationships = [BPMNRelationshipType.BPMNFlow];
 

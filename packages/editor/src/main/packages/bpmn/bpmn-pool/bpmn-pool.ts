@@ -3,7 +3,7 @@ import { UMLElementType } from '../../uml-element-type';
 import { ILayer } from '../../../services/layouter/layer';
 import { ILayoutable } from '../../../services/layouter/layoutable';
 import { UMLElementFeatures } from '../../../services/uml-element/uml-element-features';
-import { ResizeFrom, UMLElement } from '../../../services/uml-element/uml-element';
+import { IUMLElement, ResizeFrom, UMLElement } from '../../../services/uml-element/uml-element';
 import { UMLPackage } from '../../common/uml-package/uml-package';
 import { BPMNSwimlane } from '../bpmn-swimlane/bpmn-swimlane';
 
@@ -16,7 +16,10 @@ export class BPMNPool extends UMLPackage {
     ...UMLElement.features,
     droppable: true,
     movable: true,
-    resizable: 'WIDTH',
+    // Both axes allowed at the gesture level; the real constraint is enforced
+    // per-instance in render(): an empty pool resizes vertically, a laned pool
+    // stays lane-driven (its height delta is rejected). See guide 15.
+    resizable: true,
     connectable: true,
   };
 
@@ -28,6 +31,12 @@ export class BPMNPool extends UMLPackage {
 
   hasSwimlanes = (children: ILayoutable[]): boolean =>
     children.some((child: ILayoutable & { type?: UMLElementType }) => child.type === BPMNElementType.BPMNSwimlane);
+
+  reorderChildren(children: IUMLElement[]): string[] {
+    const lanes = children.filter((c) => c.type === BPMNElementType.BPMNSwimlane);
+    const rest = children.filter((c) => c.type !== BPMNElementType.BPMNSwimlane);
+    return [...lanes, ...rest].map((c) => c.id);
+  }
 
   render(layer: ILayer, children: UMLElement[] = [], calculateWithoutChildren?: boolean): UMLElement[] {
     console.log('[pool.render] id=' + this.id + ' children=' + children.length, {
@@ -41,12 +50,13 @@ export class BPMNPool extends UMLPackage {
     if (this.bounds.width < MIN_POOL_WIDTH) {
       this.bounds.width = MIN_POOL_WIDTH;
     }
-    // if (this.bounds.height < BPMNPool.MIN_HEIGHT) {
-    //   this.bounds.height = BPMNPool.MIN_HEIGHT;
-    // }
-
     const swimlanes = children.filter((child): child is BPMNSwimlane => child.type === BPMNElementType.BPMNSwimlane);
     if (swimlanes.length === 0) {
+      // No lanes: the pool itself is the vertically resizable element.
+      // Enforce a sensible floor only. (Guide 15.)
+      if (this.bounds.height < BPMNPool.MIN_HEIGHT) {
+        this.bounds.height = BPMNPool.MIN_HEIGHT;
+      }
       return [this, ...children];
     }
 
@@ -85,9 +95,25 @@ export class BPMNPool extends UMLPackage {
       id: s.id, x: s.bounds.x, y: s.bounds.y, w: s.bounds.width, h: s.bounds.height,
     })));
 
-    // 4. Force pool height to exactly fit lanes
+    // 4a. If stacked lanes are shorter than the pool's current height
+    // (e.g. first lane dropped on a tall empty pool), expand the last lane
+    // to fill instead of snapping the pool down. (Guide 16.)
+    if (currentY < this.bounds.height && orderedSwimlanes.length > 0) {
+      const lastLane = orderedSwimlanes[orderedSwimlanes.length - 1];
+      lastLane.bounds.height += this.bounds.height - currentY;
+      currentY = this.bounds.height;
+    }
+
+    // 4. Force pool height to exactly fit lanes. With features.resizable === true
+    // the pool also accepts vertical drags, but a laned pool's height is fully
+    // lane-driven. A top-edge drag (TOPLEFT/TOPRIGHT) additionally shifts y;
+    // undo that shift so rejecting the height change doesn't drift the pool. (Guide 15.)
     const totalHeight = currentY;
-    this.bounds.height = Math.max(totalHeight, BPMNPool.MIN_HEIGHT);
+    const desiredHeight = Math.max(totalHeight, BPMNPool.MIN_HEIGHT);
+    if (this.resizeFrom === ResizeFrom.TOPLEFT || this.resizeFrom === ResizeFrom.TOPRIGHT) {
+      this.bounds.y += this.bounds.height - desiredHeight;
+    }
+    this.bounds.height = desiredHeight;
 
     return [this, ...orderedSwimlanes, ...children.filter((child) => child.type !== BPMNElementType.BPMNSwimlane)];
   }

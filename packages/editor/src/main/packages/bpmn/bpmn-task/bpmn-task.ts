@@ -18,6 +18,10 @@ import { BPMNMarkerType, BPMNReflectionMode, clampTrustScore } from '../common/t
 export const AGENTIC_TASK_LINE_HEIGHT = 16;
 export const AGENTIC_TASK_CAP_HEIGHT = 11;
 export const AGENTIC_TASK_SIDE_INSET = 26;
+// Non-agentic tasks with a top-left type icon (user, service, etc.) also need
+// to wrap the name. Same inset value; kept separate so each condition is
+// self-documenting. (Guide 14.)
+export const TASK_ICON_SIDE_INSET = 26;
 // Vertical: the name centres in [0, height - REFLECTION_RESERVE]. TOP_MARGIN +
 // CAP_HEIGHT + (reflection ? REFLECTION_RESERVE : 0) is a fixed minimum height
 // (not width-driven) so the bot and reflection markers always have room and
@@ -29,6 +33,7 @@ export const AGENTIC_TASK_REFLECTION_RESERVE = 28;
 export type BPMNTaskType = 'default' | 'user' | 'service' | 'send' | 'receive' | 'manual' | 'business-rule' | 'script';
 
 export class BPMNTask extends UMLContainer {
+  static features = { ...UMLContainer.features, droppable: false };
   static defaultTaskType: BPMNTaskType = 'default';
   static defaultMarker: BPMNMarkerType = 'none';
   // Agentic BPMN (04D): a task is marked agentic via `isAgentic` rather than a

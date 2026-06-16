@@ -15,6 +15,9 @@ import gymagent from '../../../templates/pattern/agent/gymagent.json';
 import faqRagAgent from '../../../templates/pattern/agent/faqragagent.json';
 import libraryAgent from '../../../templates/pattern/agent/libraryagent.json';
 import traficlightModel from '../../../templates/pattern/statemachine/traficlight.json';
+import carWashModel from '../../../templates/pattern/bpmn/car_wash.json';
+import parallelReviewModel from '../../../templates/pattern/bpmn/parallel_review.json';
+import pizzaStoreModel from '../../../templates/pattern/bpmn/pizza_store.json';
 import { EXAMPLE_CIRCUITS } from '../../editors/quantum/exampleCircuits';
 import { serializeCircuit } from '../../editors/quantum/utils';
 
@@ -109,6 +112,28 @@ export class TemplateFactory {
           UMLDiagramType.StateMachineDiagram,
           traficlightModel as any,
           SoftwarePatternCategory.STATE_MACHINE,
+        );
+      // BPMN templates
+      case SoftwarePatternType.BPMN_CAR_WASH:
+        return new SoftwarePatternTemplate(
+          softwarePatternType,
+          UMLDiagramType.BPMN,
+          carWashModel as any,
+          SoftwarePatternCategory.BPMN,
+        );
+      case SoftwarePatternType.BPMN_PARALLEL_REVIEW:
+        return new SoftwarePatternTemplate(
+          softwarePatternType,
+          UMLDiagramType.BPMN,
+          parallelReviewModel as any,
+          SoftwarePatternCategory.BPMN,
+        );
+      case SoftwarePatternType.BPMN_PIZZA_STORE:
+        return new SoftwarePatternTemplate(
+          softwarePatternType,
+          UMLDiagramType.BPMN,
+          pizzaStoreModel as any,
+          SoftwarePatternCategory.BPMN,
         );
       // Quantum Circuit templates
       case SoftwarePatternType.QUANTUM_EMPTY:

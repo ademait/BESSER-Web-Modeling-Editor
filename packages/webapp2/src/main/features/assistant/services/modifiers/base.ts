@@ -27,6 +27,10 @@ export interface ModificationTarget {
   objectId?: string;
   objectName?: string;
   name?: string;
+  // BPMN
+  nodeId?: string;
+  nodeName?: string;
+  flowId?: string;
 }
 
 export interface ModificationChanges {
@@ -49,6 +53,10 @@ export interface ModificationChanges {
   target?: string;
   label?: string;
   value?: string;
+  // BPMN
+  taskType?: string;
+  gatewayType?: string;
+  eventKind?: string;
   // add_class fields
   className?: string;
   attributes?: Array<{ name: string; type?: string; visibility?: string; value?: string }>;

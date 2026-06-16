@@ -12,6 +12,7 @@ import { composeUserModelPreview } from '../../packages/user-modeling/user-model
 import { composeUseCasePreview } from '../../packages/uml-use-case-diagram/use-case-preview';
 import { UMLElement } from '../../services/uml-element/uml-element';
 import { UMLElementFeatures } from '../../services/uml-element/uml-element-features';
+import { UMLContainerRepository } from '../../services/uml-container/uml-container-repository';
 import { UMLElementRepository } from '../../services/uml-element/uml-element-repository';
 import { UMLElementState } from '../../services/uml-element/uml-element-types';
 import { clone } from '../../utils/geometry/tree';
@@ -31,6 +32,7 @@ import { ColorLegend } from '../../packages/common/color-legend/color-legend';
 import { Comments } from '../../packages/common/comments/comments';
 import { Separator } from './create-pane-styles';
 import { composeBPMNPreview } from '../../packages/bpmn/bpmn-diagram-preview';
+import { BPMNPool } from '../../packages/bpmn/bpmn-pool/bpmn-pool';
 import { composeStatePreview } from '../../packages/uml-state-diagram/state-preview';
 
 import { composeBotPreview } from '../../packages/agent-state-diagram/agent-state-preview';
@@ -51,6 +53,9 @@ type StateProps = {
 
 type DispatchProps = {
   create: typeof UMLElementRepository.create;
+  append: typeof UMLContainerRepository.append;
+  remove: typeof UMLContainerRepository.remove;
+  update: typeof UMLElementRepository.update;
   setPalette: typeof setPalette;
 };
 
@@ -139,6 +144,9 @@ const enhance = compose<ComponentClass<OwnProps>>(
     }),
     {
       create: UMLElementRepository.create,
+      append: UMLContainerRepository.append,
+      remove: UMLContainerRepository.remove,
+      update: UMLElementRepository.update,
       setPalette,
     },
   ),
@@ -246,7 +254,30 @@ class CreatePaneComponent extends Component<Props, State> {
         return;
       }
 
-      owner = resolvedOwner;
+      // Collect the pool's non-lane children before create() mutates the store,
+      // so they can be re-parented into the new lane. (Guide 16.)
+      const poolState = this.props.elements[resolvedOwner];
+      const ownedIds =
+        poolState && 'ownedElements' in poolState ? (poolState as { ownedElements: string[] }).ownedElements : [];
+      const nonLaneChildIds = ownedIds.filter((id) => this.props.elements[id]?.type !== BPMNElementType.BPMNSwimlane);
+      const poolHadNoLanes = ownedIds.every((id) => this.props.elements[id]?.type !== BPMNElementType.BPMNSwimlane);
+
+      const elements = clone(preview, this.state.previews);
+      this.props.create(elements, resolvedOwner);
+      if (nonLaneChildIds.length > 0 && poolHadNoLanes) {
+        const poolBounds = this.props.elements[resolvedOwner].bounds;
+        this.props.update(elements[0].id, {
+          bounds: {
+            x: BPMNPool.HEADER_WIDTH,
+            y: 0,
+            width: poolBounds.width - BPMNPool.HEADER_WIDTH,
+            height: poolBounds.height,
+          },
+        });
+        this.props.remove(nonLaneChildIds);
+        this.props.append(nonLaneChildIds, elements[0].id);
+      }
+      return;
     }
     const elements = clone(preview, this.state.previews);
     this.props.create(elements, owner);

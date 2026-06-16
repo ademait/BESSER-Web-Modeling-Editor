@@ -7,6 +7,7 @@ export enum SoftwarePatternCategory {
   BEHAVIORAL = 'Behavioral',
   AGENT = 'Agent Diagram',
   STATE_MACHINE = 'State Machine Diagram',
+  BPMN = 'BPMN Diagram',
   QUANTUM_CIRCUIT = 'Quantum Circuit',
 }
 
@@ -25,6 +26,10 @@ export enum SoftwarePatternType {
   LIBRARY_AGENT = 'Library Agent',
   // State Machine patterns
   TRAFIC_LIGHT = 'Traffic Light',
+  // BPMN patterns
+  BPMN_CAR_WASH = 'Car Wash',
+  BPMN_PARALLEL_REVIEW = 'Parallel Review',
+  BPMN_PIZZA_STORE = 'Pizza Store',
   // Quantum Circuit patterns
   QUANTUM_EMPTY = 'Empty Circuit',
   QUANTUM_SINGLE_GATES = 'Single Qubit Gates',
