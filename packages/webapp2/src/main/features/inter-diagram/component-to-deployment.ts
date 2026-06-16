@@ -25,10 +25,10 @@ import type { DeploymentDerivationResult, DeploymentDerivationWarning } from './
  */
 export function componentModelToDeploymentModel(
   component: UMLModel,
-  // 27 — sourceComponentElementId → swarm size (N). Resolved by the caller
-  // from the lineage chain (artifact→Component→lane). Optional + defaulted so
-  // every existing caller and test (model-only) is unaffected; a missing or
-  // ≤1 entry yields no `[N]` suffix.
+  // 27 — sourceComponentElementId → swarm size (N). Resolved by the caller from
+  // the lineage chain (Component → BPMN lane → multiplicity). Optional + defaulted
+  // so every model-only caller/test is unaffected; a missing or ≤1 entry yields a
+  // single ExecutionEnvironment with no `_i` suffix.
   multiplicityByComponentId: Record<string, number> = {},
 ): DeploymentDerivationResult {
   const warnings: DeploymentDerivationWarning[] = [];
@@ -44,27 +44,19 @@ export function componentModelToDeploymentModel(
 
   const subsystems = collectSubsystems(component);
   const out = emptyDeploymentModel(component.size);
-  const layout = makeLayoutCursor();
-  // 06-v2 — derivedElementId → sourceElementId. Populated as we emit.
-  // Synthetic emissions (Default Host, manifest edges) leave no entry.
-  // DeploymentArtifacts are also intentionally NOT mapped (06-v2 FU,
-  // 2026-05-29): UML 2.5 §19.4 — an Artifact "manifests" a Component;
-  // it is a physical packaging unit with no direct counterpart in the
-  // logical source diagram. The DeploymentComponent above the Node
-  // already projects the source Component; mapping the Artifact too
-  // would mis-attribute the manifest as the source link.
+  // 06-v2 — derivedElementId → sourceElementId. Only the outer Subsystem node
+  // (← source Subsystem) and the logical DeploymentComponent (← source Component)
+  // are mapped. Synthetic / physical emissions — the Docker Host wrapper, the
+  // ExecutionEnvironment nodes, the Artifacts, and the manifest edges — leave no
+  // entry (38 D-38-6; UML 2.5 §19.4: an Artifact manifests a Component, it is not
+  // a projection of any source element).
   const elementMapping: ElementLineageMap = {};
 
-  // 04-FU3: pre-count Components per Subsystem and orphan bucket so
-  // each Node can be sized from its componentCount at emit time
-  // (D-D5). With Components now outside the Node (D-D1), the Node's
-  // width drives the horizontal slot layout for the inside-Node
-  // Artifacts AND the above-Node Components.
+  // Group each agent Component under its immediate Subsystem parent (OQ-1) or the
+  // orphan bucket, and mark every ancestor Subsystem "alive" so a Subsystem whose
+  // only direct children are nested Subsystems is not skipped. (Unchanged 04-FU3.)
   const componentsBySubsystemId = new Map<string, UMLElement[]>();
   const orphanComponents: UMLElement[] = [];
-  // Walk each component's full owner chain to mark every ancestor Subsystem
-  // as "alive" — needed so that Subsystems whose only *direct* children are
-  // other Subsystems (OQ-1 nesting) are not incorrectly skipped.
   const aliveSubsystemIds = new Set<string>();
   for (const c of components) {
     const parentSub = immediateSubsystemParent(component, c);
@@ -72,7 +64,6 @@ export function componentModelToDeploymentModel(
       const arr = componentsBySubsystemId.get(parentSub.id) ?? [];
       arr.push(c);
       componentsBySubsystemId.set(parentSub.id, arr);
-      // Mark entire ancestor chain as alive so nested Subsystems don't vanish.
       let ownerId: string | null = (c as unknown as { owner?: string | null }).owner ?? null;
       while (ownerId) {
         const ownerEl = component.elements[ownerId];
@@ -85,98 +76,81 @@ export function componentModelToDeploymentModel(
     }
   }
 
-  // Phase 1 — emit one DeploymentNode per unique Subsystem, sized to
-  // its componentCount.
-  const nodeIdBySubsystemId = new Map<string, string>();
+  // 38 — emit one nested subtree per group, stacking groups left-to-right.
+  // `nodeIdBySubsystemId` / `nodeIdByCompId` map to the OUTER node (the kept
+  // Subsystem node, or the orphan Docker Host) so Phase 3 associations behave
+  // exactly as in 04-FU2 (intra-group collapse, cross-group draw).
+  const nodeIdBySubsystemId = new Map<string, string>(); // subsystem.id → outer Subsystem node id
+  const nodeIdByCompId = new Map<string, string>(); // sourceComponentId → association-anchor node id
+  let cursorX = -320;
+  const originY = -200;
+
+  // Phase 1+2 — per-Subsystem subtree.
   for (const sub of subsystems) {
     const subComps = componentsBySubsystemId.get(sub.id) ?? [];
-    // Skip Subsystems whose entire subtree contained only capability Components
-    // (filtered out by collectComponents): they would produce an empty node.
-    // Subsystems that have no direct children but DO have descendant non-capability
-    // components (via nested child Subsystems) are kept via aliveSubsystemIds.
+    // Skip Subsystems whose entire subtree held only capability Components.
     if (subComps.length === 0 && !aliveSubsystemIds.has(sub.id)) continue;
-    const nodeId = emitDeploymentNode(out, sub.name, sub, /*synthetic*/ false, layout, subComps.length);
-    nodeIdBySubsystemId.set(sub.id, nodeId);
-    elementMapping[nodeId] = sub.id; // 06-v2 — DeploymentNode ← source Subsystem
+    const { outerNodeId, bounds } = emitGroupSubtree(
+      out,
+      sub.name,
+      sub,
+      subComps,
+      multiplicityByComponentId,
+      cursorX,
+      originY,
+      elementMapping,
+    );
+    nodeIdBySubsystemId.set(sub.id, outerNodeId);
+    elementMapping[outerNodeId] = sub.id; // DeploymentNode ← source Subsystem
+    for (const comp of subComps) nodeIdByCompId.set(comp.id, outerNodeId);
+    cursorX = bounds.x + bounds.width + GROUP_GAP;
   }
 
-  // Phase 2 — emit DeploymentComponent + DeploymentArtifact + manifest
-  // edge per source Component, into the Node matching its immediate
-  // Subsystem parent (OQ-1) or the synthetic Default Host (if orphan).
-  const nodeIdByCompId = new Map<string, string>(); // sourceComponentId → owning Node id (for cross-Node edge resolution)
-  // 35 (Bug 18a) — first-occurrence dedup: the same source Component id must
-  // never produce two artifact pairs. Capability Components are already excluded
-  // by collectComponents; this is a defence-in-depth guard.
-  const seenSourceCompIds = new Set<string>();
-
-  for (const sub of subsystems) {
-    const nodeId = nodeIdBySubsystemId.get(sub.id);
-    if (!nodeId) continue;
-    const subComps = componentsBySubsystemId.get(sub.id) ?? [];
-    let slotIndex = 0;
-    for (const comp of subComps) {
-      if (seenSourceCompIds.has(comp.id)) continue; // Bug 18a: skip duplicate
-      seenSourceCompIds.add(comp.id);
-      // 35 (Bug 16) — capabilities are excluded by collectComponents, but gate
-      // multiplicity here explicitly so a stray capability never gets [N].
-      const stereo = ((comp as unknown as { stereotype?: string }).stereotype ?? '').toLowerCase().trim();
-      const multip = CAPABILITY_STEREOTYPES.has(stereo) ? 1 : (multiplicityByComponentId[comp.id] ?? 1);
-      const { componentId } = emitDeploymentComponentPair(out, comp, nodeId, slotIndex, multip);
-      slotIndex++;
-      nodeIdByCompId.set(comp.id, nodeId);
-      // 06-v2 — only the DeploymentComponent (logical projection) maps
-      // to the source Component; the Artifact has no source counterpart.
-      elementMapping[componentId] = comp.id;
-    }
-  }
-
+  // Phase 1+2 — orphan bucket (no Subsystem to keep → top-level Docker Host).
   if (orphanComponents.length > 0) {
-    const hostId = emitDeploymentNode(out, 'Default Host', null, /*synthetic*/ true, layout, orphanComponents.length);
-    // Default Host is synthetic — no entry in elementMapping (D-D1 per plan 05- § 3.3).
-    let orphanSlot = 0;
-    for (const comp of orphanComponents) {
-      if (seenSourceCompIds.has(comp.id)) continue; // Bug 18a: skip duplicate
-      seenSourceCompIds.add(comp.id);
-      const stereo = ((comp as unknown as { stereotype?: string }).stereotype ?? '').toLowerCase().trim();
-      const multip = CAPABILITY_STEREOTYPES.has(stereo) ? 1 : (multiplicityByComponentId[comp.id] ?? 1);
-      const { componentId } = emitDeploymentComponentPair(out, comp, hostId, orphanSlot, multip);
-      orphanSlot++;
-      nodeIdByCompId.set(comp.id, hostId);
-      elementMapping[componentId] = comp.id;
-    }
+    const { outerNodeId, bounds } = emitGroupSubtree(
+      out,
+      'Docker Host',
+      null,
+      orphanComponents,
+      multiplicityByComponentId,
+      cursorX,
+      originY,
+      elementMapping,
+    );
+    // Orphan Docker Host is synthetic — no elementMapping entry.
+    for (const comp of orphanComponents) nodeIdByCompId.set(comp.id, outerNodeId);
+    cursorX = bounds.x + bounds.width + GROUP_GAP;
   }
 
-  // `flat-scaffold` warning: input had zero Subsystems and all
-  // Components became orphans under one synthetic Node.
+  // `flat-scaffold` warning: input had zero Subsystems and all Components became
+  // orphans under one synthetic Docker Host. (Unchanged.)
   if (subsystems.length === 0) {
     warnings.push({ kind: 'flat-scaffold' });
   }
 
-  // Phase 3 — cross-Subsystem ComponentDependencies → DeploymentAssociation.
-  // Intra-node deps collapse silently (OQ-2). Direction-preserving dedup (OQ-5).
-  // 04-FU2 (2026-05-28): the dep endpoint may be a Component **or** a
-  // Subsystem (users routinely draw Subsystem-to-Subsystem deps at the
-  // logical level). Resolve via `resolveToNodeId` so both kinds map to
-  // their owning Node.
+  // Phase 3 — cross-group ComponentDependencies → DeploymentAssociation.
+  // Intra-group deps collapse silently (OQ-2). Direction-preserving dedup (OQ-5).
+  // Endpoint may be a Component or a Subsystem (04-FU2); resolveToNodeId maps both
+  // to their outer node. (Logic unchanged.)
   const dedup = new Set<string>();
   for (const rel of Object.values(component.relationships)) {
     if (rel.type !== 'ComponentDependency') continue;
     const srcNodeId = resolveToNodeId(component, rel.source.element, nodeIdByCompId, nodeIdBySubsystemId);
     const tgtNodeId = resolveToNodeId(component, rel.target.element, nodeIdByCompId, nodeIdBySubsystemId);
     if (!srcNodeId || !tgtNodeId) continue;
-    if (srcNodeId === tgtNodeId) continue; // intra-node — silent drop
+    if (srcNodeId === tgtNodeId) continue; // intra-group — silent drop
     const key = `${srcNodeId}\x00${tgtNodeId}`;
     if (dedup.has(key)) continue;
     dedup.add(key);
     const edgeId = emitDeploymentAssociation(out, srcNodeId, tgtNodeId);
-    elementMapping[edgeId] = rel.id; // 06-v2 — DeploymentAssociation ← source ComponentDependency
+    elementMapping[edgeId] = rel.id; // DeploymentAssociation ← source ComponentDependency
   }
 
-  // 16-FU8 — center the generated diagram in the user's view. The layout
-  // cursor stacks Nodes rightward from x=-320, so the content bbox drifts
-  // right of origin; the editor opens its canvas centered on (0,0), so the
-  // diagram would otherwise open scrolled off-screen. Translate every element
-  // + edge so the bbox midpoint lands at the origin.
+  // 16-FU8 — center the generated diagram in the user's view. Every element +
+  // edge is translated so the content bbox midpoint lands on the origin. All
+  // bounds are absolute at this point (including nested children), so a uniform
+  // shift preserves every parent-relative offset after import. (Unchanged.)
   const placed = Object.values(out.elements);
   if (placed.length > 0) {
     let minX = Infinity,
@@ -273,24 +247,44 @@ function resolveToNodeId(
   return undefined;
 }
 
-// ── Layout constants (04-FU3, revised 04-FU4) ───────────────────────
-
-const SLOT_WIDTH = 184; // 160 px Component + 24 px gap
-const NODE_MIN_WIDTH = 280;
-const NODE_HEIGHT = 200;
+// ── Layout constants (38 — per-agent ExecutionEnvironment nesting) ──
+// Bottom-up nesting: Subsystem › Docker Host › ExecutionEnvironment › Artifact,
+// with the logical DeploymentComponent in a row below the Subsystem.
 const COMPONENT_WIDTH = 160;
 const COMPONENT_HEIGHT = 60;
-// 04-FU4 (2026-05-28): Artifact size lifted to match Component (was
-// 120×40) so each pair reads as a same-shape Component / Artifact
-// twin — user feedback on NT-1.
 const ARTIFACT_WIDTH = 160;
 const ARTIFACT_HEIGHT = 60;
-const ARTIFACT_Y_INSIDE = 64; // px below the Node's top edge
-// 04-FU4: Components flipped from above the Node to below it (user
-// preference on NT-1). Edge still runs Artifact (source) → Component
-// (target) per UML 2.5 manifest direction — the path coords flip but
-// the relationship direction does not.
-const COMPONENT_Y_BELOW_GAP = 24; // px between Node bottom and Component top
+
+// One ExecutionEnvironment wraps exactly one Artifact.
+// Header = 60 px: WME renders «stereotype» baseline at y=22 and name baseline at y=48
+// inside the node box; name bottom ≈ y=51. 60 px clears that with ~9 px breathing room.
+const EXECENV_HEADER = 60; // «executionEnvironment» stereotype + name band
+const EXECENV_PAD_X = 20; // L/R padding around the inner Artifact
+const EXECENV_PAD_BOTTOM = 20;
+const EXECENV_WIDTH = ARTIFACT_WIDTH + EXECENV_PAD_X * 2; // 200
+const EXECENV_HEIGHT = EXECENV_HEADER + ARTIFACT_HEIGHT + EXECENV_PAD_BOTTOM; // 140
+const EXECENV_GAP = 32; // horizontal gap between sibling ExecEnvs
+
+// The Docker Host wraps the row of ExecutionEnvironments.
+const HOST_HEADER = 60; // «docker host» stereotype + name band (60 px — same clearance as EXECENV)
+const HOST_PAD_X = 24;
+const HOST_PAD_BOTTOM = 24;
+
+// The kept Subsystem node wraps the Docker Host.
+const SUB_HEADER = 60; // same 60 px clearance
+const SUB_PAD_X = 24;
+const SUB_PAD_BOTTOM = 24;
+
+// A Subsystem kept alive only by a nested child Subsystem (no agents of its own)
+// is emitted as a bare placeholder node at this minimum size.
+const EMPTY_NODE_WIDTH = 280;
+const EMPTY_NODE_HEIGHT = 120;
+
+// The logical DeploymentComponent row sits below the outer node (owner=null).
+const COMPONENT_ROW_GAP = 48; // px between the outer node bottom and the Component row
+
+// Horizontal gap between top-level groups.
+const GROUP_GAP = 64;
 
 // ── Emit helpers ────────────────────────────────────────────────────
 
@@ -306,177 +300,187 @@ function emptyDeploymentModel(size: { width: number; height: number }): UMLModel
   };
 }
 
-interface LayoutCursor {
-  nodeX: number;
-  nodeY: number;
-  currentNodeBounds: { x: number; y: number; width: number; height: number } | null;
-  endNode(): void;
-}
-
-// 04-FU3: per-Node Y cursor is gone (D-D4 — fixed Y positions for
-// Components above and Artifacts inside; horizontal slots within each
-// Node). Cross-Node X stacking unchanged. Centred around origin so the
-// first Node lands on-canvas at default zoom.
-function makeLayoutCursor(): LayoutCursor {
-  return {
-    nodeX: -320,
-    nodeY: -200,
-    currentNodeBounds: null,
-    endNode(this: LayoutCursor) {
-      if (this.currentNodeBounds) {
-        // Stack next Node to the right with 40 px gap.
-        this.nodeX = this.currentNodeBounds.x + this.currentNodeBounds.width + 40;
-      }
-      this.currentNodeBounds = null;
-    },
-  };
-}
-
 const newId = (): string => 'gen-' + Math.random().toString(36).slice(2, 11);
 
 // 27 — swarm multiplicity. Stamp the deployment **Artifact** name with the
 // UML `[N]` multiplicity suffix when the source agent-lane's swarm size > 1.
-// The `[N]` grammar already exists on the wire (BESSER parses it into
-// `structural.Multiplicity`); this only populates it. N==1 (the default) emits
-// no suffix — absence means "single instance", matching the lane XML convention
-// (guide 26: the attribute is omitted when 1).
+// N==1 (the default) emits no suffix — absence means "single instance".
+// The ExecEnv and DeploymentComponent names stay plain (the count belongs only
+// on the physical packaging unit, not the container or the logical type).
 const appendMultiplicity = (base: string, n: number): string => (n > 1 ? `${base} [${n}]` : base);
 
-function emitDeploymentNode(
-  out: UMLModel,
-  name: string,
-  source: UMLElement | null,
-  synthetic: boolean,
-  layout: LayoutCursor,
-  componentCount: number,
-): string {
-  // End the previous Node's column before starting a new one.
-  layout.endNode();
-
-  const id = newId();
-  // 04-FU3 (D-D5): Node width sized from componentCount up-front
-  // because Components above and Artifacts inside share horizontal
-  // slots indexed off the Node's x bounds.
-  const width = Math.max(NODE_MIN_WIDTH, 24 + Math.max(1, componentCount) * SLOT_WIDTH);
-  const bounds = { x: layout.nodeX, y: layout.nodeY, width, height: NODE_HEIGHT };
-  layout.currentNodeBounds = bounds;
-
-  // 04-FU1 (2026-05-28): user wants the synthetic Default Host to show
-  // `«node»` for consistency with the other Nodes (the OQ-4 tentative-
-  // pick of `displayStereotype: false` was rejected on DT-4). Real
-  // Nodes inherit the source Subsystem's `displayStereotype` (default
-  // true if undefined).
-  const sourceDisplay = source
-    ? ((source as unknown as { displayStereotype?: boolean }).displayStereotype ?? true)
-    : true;
-
-  out.elements[id] = {
-    id,
-    name,
-    type: 'DeploymentNode',
-    owner: null,
-    bounds,
-    stereotype: 'node',
-    displayStereotype: sourceDisplay,
-  } as unknown as UMLElement;
-  // `synthetic` retained for self-documentation at call sites; behavior
-  // collapsed into `sourceDisplay` by F1.
-  void synthetic;
-  return id;
+interface Bounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 /**
- * 04-FU3 (UML 2.5 deployment notation rework), revised 04-FU4:
- * each source Component emits three things into the deployment model —
+ * 38 — emit one group's full nested deployment subtree and return the outer node
+ * id (the Phase-3 association anchor) plus its bounds (so the caller can advance
+ * the horizontal cursor).
  *
- *  1. A `DeploymentComponent` *below* the Node (D-D1, owner=null —
- *     logical view). 04-FU4 flipped position from above to below per
- *     NT-1 user preference.
- *  2. A `DeploymentArtifact` *inside* the Node (physical placement,
- *     owner=nodeId). 04-FU4 bumped its size to 160×60 to match the
- *     Component so each pair reads as a same-shape twin.
- *  3. A `DeploymentDependency` from Artifact → Component (D-D2 —
- *     dashed line with arrow at Component end). No stereotype label
- *     (D-D3) — the dashed-arrow visual is the UML 2.5 manifest signal.
+ * With a Subsystem (`outerSource` non-null):
+ *   Subsystem node (owner=null) › Docker Host (owner=Subsystem) › N ExecEnvs.
+ * Orphan bucket (`outerSource` null): the Docker Host IS the top-level node.
  *
- * `slotIndex` = 0-based index of this Component within its owning
- * Node, drives the horizontal slot layout (D-D4).
+ * Per replica: an ExecutionEnvironment «executionEnvironment» (D-38-1) wrapping a
+ * DeploymentArtifact, plus a logical DeploymentComponent in a row below the outer
+ * node (owner=null), joined to its Artifact by a dashed manifest edge (D-38-3,
+ * UML 2.5 §19.4). All bounds are ABSOLUTE — the importer converts owned elements
+ * to parent-relative recursively.
  */
-function emitDeploymentComponentPair(
+function emitGroupSubtree(
   out: UMLModel,
-  source: UMLElement,
-  nodeId: string,
-  slotIndex: number,
-  // 27 — swarm size for this source Component (defaults 1 = no suffix).
-  multiplicity: number,
-): { componentId: string; artifactId: string } {
-  const componentId = newId();
-  const artifactId = newId();
-  const sourceStereotype = (source as unknown as { stereotype?: string }).stereotype ?? 'component';
-  const sourceDisplay = (source as unknown as { displayStereotype?: boolean }).displayStereotype ?? true;
-  const parent = out.elements[nodeId] as unknown as {
-    bounds: { x: number; y: number; width: number; height: number };
-  };
+  outerName: string,
+  outerSource: UMLElement | null,
+  agents: UMLElement[],
+  multiplicityByComponentId: Record<string, number>,
+  originX: number,
+  originY: number,
+  elementMapping: ElementLineageMap,
+): { outerNodeId: string; bounds: Bounds } {
+  // Nested-subsystem placeholder (OQ-1): a Subsystem kept alive only by a
+  // descendant child Subsystem has no agents of its own — emit a bare node.
+  if (agents.length === 0) {
+    const bounds: Bounds = { x: originX, y: originY, width: EMPTY_NODE_WIDTH, height: EMPTY_NODE_HEIGHT };
+    const id = newId();
+    out.elements[id] = {
+      id,
+      name: outerName,
+      type: 'DeploymentNode',
+      owner: null,
+      bounds,
+      stereotype: 'node',
+      displayStereotype: outerSource
+        ? ((outerSource as unknown as { displayStereotype?: boolean }).displayStereotype ?? true)
+        : true,
+    } as unknown as UMLElement;
+    return { outerNodeId: id, bounds };
+  }
 
-  // D-D4 — horizontal slot starts at parent.x + 24 + slotIndex*184.
-  const slotLeft = parent.bounds.x + 24 + slotIndex * SLOT_WIDTH;
+  const count = agents.length;
+  const hostInnerWidth = count * EXECENV_WIDTH + (count - 1) * EXECENV_GAP;
+  const hostWidth = HOST_PAD_X * 2 + hostInnerWidth;
+  const hostHeight = HOST_HEADER + EXECENV_HEIGHT + HOST_PAD_BOTTOM;
 
-  // Artifact inside the Node, owner=nodeId. With 04-FU4's matched
-  // size (160×60) it aligns with the Component at slotLeft.
-  const artifactBounds = {
-    x: slotLeft,
-    y: parent.bounds.y + ARTIFACT_Y_INSIDE,
-    width: ARTIFACT_WIDTH,
-    height: ARTIFACT_HEIGHT,
-  };
-  // 04-FU4 — Component below the Node, owner=null (D-D1).
-  const componentBounds = {
-    x: slotLeft,
-    y: parent.bounds.y + parent.bounds.height + COMPONENT_Y_BELOW_GAP,
-    width: COMPONENT_WIDTH,
-    height: COMPONENT_HEIGHT,
-  };
+  // ── Outer node (kept Subsystem) + Docker Host placement ──
+  let outerNodeId: string;
+  let outerBounds: Bounds;
+  let hostX: number;
+  let hostY: number;
+  let hostOwner: string | null;
 
-  out.elements[componentId] = {
-    id: componentId,
-    name: source.name || 'Component',
-    type: 'DeploymentComponent',
-    owner: null, // D-D1 — outside the Node
-    bounds: componentBounds,
-    stereotype: sourceStereotype,
-    displayStereotype: sourceDisplay,
+  if (outerSource) {
+    const subWidth = SUB_PAD_X * 2 + hostWidth;
+    const subHeight = SUB_HEADER + hostHeight + SUB_PAD_BOTTOM;
+    outerBounds = { x: originX, y: originY, width: subWidth, height: subHeight };
+    outerNodeId = newId();
+    out.elements[outerNodeId] = {
+      id: outerNodeId,
+      name: outerName,
+      type: 'DeploymentNode',
+      owner: null,
+      bounds: outerBounds,
+      // Kept Subsystem nodes have always rendered «node» (04-FU3); unchanged.
+      stereotype: 'node',
+      displayStereotype: (outerSource as unknown as { displayStereotype?: boolean }).displayStereotype ?? true,
+    } as unknown as UMLElement;
+    hostX = originX + SUB_PAD_X;
+    hostY = originY + SUB_HEADER;
+    hostOwner = outerNodeId;
+  } else {
+    // Orphan bucket — the Docker Host is the top-level node.
+    outerBounds = { x: originX, y: originY, width: hostWidth, height: hostHeight };
+    hostX = originX;
+    hostY = originY;
+    hostOwner = null;
+    outerNodeId = ''; // set to the host id below
+  }
+
+  // ── Docker Host node ──
+  const hostId = newId();
+  out.elements[hostId] = {
+    id: hostId,
+    name: 'Docker Host',
+    type: 'DeploymentNode',
+    owner: hostOwner,
+    bounds: { x: hostX, y: hostY, width: hostWidth, height: hostHeight },
+    stereotype: 'docker host', // D-38-2
+    displayStereotype: true,
   } as unknown as UMLElement;
+  if (!outerSource) outerNodeId = hostId;
 
-  // 33 (6b-1) — carry the agent-diagram UUID one step further down the chain:
-  // the source Component picked it up from its lane during BPMN→Component
-  // (Step 4); copy it onto the Artifact so BESSER's deployment generator can
-  // resolve Artifact → Agent diagram by exact id (full-via-Artifact, memo
-  // 07 § 8). Absent when the source Component was hand-drawn / never linked.
-  const sourceAgentModelRef = (source as unknown as { agentModelRef?: string }).agentModelRef;
-  out.elements[artifactId] = {
-    id: artifactId,
-    // 27 — only the **Artifact** (physical packaging / runtime instance) carries
-    // the swarm count. The DeploymentComponent above stays count-free — it is the
-    // logical agent *type* projection (`25-…` § 8.2).
-    name: appendMultiplicity(source.name || 'Artifact', multiplicity),
-    type: 'DeploymentArtifact',
-    owner: nodeId, // inside the Node
-    bounds: artifactBounds,
-    // 20 — BESSER `Artifact.manifests` (UML 2.5 § 19.4): the cross-diagram
-    // id of the source Component this artifact manifests. `source.id` is the
-    // Component-diagram Component's WME element id — the same id the paired
-    // DeploymentComponent's lineage uses (see elementMapping below) and the
-    // exact key BESSER's deployment validator resolves against
-    // (`Component.layout["id"]`). Auto-set here; no popup needed.
-    manifests: [source.id],
-    // 33 (6b-1) — Agent-diagram UUID this artifact deploys (full-via-Artifact).
-    ...(sourceAgentModelRef ? { agentModelRef: sourceAgentModelRef } : {}),
-  } as unknown as UMLElement;
+  // ── One ExecutionEnvironment (+ Artifact + Component + manifest edge) per agent ──
+  for (let i = 0; i < agents.length; i++) {
+    const comp = agents[i];
+    const name = comp.name || 'Agent';
+    const multiplicity = Math.max(1, Math.floor(multiplicityByComponentId[comp.id] ?? 1));
+    const eeX = hostX + HOST_PAD_X + i * (EXECENV_WIDTH + EXECENV_GAP);
+    const eeY = hostY + HOST_HEADER;
 
-  // Manifest edge: dashed, arrow at Component end (D-D2).
-  emitManifestDependency(out, artifactId, artifactBounds, componentId, componentBounds);
+    const eeId = newId();
+    out.elements[eeId] = {
+      id: eeId,
+      name,
+      type: 'DeploymentNode',
+      owner: hostId,
+      bounds: { x: eeX, y: eeY, width: EXECENV_WIDTH, height: EXECENV_HEIGHT },
+      stereotype: 'executionEnvironment', // D-38-1
+      displayStereotype: true,
+    } as unknown as UMLElement;
 
-  return { componentId, artifactId };
+    // Artifact INSIDE the ExecutionEnvironment (owner = ExecEnv).
+    const artifactId = newId();
+    const artifactBounds: Bounds = {
+      x: eeX + EXECENV_PAD_X,
+      y: eeY + EXECENV_HEADER,
+      width: ARTIFACT_WIDTH,
+      height: ARTIFACT_HEIGHT,
+    };
+    // 33 (6b-1) — carry the agent-diagram UUID onto the Artifact so BESSER's
+    // deployment generator can resolve Artifact → Agent diagram by exact id.
+    // Absent when the source Component was never linked.
+    const sourceAgentModelRef = (comp as unknown as { agentModelRef?: string }).agentModelRef;
+    out.elements[artifactId] = {
+      id: artifactId,
+      name: appendMultiplicity(name, multiplicity), // 27 — Artifact carries [N]; ExecEnv and Component names stay plain.
+      type: 'DeploymentArtifact',
+      owner: eeId,
+      bounds: artifactBounds,
+      // 20 — Artifact.manifests (UML 2.5 §19.4): the cross-diagram id of the
+      // source Component this artifact manifests.
+      manifests: [comp.id],
+      ...(sourceAgentModelRef ? { agentModelRef: sourceAgentModelRef } : {}),
+    } as unknown as UMLElement;
+
+    // Logical DeploymentComponent BELOW the outer node (owner=null), aligned under
+    // this ExecutionEnvironment's column.
+    const componentId = newId();
+    const componentBounds: Bounds = {
+      x: eeX + (EXECENV_WIDTH - COMPONENT_WIDTH) / 2,
+      y: outerBounds.y + outerBounds.height + COMPONENT_ROW_GAP,
+      width: COMPONENT_WIDTH,
+      height: COMPONENT_HEIGHT,
+    };
+    out.elements[componentId] = {
+      id: componentId,
+      name,
+      type: 'DeploymentComponent',
+      owner: null,
+      bounds: componentBounds,
+      stereotype: (comp as unknown as { stereotype?: string }).stereotype ?? 'component',
+      displayStereotype: (comp as unknown as { displayStereotype?: boolean }).displayStereotype ?? true,
+    } as unknown as UMLElement;
+    elementMapping[componentId] = comp.id; // 06-v2 — logical projection ← source Component
+
+    // Dashed manifest edge: Artifact (source) → Component (target). (Reuses the
+    // existing helper unchanged.)
+    emitManifestDependency(out, artifactId, artifactBounds, componentId, componentBounds);
+  }
+
+  return { outerNodeId, bounds: outerBounds };
 }
 
 function emitManifestDependency(

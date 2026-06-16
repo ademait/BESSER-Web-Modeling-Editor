@@ -46,6 +46,21 @@ function dep(id: string, srcId: string, tgtId: string, stereotype?: string): Rec
   };
 }
 
+// node-kind predicates. WME stores a DeploymentNode's kind in `stereotype`.
+type R = ReturnType<typeof componentModelToDeploymentModel>;
+const elementsOf = (r: R) => (r.ok ? Object.values(r.model.elements) : []);
+const nodesOf = (r: R, stereo: string) =>
+  elementsOf(r).filter(
+    (e) => e.type === 'DeploymentNode' && (e as unknown as { stereotype?: string }).stereotype === stereo,
+  );
+const subsystemNodes = (r: R) => nodesOf(r, 'node'); // kept Subsystem (and bare placeholders)
+const hostNodes = (r: R) => nodesOf(r, 'docker host');
+const execEnvNodes = (r: R) => nodesOf(r, 'executionEnvironment');
+const artifactsOf = (r: R) => elementsOf(r).filter((e) => e.type === 'DeploymentArtifact');
+const componentsOf = (r: R) => elementsOf(r).filter((e) => e.type === 'DeploymentComponent');
+const associationsOf = (r: R) =>
+  r.ok ? Object.values(r.model.relationships).filter((x) => x.type === 'DeploymentAssociation') : [];
+
 describe('Inter-diagram — componentModelToDeploymentModel', () => {
   describe('refusals', () => {
     it('refuses on a non-Component model', () => {
@@ -80,14 +95,14 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
       expect(r.ok).toBe(true);
       if (r.ok) expect(r.model.type).toBe('DeploymentDiagram');
     });
-    it('emits 2 DeploymentNodes (no Default Host)', () => {
+    it('emits 2 Subsystem nodes named Order/Shipping (38: + a Docker Host + an ExecEnv each)', () => {
       if (!r.ok) throw new Error('expected ok');
-      const els = Object.values(r.model.elements);
-      const nodes = els.filter((e) => e.type === 'DeploymentNode');
-      expect(nodes).toHaveLength(2);
-      const names = nodes.map((n) => n.name).sort();
-      expect(names).toEqual(['Order', 'Shipping']);
-      expect(nodes.find((n) => n.name === 'Default Host')).toBeUndefined();
+      const subs = subsystemNodes(r);
+      expect(subs.map((n) => n.name).sort()).toEqual(['Order', 'Shipping']);
+      expect(subs.find((n) => n.name === 'Default Host')).toBeUndefined();
+      // One Docker Host per Subsystem, one ExecutionEnvironment per agent.
+      expect(hostNodes(r)).toHaveLength(2);
+      expect(execEnvNodes(r)).toHaveLength(2);
     });
     it('emits 2 DeploymentComponents, one per Node', () => {
       if (!r.ok) throw new Error('expected ok');
@@ -146,7 +161,7 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
     });
   });
 
-  describe('27 — swarm multiplicity → Artifact name [N]', () => {
+  describe('27/38 — swarm multiplicity stamps [N] on the Artifact inside its ExecEnv', () => {
     const m = makeBaseModel();
     Object.assign(m.elements as Record<string, unknown>, {
       s1: el('s1', 'Subsystem', 'Coding', null),
@@ -154,34 +169,45 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
       c2: el('c2', 'Component', 'Reviewer', 's1', 'supervision'), // ×1
     });
 
-    it('stamps [N] on the Artifact whose source Component has N>1', () => {
+    it('emits one ExecEnv per agent (plain name); Artifact name carries [N] for the swarm', () => {
       const r = componentModelToDeploymentModel(m, { c1: 3 });
       if (!r.ok) throw new Error('expected ok');
-      const artifacts = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentArtifact');
-      const names = artifacts.map((a) => a.name).sort();
-      expect(names).toEqual(['Coder [3]', 'Reviewer']);
+      expect(
+        execEnvNodes(r)
+          .map((n) => n.name)
+          .sort(),
+      ).toEqual(['Coder', 'Reviewer']);
+      expect(
+        artifactsOf(r)
+          .map((a) => a.name)
+          .sort(),
+      ).toEqual(['Coder [3]', 'Reviewer']);
     });
 
-    it('leaves the DeploymentComponent name count-free (only the Artifact carries [N])', () => {
+    it('DeploymentComponent name stays count-free (logical projection, no [N])', () => {
       const r = componentModelToDeploymentModel(m, { c1: 3 });
       if (!r.ok) throw new Error('expected ok');
-      const comps = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentComponent');
-      const names = comps.map((c) => c.name).sort();
-      expect(names).toEqual(['Coder', 'Reviewer']);
+      expect(
+        componentsOf(r)
+          .map((c) => c.name)
+          .sort(),
+      ).toEqual(['Coder', 'Reviewer']);
     });
 
-    it('emits no suffix when N==1 or the map omits the Component', () => {
-      const r = componentModelToDeploymentModel(m, { c1: 1 }); // explicit 1 + c2 absent
+    it('[N] suffix only when N>1; N==1 / absent map → plain Artifact name', () => {
+      const r = componentModelToDeploymentModel(m, { c1: 1 });
       if (!r.ok) throw new Error('expected ok');
-      const artifacts = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentArtifact');
-      expect(artifacts.map((a) => a.name).sort()).toEqual(['Coder', 'Reviewer']);
+      expect(
+        artifactsOf(r)
+          .map((a) => a.name)
+          .sort(),
+      ).toEqual(['Coder', 'Reviewer']);
     });
 
     it('is a no-op with no map argument (back-compat)', () => {
       const r = componentModelToDeploymentModel(m);
       if (!r.ok) throw new Error('expected ok');
-      const artifacts = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentArtifact');
-      expect(artifacts.every((a) => !/\[\d+\]/.test(a.name as string))).toBe(true);
+      expect(artifactsOf(r).every((a) => !/\[\d+\]/.test(a.name as string))).toBe(true);
     });
   });
 
@@ -194,24 +220,32 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
     });
     const r = componentModelToDeploymentModel(m);
 
-    it('04-FU3 — emits 1 Default Host Node + 3 DeploymentComponents OUTSIDE it (owner=null) + 3 Artifacts inside', () => {
+    it('38 — emits 1 top-level Docker Host (no Subsystem) wrapping 3 ExecEnvs', () => {
       if (!r.ok) throw new Error('expected ok');
-      const nodes = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentNode');
-      expect(nodes).toHaveLength(1);
-      expect(nodes[0].name).toBe('Default Host');
-      const dcs = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentComponent');
-      expect(dcs).toHaveLength(3);
-      expect(dcs.every((dc) => dc.owner === null)).toBe(true);
-      const artifacts = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentArtifact');
+      expect(subsystemNodes(r)).toHaveLength(0);
+      const hosts = hostNodes(r);
+      expect(hosts).toHaveLength(1);
+      expect(hosts[0].name).toBe('Docker Host');
+      expect(hosts[0].owner).toBeNull();
+      const ee = execEnvNodes(r);
+      expect(ee).toHaveLength(3);
+      // Each ExecEnv is owned by the Docker Host; each Artifact by its ExecEnv.
+      expect(ee.every((n) => n.owner === hosts[0].id)).toBe(true);
+      const eeIds = new Set(ee.map((n) => n.id));
+      const artifacts = artifactsOf(r);
       expect(artifacts).toHaveLength(3);
-      const hostId = nodes[0].id;
-      expect(artifacts.every((a) => a.owner === hostId)).toBe(true);
+      expect(artifacts.every((a) => eeIds.has(a.owner ?? ''))).toBe(true);
+      // 3 logical Components, all outside the nodes.
+      const dcs = componentsOf(r);
+      expect(dcs).toHaveLength(3);
+      expect(dcs.every((d) => d.owner === null)).toBe(true);
     });
-    it('Default Host has displayStereotype: true (04-FU1 — consistency with other Nodes)', () => {
+
+    it('Docker Host has displayStereotype: true', () => {
       if (!r.ok) throw new Error('expected ok');
-      const host = Object.values(r.model.elements).find((e) => e.type === 'DeploymentNode')!;
-      expect((host as unknown as { displayStereotype?: boolean }).displayStereotype).toBe(true);
+      expect((hostNodes(r)[0] as unknown as { displayStereotype?: boolean }).displayStereotype).toBe(true);
     });
+
     it('emits exactly the `flat-scaffold` warning', () => {
       if (!r.ok) throw new Error('expected ok');
       expect(r.warnings).toEqual([{ kind: 'flat-scaffold' }]);
@@ -230,15 +264,14 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
     });
     const r = componentModelToDeploymentModel(m);
 
-    it('emits 1 Node, 2 DeploymentComponents (owner=null), 0 STRUCTURAL associations, 0 warnings', () => {
+    it('emits 1 Subsystem node, 2 DeploymentComponents (owner=null), 0 STRUCTURAL associations, 0 warnings', () => {
       if (!r.ok) throw new Error('expected ok');
-      const nodes = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentNode');
-      const dcs = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentComponent');
-      const structural = Object.values(r.model.relationships).filter((rel) => rel.type === 'DeploymentAssociation');
-      expect(nodes).toHaveLength(1);
+      expect(subsystemNodes(r)).toHaveLength(1);
+      const dcs = componentsOf(r);
       expect(dcs).toHaveLength(2);
       expect(dcs.every((d) => d.owner === null)).toBe(true);
-      expect(structural).toHaveLength(0);
+      // Both agents share one Subsystem → the dep anchors to the same outer node → collapses.
+      expect(associationsOf(r)).toHaveLength(0);
       expect(r.warnings).toEqual([]);
     });
     it('04-FU3 — still emits 2 manifest DeploymentDependencies (one per Component-Artifact pair)', () => {
@@ -284,27 +317,25 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
     });
     const r = componentModelToDeploymentModel(m);
 
-    it('emits Nodes A and B as siblings under root, plus Default Host', () => {
+    it('emits Subsystem nodes A and B as siblings under root (A is a bare placeholder)', () => {
       if (!r.ok) throw new Error('expected ok');
-      const nodes = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentNode');
-      expect(nodes).toHaveLength(3);
-      // Every Node has owner === null (siblings under diagram root).
-      expect(nodes.every((n) => n.owner === null)).toBe(true);
-      const names = nodes.map((n) => n.name).sort();
-      expect(names).toEqual(['A', 'B', 'Default Host']);
+      const subs = subsystemNodes(r);
+      expect(subs.map((n) => n.name).sort()).toEqual(['A', 'B']);
+      expect(subs.every((n) => n.owner === null)).toBe(true);
     });
-    it('04-FU3 — Component C lives above Node B (owner=null, its Artifact has owner=Node B)', () => {
+
+    it('38 — Component C lives below its outer node (owner=null); its Artifact is inside an ExecEnv named C', () => {
       if (!r.ok) throw new Error('expected ok');
-      const nodeB = Object.values(r.model.elements).find((e) => e.type === 'DeploymentNode' && e.name === 'B')!;
-      const dcC = Object.values(r.model.elements).find((e) => e.type === 'DeploymentComponent' && e.name === 'C')!;
+      const dcC = componentsOf(r).find((e) => e.name === 'C')!;
       expect(dcC.owner).toBeNull();
-      const artifactC = Object.values(r.model.elements).find((e) => e.type === 'DeploymentArtifact' && e.name === 'C')!;
-      expect(artifactC.owner).toBe(nodeB.id);
+      const eeC = execEnvNodes(r).find((e) => e.name === 'C')!;
+      const artifactC = artifactsOf(r).find((e) => e.name === 'C')!;
+      expect(artifactC.owner).toBe(eeC.id);
     });
-    it('emits 1 STRUCTURAL DeploymentAssociation Default Host → B', () => {
+
+    it('emits 1 STRUCTURAL DeploymentAssociation (orphan Docker Host → Subsystem B)', () => {
       if (!r.ok) throw new Error('expected ok');
-      const structural = Object.values(r.model.relationships).filter((rel) => rel.type === 'DeploymentAssociation');
-      expect(structural).toHaveLength(1);
+      expect(associationsOf(r)).toHaveLength(1);
     });
   });
 
@@ -375,11 +406,14 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
       const r = componentModelToDeploymentModel(m);
       if (!r.ok) throw new Error('expected ok');
 
-      // Each DeploymentNode maps back to its source Subsystem.
-      const nodes = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentNode');
-      for (const node of nodes) {
+      // Only the kept Subsystem nodes map back to their source Subsystem;
+      // the Docker Host + ExecutionEnvironment nodes are synthetic (38 D-38-6).
+      for (const node of subsystemNodes(r)) {
         const sourceId = r.elementMapping[node.id];
         expect(sourceId).toBe(node.name === 'Order' ? 's1' : 's2');
+      }
+      for (const node of [...hostNodes(r), ...execEnvNodes(r)]) {
+        expect(r.elementMapping[node.id]).toBeUndefined();
       }
 
       // Only the DeploymentComponent maps to the source Component
@@ -423,10 +457,8 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
       const r = componentModelToDeploymentModel(m);
       if (!r.ok) throw new Error('expected ok');
 
-      // Default Host has no entry.
-      const host = Object.values(r.model.elements).find(
-        (e) => e.type === 'DeploymentNode' && e.name === 'Default Host',
-      );
+      // The synthetic orphan Docker Host has no entry.
+      const host = hostNodes(r).find((e) => e.name === 'Docker Host');
       expect(host).toBeDefined();
       expect(r.elementMapping[host!.id]).toBeUndefined();
 
@@ -522,10 +554,10 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
     it('Component with capability stereotype is not emitted as a DeploymentArtifact', () => {
       const m = makeBaseModel();
       Object.assign(m.elements as Record<string, unknown>, {
-        s1:    el('s1',    'Subsystem', 'Agents',   null),
-        agent: el('agent', 'Component', 'MyAgent',  's1', 'solution'),
-        llm:   el('llm',   'Component', 'LLMNode',  's1', 'llm'),
-        rag:   el('rag',   'Component', 'RAGStore', 's1', 'rag'),
+        s1: el('s1', 'Subsystem', 'Agents', null),
+        agent: el('agent', 'Component', 'MyAgent', 's1', 'solution'),
+        llm: el('llm', 'Component', 'LLMNode', 's1', 'llm'),
+        rag: el('rag', 'Component', 'RAGStore', 's1', 'rag'),
       });
       const r = componentModelToDeploymentModel(m);
       expect(r.ok).toBe(true);
@@ -539,12 +571,12 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
       const m = makeBaseModel();
       Object.assign(m.elements as Record<string, unknown>, {
         s1: el('s1', 'Subsystem', 'S', null),
-        a:  el('a',  'Component', 'Agent',  's1', 'solution'),
-        b:  el('b',  'Component', 'Skill1', 's1', 'skill'),
-        c:  el('c',  'Component', 'Tool1',  's1', 'tool'),
-        d:  el('d',  'Component', 'LLM1',   's1', 'llm'),
-        e:  el('e',  'Component', 'DB1',    's1', 'db'),
-        f:  el('f',  'Component', 'RAG1',   's1', 'rag'),
+        a: el('a', 'Component', 'Agent', 's1', 'solution'),
+        b: el('b', 'Component', 'Skill1', 's1', 'skill'),
+        c: el('c', 'Component', 'Tool1', 's1', 'tool'),
+        d: el('d', 'Component', 'LLM1', 's1', 'llm'),
+        e: el('e', 'Component', 'DB1', 's1', 'db'),
+        f: el('f', 'Component', 'RAG1', 's1', 'rag'),
       });
       const r = componentModelToDeploymentModel(m);
       expect(r.ok).toBe(true);
@@ -559,18 +591,20 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
     it('Subsystem containing only capability Components is skipped (no empty Node)', () => {
       const m = makeBaseModel();
       Object.assign(m.elements as Record<string, unknown>, {
-        agents: el('agents', 'Subsystem', 'AgentPool',    null),
-        caps:   el('caps',   'Subsystem', 'Capabilities', null),
-        c1: el('c1', 'Component', 'Agent1',   'agents', 'solution'),
-        c2: el('c2', 'Component', 'LLMNode',  'caps',   'llm'),
-        c3: el('c3', 'Component', 'SkillBot', 'caps',   'skill'),
+        agents: el('agents', 'Subsystem', 'AgentPool', null),
+        caps: el('caps', 'Subsystem', 'Capabilities', null),
+        c1: el('c1', 'Component', 'Agent1', 'agents', 'solution'),
+        c2: el('c2', 'Component', 'LLMNode', 'caps', 'llm'),
+        c3: el('c3', 'Component', 'SkillBot', 'caps', 'skill'),
       });
       const r = componentModelToDeploymentModel(m);
       expect(r.ok).toBe(true);
       if (!r.ok) return;
-      const nodes = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentNode');
-      expect(nodes).toHaveLength(1);
-      expect(nodes[0].name).toBe('AgentPool');
+      const subs = subsystemNodes(r);
+      expect(subs).toHaveLength(1);
+      expect(subs[0].name).toBe('AgentPool');
+      // The capability-only "Capabilities" Subsystem produced no node at all.
+      expect(subsystemNodes(r).find((n) => n.name === 'Capabilities')).toBeUndefined();
     });
 
     it('two distinct agent Components produce exactly two artifacts — no duplicates', () => {
@@ -578,7 +612,7 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
       Object.assign(m.elements as Record<string, unknown>, {
         s1: el('s1', 'Subsystem', 'Pool', null),
         c1: el('c1', 'Component', 'Alpha', 's1', 'solution'),
-        c2: el('c2', 'Component', 'Beta',  's1', 'supervision'),
+        c2: el('c2', 'Component', 'Beta', 's1', 'supervision'),
       });
       const r = componentModelToDeploymentModel(m);
       expect(r.ok).toBe(true);
@@ -596,24 +630,25 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
     it('agent gets [N] suffix; capability is excluded entirely (no [M] artifact)', () => {
       const m = makeBaseModel();
       Object.assign(m.elements as Record<string, unknown>, {
-        s1:    el('s1',    'Subsystem', 'A',      null),
+        s1: el('s1', 'Subsystem', 'A', null),
         agent: el('agent', 'Component', 'Solver', 's1', 'solution'),
-        llm:   el('llm',   'Component', 'LLM',    's1', 'llm'),
+        llm: el('llm', 'Component', 'LLM', 's1', 'llm'),
       });
       const r = componentModelToDeploymentModel(m, { agent: 3, llm: 5 });
       expect(r.ok).toBe(true);
       if (!r.ok) return;
-      const artifacts = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentArtifact');
-      expect(artifacts).toHaveLength(1);
-      expect(artifacts[0].name).toBe('Solver [3]');
+      // The agent fans out into 3 ExecEnvs; the capability (llm) is excluded entirely,
+      // so its ×5 is ignored and it produces no artifact.
+      const artifacts = artifactsOf(r);
+      expect(artifacts.map((a) => a.name).sort()).toEqual(['Solver_1', 'Solver_2', 'Solver_3']);
     });
 
     it('agent without multiplicity entry produces a clean (no [N]) artifact name', () => {
       const m = makeBaseModel();
       Object.assign(m.elements as Record<string, unknown>, {
-        s1:   el('s1',   'Subsystem', 'A',      null),
+        s1: el('s1', 'Subsystem', 'A', null),
         agent: el('agent', 'Component', 'Worker', 's1', 'solution'),
-        tool:  el('tool',  'Component', 'MyTool', 's1', 'tool'),
+        tool: el('tool', 'Component', 'MyTool', 's1', 'tool'),
       });
       const r = componentModelToDeploymentModel(m);
       expect(r.ok).toBe(true);
@@ -621,6 +656,69 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
       const artifacts = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentArtifact');
       expect(artifacts).toHaveLength(1);
       expect(artifacts[0].name).toBe('Worker');
+    });
+  });
+
+  describe('38 — per-agent ExecutionEnvironment nesting', () => {
+    const m = makeBaseModel();
+    Object.assign(m.elements as Record<string, unknown>, {
+      s1: el('s1', 'Subsystem', 'Pool', null),
+      a: el('a', 'Component', 'Planner', 's1', 'solution'),
+      b: el('b', 'Component', 'Solver', 's1', 'supervision'),
+    });
+    const r = componentModelToDeploymentModel(m);
+
+    it('emits Subsystem › Docker Host › one ExecEnv per agent', () => {
+      if (!r.ok) throw new Error('expected ok');
+      expect(subsystemNodes(r)).toHaveLength(1);
+      expect(hostNodes(r)).toHaveLength(1);
+      expect(
+        execEnvNodes(r)
+          .map((n) => n.name)
+          .sort(),
+      ).toEqual(['Planner', 'Solver']);
+    });
+
+    it('wires the ownership chain Subsystem ← Docker Host ← ExecEnv ← Artifact', () => {
+      if (!r.ok) throw new Error('expected ok');
+      const sub = subsystemNodes(r)[0];
+      const host = hostNodes(r)[0];
+      expect(host.owner).toBe(sub.id);
+      for (const ee of execEnvNodes(r)) {
+        expect(ee.owner).toBe(host.id);
+        const art = artifactsOf(r).find((x) => x.owner === ee.id);
+        expect(art).toBeDefined();
+        expect(art!.name).toBe(ee.name);
+      }
+    });
+
+    it('per-agent ExecEnv carries the «executionEnvironment» stereotype; host carries «docker host»', () => {
+      if (!r.ok) throw new Error('expected ok');
+      expect(
+        execEnvNodes(r).every((n) => (n as unknown as { stereotype?: string }).stereotype === 'executionEnvironment'),
+      ).toBe(true);
+      expect((hostNodes(r)[0] as unknown as { stereotype?: string }).stereotype).toBe('docker host');
+    });
+
+    it('keeps one logical DeploymentComponent + one manifest edge per agent', () => {
+      if (!r.ok) throw new Error('expected ok');
+      expect(componentsOf(r)).toHaveLength(2);
+      const manifests = Object.values(r.model.relationships).filter((x) => x.type === 'DeploymentDependency');
+      expect(manifests).toHaveLength(2);
+    });
+
+    it('threads agentModelRef from the source Component onto its single Artifact (with [N] suffix)', () => {
+      const m2 = makeBaseModel();
+      Object.assign(m2.elements as Record<string, unknown>, {
+        s1: el('s1', 'Subsystem', 'Pool', null),
+        a: { ...el('a', 'Component', 'Coder', 's1', 'solution'), agentModelRef: 'agent-xyz' },
+      });
+      const r2 = componentModelToDeploymentModel(m2, { a: 2 });
+      if (!r2.ok) throw new Error('expected ok');
+      const arts = artifactsOf(r2);
+      expect(arts).toHaveLength(1); // single Artifact named "Coder [2]"
+      expect(arts[0].name).toBe('Coder [2]');
+      expect((arts[0] as unknown as { agentModelRef?: string }).agentModelRef).toBe('agent-xyz');
     });
   });
 });
