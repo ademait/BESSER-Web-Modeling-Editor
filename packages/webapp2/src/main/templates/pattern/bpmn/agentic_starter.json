@@ -1,0 +1,448 @@
+{
+  "version": "3.0.0",
+  "type": "BPMNDiagram",
+  "size": {
+    "width": 1400,
+    "height": 700
+  },
+  "interactive": {
+    "elements": {},
+    "relationships": {}
+  },
+  "elements": {
+    "pool": {
+      "id": "pool",
+      "name": "Order Processing System",
+      "type": "BPMNPool",
+      "owner": null,
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1400,
+        "height": 700
+      }
+    },
+    "processor-lane": {
+      "id": "processor-lane",
+      "name": "Order Processing Agent",
+      "type": "BPMNSwimlane",
+      "owner": "pool",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1400,
+        "height": 240
+      },
+      "isAgentic": true,
+      "role": "worker"
+    },
+    "quality-lane": {
+      "id": "quality-lane",
+      "name": "Quality Check Agent",
+      "type": "BPMNSwimlane",
+      "owner": "pool",
+      "bounds": {
+        "x": 0,
+        "y": 240,
+        "width": 1400,
+        "height": 230
+      },
+      "isAgentic": true,
+      "role": "supervisor"
+    },
+    "manager-lane": {
+      "id": "manager-lane",
+      "name": "Manager Review",
+      "type": "BPMNSwimlane",
+      "owner": "pool",
+      "bounds": {
+        "x": 0,
+        "y": 470,
+        "width": 1400,
+        "height": 230
+      }
+    },
+    "start": {
+      "id": "start",
+      "name": "Order received",
+      "type": "BPMNStartEvent",
+      "owner": "processor-lane",
+      "bounds": {
+        "x": 50,
+        "y": 100,
+        "width": 40,
+        "height": 40
+      },
+      "eventType": "default"
+    },
+    "extract": {
+      "id": "extract",
+      "name": "Extract order details",
+      "type": "BPMNTask",
+      "owner": "processor-lane",
+      "bounds": {
+        "x": 150,
+        "y": 90,
+        "width": 130,
+        "height": 60
+      },
+      "taskType": "default",
+      "marker": "none",
+      "isAgentic": true
+    },
+    "process": {
+      "id": "process",
+      "name": "Process payment & confirm",
+      "type": "BPMNTask",
+      "owner": "processor-lane",
+      "bounds": {
+        "x": 350,
+        "y": 90,
+        "width": 140,
+        "height": 60
+      },
+      "taskType": "service",
+      "marker": "none",
+      "isAgentic": true
+    },
+    "validate": {
+      "id": "validate",
+      "name": "Validate order",
+      "type": "BPMNTask",
+      "owner": "quality-lane",
+      "bounds": {
+        "x": 150,
+        "y": 330,
+        "width": 130,
+        "height": 60
+      },
+      "taskType": "default",
+      "marker": "none",
+      "isAgentic": true
+    },
+    "assess": {
+      "id": "assess",
+      "name": "Assess fulfillment risk",
+      "type": "BPMNTask",
+      "owner": "quality-lane",
+      "bounds": {
+        "x": 350,
+        "y": 330,
+        "width": 140,
+        "height": 60
+      },
+      "taskType": "default",
+      "marker": "none",
+      "isAgentic": true
+    },
+    "review": {
+      "id": "review",
+      "name": "Review agent decisions",
+      "type": "BPMNTask",
+      "owner": "manager-lane",
+      "bounds": {
+        "x": 550,
+        "y": 580,
+        "width": 140,
+        "height": 60
+      },
+      "taskType": "user",
+      "marker": "none"
+    },
+    "notify": {
+      "id": "notify",
+      "name": "Send fulfillment order",
+      "type": "BPMNTask",
+      "owner": "processor-lane",
+      "bounds": {
+        "x": 750,
+        "y": 90,
+        "width": 140,
+        "height": 60
+      },
+      "taskType": "send",
+      "marker": "none",
+      "isAgentic": true
+    },
+    "end": {
+      "id": "end",
+      "name": "Order fulfilled",
+      "type": "BPMNEndEvent",
+      "owner": "processor-lane",
+      "bounds": {
+        "x": 980,
+        "y": 100,
+        "width": 40,
+        "height": 40
+      },
+      "eventType": "default"
+    }
+  },
+  "relationships": {
+    "f1": {
+      "id": "f1",
+      "name": "",
+      "type": "BPMNFlow",
+      "owner": null,
+      "bounds": {
+        "x": 90,
+        "y": 120,
+        "width": 60,
+        "height": 1
+      },
+      "path": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 60,
+          "y": 0
+        }
+      ],
+      "source": {
+        "direction": "Right",
+        "element": "start"
+      },
+      "target": {
+        "direction": "Left",
+        "element": "extract"
+      },
+      "isManuallyLayouted": false,
+      "flowType": "sequence",
+      "isDefault": false
+    },
+    "f2": {
+      "id": "f2",
+      "name": "",
+      "type": "BPMNFlow",
+      "owner": null,
+      "bounds": {
+        "x": 280,
+        "y": 120,
+        "width": 70,
+        "height": 1
+      },
+      "path": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 70,
+          "y": 0
+        }
+      ],
+      "source": {
+        "direction": "Right",
+        "element": "extract"
+      },
+      "target": {
+        "direction": "Left",
+        "element": "process"
+      },
+      "isManuallyLayouted": false,
+      "flowType": "sequence",
+      "isDefault": false
+    },
+    "m1": {
+      "id": "m1",
+      "name": "Order details",
+      "type": "BPMNFlow",
+      "owner": null,
+      "bounds": {
+        "x": 215,
+        "y": 150,
+        "width": 1,
+        "height": 180
+      },
+      "path": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 0,
+          "y": 180
+        }
+      ],
+      "source": {
+        "direction": "Down",
+        "element": "extract"
+      },
+      "target": {
+        "direction": "Up",
+        "element": "validate"
+      },
+      "isManuallyLayouted": false,
+      "flowType": "message",
+      "isDefault": false
+    },
+    "f3": {
+      "id": "f3",
+      "name": "",
+      "type": "BPMNFlow",
+      "owner": null,
+      "bounds": {
+        "x": 280,
+        "y": 360,
+        "width": 70,
+        "height": 1
+      },
+      "path": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 70,
+          "y": 0
+        }
+      ],
+      "source": {
+        "direction": "Right",
+        "element": "validate"
+      },
+      "target": {
+        "direction": "Left",
+        "element": "assess"
+      },
+      "isManuallyLayouted": false,
+      "flowType": "sequence",
+      "isDefault": false
+    },
+    "m2": {
+      "id": "m2",
+      "name": "Assessment",
+      "type": "BPMNFlow",
+      "owner": null,
+      "bounds": {
+        "x": 420,
+        "y": 390,
+        "width": 1,
+        "height": 190
+      },
+      "path": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 0,
+          "y": 190
+        }
+      ],
+      "source": {
+        "direction": "Down",
+        "element": "assess"
+      },
+      "target": {
+        "direction": "Up",
+        "element": "review"
+      },
+      "isManuallyLayouted": false,
+      "flowType": "message",
+      "isDefault": false
+    },
+    "f4": {
+      "id": "f4",
+      "name": "Proceed",
+      "type": "BPMNFlow",
+      "owner": null,
+      "bounds": {
+        "x": 690,
+        "y": 610,
+        "width": 60,
+        "height": 1
+      },
+      "path": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 60,
+          "y": 0
+        }
+      ],
+      "source": {
+        "direction": "Right",
+        "element": "review"
+      },
+      "target": {
+        "direction": "Left",
+        "element": "notify"
+      },
+      "isManuallyLayouted": false,
+      "flowType": "message",
+      "isDefault": false
+    },
+    "f5": {
+      "id": "f5",
+      "name": "",
+      "type": "BPMNFlow",
+      "owner": null,
+      "bounds": {
+        "x": 490,
+        "y": 120,
+        "width": 260,
+        "height": 1
+      },
+      "path": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 260,
+          "y": 0
+        }
+      ],
+      "source": {
+        "direction": "Right",
+        "element": "process"
+      },
+      "target": {
+        "direction": "Left",
+        "element": "notify"
+      },
+      "isManuallyLayouted": false,
+      "flowType": "sequence",
+      "isDefault": false
+    },
+    "f6": {
+      "id": "f6",
+      "name": "",
+      "type": "BPMNFlow",
+      "owner": null,
+      "bounds": {
+        "x": 890,
+        "y": 120,
+        "width": 90,
+        "height": 1
+      },
+      "path": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 90,
+          "y": 0
+        }
+      ],
+      "source": {
+        "direction": "Right",
+        "element": "notify"
+      },
+      "target": {
+        "direction": "Left",
+        "element": "end"
+      },
+      "isManuallyLayouted": false,
+      "flowType": "sequence",
+      "isDefault": false
+    }
+  },
+  "assessments": {}
+}

@@ -18,6 +18,7 @@ import traficlightModel from '../../../templates/pattern/statemachine/traficligh
 import carWashModel from '../../../templates/pattern/bpmn/car_wash.json';
 import parallelReviewModel from '../../../templates/pattern/bpmn/parallel_review.json';
 import pizzaStoreModel from '../../../templates/pattern/bpmn/pizza_store.json';
+import agenticStarterModel from '../../../templates/pattern/bpmn/agentic_starter.json';
 import { EXAMPLE_CIRCUITS } from '../../editors/quantum/exampleCircuits';
 import { serializeCircuit } from '../../editors/quantum/utils';
 
@@ -133,6 +134,13 @@ export class TemplateFactory {
           softwarePatternType,
           UMLDiagramType.BPMN,
           pizzaStoreModel as any,
+          SoftwarePatternCategory.BPMN,
+        );
+      case SoftwarePatternType.BPMN_AGENTIC_STARTER:
+        return new SoftwarePatternTemplate(
+          softwarePatternType,
+          UMLDiagramType.BPMN,
+          agenticStarterModel as any,
           SoftwarePatternCategory.BPMN,
         );
       // Quantum Circuit templates
