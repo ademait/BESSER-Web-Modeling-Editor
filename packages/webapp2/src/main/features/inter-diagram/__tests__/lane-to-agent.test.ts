@@ -339,7 +339,13 @@ describe('29 — laneToAgentModel', () => {
           bounds: { x: 0, y: 300, width: 400, height: 200 },
         },
         t1: { id: 't1', name: 'Handle', type: 'BPMNTask', owner: 'L', bounds: { x: 10, y: 0, width: 100, height: 60 } },
-        r1: { id: 'r1', name: 'Trigger', type: 'BPMNTask', owner: 'R', bounds: { x: 10, y: 0, width: 100, height: 60 } },
+        r1: {
+          id: 'r1',
+          name: 'Trigger',
+          type: 'BPMNTask',
+          owner: 'R',
+          bounds: { x: 10, y: 0, width: 100, height: 60 },
+        },
       });
       Object.assign(m.relationships, { f1: seq('f1', 'r1', 't1') });
       const r = laneToAgentModel(m, 'L');
@@ -403,9 +409,7 @@ describe('29 — laneToAgentModel', () => {
       Object.assign(m.elements, { L: lane('L'), t1: task('t1', 'LLM_reply', 10) });
       const r = laneToAgentModel(m, 'L');
       if (!r.ok) throw new Error('expected ok');
-      const taskState = Object.values(r.model.elements).find(
-        (e) => e.type === 'AgentState' && r.elementMapping[e.id],
-      )!;
+      const taskState = Object.values(r.model.elements).find((e) => e.type === 'AgentState' && r.elementMapping[e.id])!;
       const initTrans = Object.values(r.model.relationships).find((e) => e.type === 'AgentStateTransitionInit')!;
       // init does NOT go to the task
       expect(initTrans.target.element).not.toBe(taskState.id);
@@ -413,9 +417,7 @@ describe('29 — laneToAgentModel', () => {
       const greetState = Object.values(r.model.elements).find((e) => e.name === 'Coder_greet')!;
       const noIntentTrans = Object.values(r.model.relationships).find(
         (e) =>
-          e.type === 'AgentStateTransition' &&
-          e.source.element === greetState.id &&
-          e.target.element === taskState.id,
+          e.type === 'AgentStateTransition' && e.source.element === greetState.id && e.target.element === taskState.id,
       );
       expect(noIntentTrans).toBeDefined();
       expect(
@@ -458,9 +460,100 @@ describe('29 — laneToAgentModel', () => {
         (e) => e.type === 'AgentStateTransition' && e.source.element === greetState.id,
       )!;
       expect(greetEdge.target.element).toBe(inputBoundary.id);
-      expect(
-        (greetEdge as unknown as { predefined?: { predefinedType?: string } }).predefined?.predefinedType,
-      ).toBe('when_no_intent_matched');
+      expect((greetEdge as unknown as { predefined?: { predefinedType?: string } }).predefined?.predefinedType).toBe(
+        'when_no_intent_matched',
+      );
+    });
+  });
+
+  describe('39 — reflection scaffolds (4c)', () => {
+    const rtask = (id: string, name: string, x: number, mode: 'none' | 'self' | 'cross' | 'human') => ({
+      ...task(id, name, x),
+      reflectionMode: mode,
+    });
+    const findState = (m: UMLModel, name: string) =>
+      Object.values(m.elements).find((e) => e.type === 'AgentState' && e.name === name);
+    const transitions = (m: UMLModel) =>
+      Object.values(m.relationships).filter((e) => e.type === 'AgentStateTransition');
+
+    it("reflectionMode 'none' adds no reflection states", () => {
+      const m = bpmn();
+      Object.assign(m.elements, { L: lane('L'), t1: rtask('t1', 'Plan', 10, 'none'), t2: task('t2', 'Code', 200) });
+      Object.assign(m.relationships, { f1: seq('f1', 't1', 't2') });
+      const r = laneToAgentModel(m, 'L');
+      if (!r.ok) throw new Error('expected ok');
+      const names = Object.values(r.model.elements)
+        .filter((e) => e.type === 'AgentState')
+        .map((e) => e.name)
+        .sort();
+      expect(names).toEqual(['Code', 'Coder_greet', 'Plan']); // no *_reflect / review_ / feedback_
+    });
+
+    it("'self' inserts a <task>_reflect state with a self-loop and re-routes the forward edge", () => {
+      const m = bpmn();
+      Object.assign(m.elements, { L: lane('L'), t1: rtask('t1', 'Plan', 10, 'self'), t2: task('t2', 'Code', 200) });
+      Object.assign(m.relationships, { f1: seq('f1', 't1', 't2') });
+      const r = laneToAgentModel(m, 'L');
+      if (!r.ok) throw new Error('expected ok');
+      const reflect = findState(r.model, 'Plan_reflect');
+      expect(reflect).toBeDefined();
+      const plan = findState(r.model, 'Plan')!;
+      const code = findState(r.model, 'Code')!;
+      const ts = transitions(r.model);
+      // original Plan → Code is re-routed (gone)
+      expect(ts.some((e) => e.source.element === plan.id && e.target.element === code.id)).toBe(false);
+      // Plan → reflect via when_no_intent_matched
+      const entry = ts.find((e) => e.source.element === plan.id && e.target.element === reflect!.id)!;
+      expect(entry).toBeDefined();
+      expect((entry as unknown as { predefined?: { predefinedType?: string } }).predefined?.predefinedType).toBe(
+        'when_no_intent_matched',
+      );
+      // self-loop on reflect
+      expect(ts.some((e) => e.source.element === reflect!.id && e.target.element === reflect!.id)).toBe(true);
+      // reflect → Code (forward / "approve")
+      expect(ts.some((e) => e.source.element === reflect!.id && e.target.element === code.id)).toBe(true);
+    });
+
+    it("'cross' inserts a single «input» feedback_from state wired task → feedback → next (no review output state)", () => {
+      const m = bpmn();
+      Object.assign(m.elements, { L: lane('L'), t1: rtask('t1', 'Plan', 10, 'cross'), t2: task('t2', 'Code', 200) });
+      Object.assign(m.relationships, { f1: seq('f1', 't1', 't2') });
+      const r = laneToAgentModel(m, 'L');
+      if (!r.ok) throw new Error('expected ok');
+      // no review output state
+      expect(findState(r.model, 'review_Plan')).toBeUndefined();
+      const feedback = findState(r.model, 'feedback_from_Plan');
+      expect(feedback).toBeDefined();
+      expect((feedback as unknown as { stereotype?: string }).stereotype).toBe('input');
+      const plan = findState(r.model, 'Plan')!;
+      const code = findState(r.model, 'Code')!;
+      const ts = transitions(r.model);
+      expect(ts.some((e) => e.source.element === plan.id && e.target.element === code.id)).toBe(false);
+      expect(ts.some((e) => e.source.element === plan.id && e.target.element === feedback!.id)).toBe(true);
+      expect(ts.some((e) => e.source.element === feedback!.id && e.target.element === code.id)).toBe(true);
+    });
+
+    it("'human' inserts a <task>_human_review wait state with approve-forward + reject-loop", () => {
+      const m = bpmn();
+      Object.assign(m.elements, { L: lane('L'), t1: rtask('t1', 'Plan', 10, 'human'), t2: task('t2', 'Code', 200) });
+      Object.assign(m.relationships, { f1: seq('f1', 't1', 't2') });
+      const r = laneToAgentModel(m, 'L');
+      if (!r.ok) throw new Error('expected ok');
+      const human = findState(r.model, 'Plan_human_review');
+      expect(human).toBeDefined();
+      const plan = findState(r.model, 'Plan')!;
+      const code = findState(r.model, 'Code')!;
+      const ts = transitions(r.model);
+      expect(ts.some((e) => e.source.element === plan.id && e.target.element === code.id)).toBe(false);
+      // task → human_review via when_no_intent_matched
+      const entry = ts.find((e) => e.source.element === plan.id && e.target.element === human!.id)!;
+      expect((entry as unknown as { predefined?: { predefinedType?: string } }).predefined?.predefinedType).toBe(
+        'when_no_intent_matched',
+      );
+      // approved → Code
+      expect(ts.some((e) => e.source.element === human!.id && e.target.element === code.id)).toBe(true);
+      // rejected → back to Plan
+      expect(ts.some((e) => e.source.element === human!.id && e.target.element === plan.id)).toBe(true);
     });
   });
 });

@@ -25,6 +25,10 @@ const INPUT_COL_X = -340;
 const OUTPUT_COL_X = 340;
 const BOUNDARY_W = 160;
 const BOUNDARY_H = 40;
+// 39 (4c) — reflection-scaffold column: extra states (self-eval / cross-review /
+// human-approval) sit between the task column (x 0..140) and the output-boundary
+// column (x 340..500), so they overlap neither.
+const REFLECT_COL_X = 160;
 
 const newId = (): string => 'gen-' + Math.random().toString(36).slice(2, 11);
 
@@ -55,6 +59,8 @@ interface Bounds {
 type AnyEl = UMLElement & {
   isAgentic?: boolean;
   flowType?: string;
+  // 39 — read on BPMN tasks to pick the reflection scaffold ('none' = skip).
+  reflectionMode?: 'none' | 'self' | 'cross' | 'human';
   bounds: Bounds;
 };
 
@@ -119,6 +125,13 @@ export function laneToAgentModel(bpmn: UMLModel, laneId: string): AgentDerivatio
   // not a valid state machine, manual test IO-4/IO-6).
   const entryStateId = stateIdByTask.get(entryTasks[0].id)!;
   const inputFedStateIds = appendBoundaryStates(out, bpmn, laneId, taskIds, stateIdByTask, entryStateId, warnings);
+
+  // 39 (4c) — reflection scaffolds: each task with reflectionMode !== 'none' gets
+  // self-eval / cross-review / human-approval states spliced after its task-state,
+  // re-routing the task's forward edge(s) through them. Runs after the intra-lane
+  // transitions + boundary states (both must exist to be re-routed) and before the
+  // greeting/init wrap so the entry's INCOMING wiring is untouched.
+  appendReflectionScaffolds(out, tasks, stateIdByTask);
 
   // 36 — BAF greeting wrapper: a thin initial state so the agent never enters an
   // LLM-body state on session start (session.event is None then → AttributeError:
@@ -309,23 +322,15 @@ function appendBoundaryStates(
     const key = `${dir}\x00${name}`;
     const existing = boundaryIdByKey.get(key);
     if (existing) return existing;
-    const id = newId();
     const row = dir === 'input' ? inputRow++ : outputRow++;
-    out.elements[id] = {
-      id,
-      name: sanitizeStateName(dir === 'input' ? `from ${name}` : `to ${name}`),
-      type: 'AgentState',
-      owner: null,
-      stereotype: dir, // «input» / «output»
-      bounds: {
-        x: dir === 'input' ? INPUT_COL_X : OUTPUT_COL_X,
-        y: row * (BOUNDARY_H + V_GAP),
-        width: BOUNDARY_W,
-        height: BOUNDARY_H,
-      },
-      bodies: [],
-      fallbackBodies: [],
-    } as unknown as UMLElement;
+    // 39 — share the «input»/«output» state emitter with the reflection scaffold.
+    const id = createBoundaryState(
+      out,
+      dir,
+      dir === 'input' ? `from ${name}` : `to ${name}`,
+      dir === 'input' ? INPUT_COL_X : OUTPUT_COL_X,
+      row * (BOUNDARY_H + V_GAP),
+    );
     boundaryIdByKey.set(key, id);
     return id;
   };
@@ -529,5 +534,157 @@ function recenterAgentModel(out: UMLModel): void {
         p.x += dx;
         p.y += dy;
       }
+  }
+}
+
+// ── 39 (4c): reflection scaffolds ───────────────────────────────────
+
+/**
+ * 39 — emit an «input»/«output» boundary `AgentState`. This is the guide-30
+ * boundary-state emitter factored out of `ensureBoundary` so it can be shared.
+ * `rawName` is the full display name (already carrying its `from `/`to `/
+ * `review `/`feedback ` prefix); it is sanitized here. Used by
+ * `appendBoundaryStates` (cross-lane I/O) AND `appendReflectionScaffolds`
+ * (cross-reflection review/feedback) — one definition of the «output»/«input»
+ * shape, no duplication.
+ */
+function createBoundaryState(out: UMLModel, dir: 'input' | 'output', rawName: string, x: number, y: number): string {
+  const id = newId();
+  out.elements[id] = {
+    id,
+    name: sanitizeStateName(rawName),
+    type: 'AgentState',
+    owner: null,
+    stereotype: dir, // «input» / «output»
+    bounds: { x, y, width: BOUNDARY_W, height: BOUNDARY_H },
+    bodies: [],
+    fallbackBodies: [],
+  } as unknown as UMLElement;
+  return id;
+}
+
+/**
+ * 39 — a self-loop transition on `stateId` (source === target). `emitTransition`
+ * can't draw a loop — its two-point path would collapse to a line over the
+ * element — so this routes a small loop out the right edge and back. Generic
+ * `when_intent_matched` (no `predefinedType`) → the user names the intent (e.g.
+ * "revise"). `isManuallyLayouted: true` so the loop path is preserved on first
+ * open.
+ */
+function emitSelfLoop(out: UMLModel, stateId: string): void {
+  const id = newId();
+  const b = (out.elements[stateId] as unknown as { bounds: Bounds }).bounds;
+  // Exit from the BOTTOM center and re-enter at the RIGHT center, tracing an
+  // L-shape below-then-right of the state. Using asymmetric source/target
+  // directions means the path clears the agent-robot icon at the top-right
+  // corner and is immediately draggable.
+  const bottom = b.y + b.height;
+  const right = b.x + b.width;
+  const midX = b.x + b.width / 2;
+  const midY = b.y + b.height / 2;
+  const loop = 30;
+  const path = [
+    { x: midX, y: bottom }, // exit bottom-center
+    { x: midX, y: bottom + loop }, // go down
+    { x: right + loop, y: bottom + loop }, // go right past the edge
+    { x: right + loop, y: midY }, // go up to mid-height
+    { x: right, y: midY }, // arrive at right-center
+  ];
+  out.relationships[id] = {
+    id,
+    name: '',
+    type: 'AgentStateTransition',
+    owner: null,
+    bounds: { x: midX, y: midY, width: b.width / 2 + loop, height: b.height / 2 + loop },
+    path,
+    source: { element: stateId, direction: 'Down' },
+    target: { element: stateId, direction: 'Right' },
+    isManuallyLayouted: true,
+  } as unknown as UMLRelationship;
+}
+
+/**
+ * 39 (4c) — activate the SEAA'25 `reflectionMode` field (kept a no-op in the
+ * rationalization, T1g) as a live consumer of the lane→Agent derivation. For each
+ * task with `reflectionMode !== 'none'`, splice reflection states AFTER the task's
+ * state, re-routing the task's forward transition(s) through them:
+ *
+ *  - 'self'  → a `<task>_reflect` self-evaluation state. task → reflect
+ *             (when_no_intent_matched), a self-loop on reflect ("revise"), and
+ *             reflect → next ("approve"). User adds the LLM body + intent names.
+ *  - 'cross' → reuse the guide-30 «output»/«input» boundary states: a
+ *             `review_<task>` «output» (send output to a reviewer agent) and a
+ *             `feedback_<task>` «input» (await its reply), wired
+ *             task → review → feedback → next. The BAF A2A generator already reads
+ *             «output»/«input» as cross-agent calls — no generator change.
+ *  - 'human' → a `<task>_human_review` wait state. task → human_review
+ *             (when_no_intent_matched), human_review → next ("approved"), and
+ *             human_review → task ("rejected", loops back for revision).
+ *
+ * Re-route = delete the task's existing forward edges to OTHER task-states and
+ * re-emit them off the reflection exit (no double path). Boundary edges (target
+ * not a task-state) and the task's incoming edges are left intact. Reflection
+ * states are synthetic → no `elementMapping` entry (matches guide 30).
+ */
+function appendReflectionScaffolds(out: UMLModel, tasks: AnyEl[], stateIdByTask: Map<string, string>): void {
+  const taskStateIds = new Set(stateIdByTask.values());
+  for (const t of tasks) {
+    const mode = t.reflectionMode ?? 'none';
+    if (mode === 'none') continue;
+    const sT = stateIdByTask.get(t.id);
+    if (!sT) continue;
+    const taskName = sanitizeStateName(t.name || 'Task');
+    const sb = (out.elements[sT] as unknown as { bounds: Bounds }).bounds;
+
+    // Capture + remove the task-state's forward transitions to OTHER task-states
+    // (re-routed through the reflection states below). Object.entries snapshots,
+    // so deleting during the loop is safe. Boundary/self edges are skipped.
+    const nexts: string[] = [];
+    for (const [rid, rel] of Object.entries(out.relationships)) {
+      const r = rel as unknown as UMLRelationship;
+      if (r.type !== 'AgentStateTransition') continue;
+      if (r.source.element !== sT || r.target.element === sT) continue;
+      if (!taskStateIds.has(r.target.element)) continue;
+      nexts.push(r.target.element);
+      delete out.relationships[rid];
+    }
+
+    if (mode === 'self') {
+      const reflectId = newId();
+      out.elements[reflectId] = {
+        id: reflectId,
+        name: `${taskName}_reflect`,
+        type: 'AgentState',
+        owner: null,
+        bounds: { x: REFLECT_COL_X, y: sb.y, width: STATE_W, height: STATE_H },
+        bodies: [],
+        fallbackBodies: [],
+      } as unknown as UMLElement;
+      emitTransition(out, sT, reflectId, 'AgentStateTransition', 'horizontal', 'when_no_intent_matched');
+      emitSelfLoop(out, reflectId); // generic intent — user names it "revise"
+      for (const n of nexts) emitTransition(out, reflectId, n, 'AgentStateTransition', 'vertical'); // generic — "approve"
+    } else if (mode === 'human') {
+      const humanId = newId();
+      out.elements[humanId] = {
+        id: humanId,
+        name: `${taskName}_human_review`,
+        type: 'AgentState',
+        owner: null,
+        bounds: { x: REFLECT_COL_X, y: sb.y, width: STATE_W, height: STATE_H },
+        bodies: [],
+        fallbackBodies: [],
+      } as unknown as UMLElement;
+      emitTransition(out, sT, humanId, 'AgentStateTransition', 'horizontal', 'when_no_intent_matched');
+      for (const n of nexts) emitTransition(out, humanId, n, 'AgentStateTransition', 'vertical'); // generic — "approved"
+      emitTransition(out, humanId, sT, 'AgentStateTransition', 'horizontal'); // generic — "rejected" loop back
+    } else if (mode === 'cross') {
+      // Single «input» boundary: task → feedback_from_<task> → next.
+      // No separate «output» review state — the sending is implicit; the input
+      // state expresses "awaiting cross-agent feedback" and the BAF A2A generator
+      // already interprets «input» as a cross-agent receive.
+      const feedbackId = createBoundaryState(out, 'input', `feedback from ${taskName}`, REFLECT_COL_X, sb.y);
+      emitTransition(out, sT, feedbackId, 'AgentStateTransition', 'horizontal'); // task → «input» await
+      for (const n of nexts) emitTransition(out, feedbackId, n, 'AgentStateTransition', 'vertical'); // «input» → next
+    }
   }
 }
