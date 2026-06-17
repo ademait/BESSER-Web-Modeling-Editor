@@ -131,6 +131,14 @@ function* appendAfterMove(): SagaIterator {
     return;
   }
 
+  // Don't reparent an element into a container of the same type
+  // (e.g. BPMNPool dragged onto BPMNPool must stay at root level so
+  // revertOnSiblingOverlap can detect the overlap and snap it back).
+  const targetContainer = containerID ? elements[containerID] : null;
+  if (targetContainer && movedElements.some((id) => elements[id]?.type === targetContainer.type)) {
+    return;
+  }
+
   yield put(UMLContainerRepository.remove(movedElements));
   yield put(UMLContainerRepository.append(movedElements, containerID || undefined));
 }
