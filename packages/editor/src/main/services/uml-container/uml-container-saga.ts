@@ -12,6 +12,8 @@ import { UMLContainer } from './uml-container';
 import { UMLContainerRepository } from './uml-container-repository';
 import { AppendAction, RemoveAction, UMLContainerActionTypes } from './uml-container-types';
 import { UMLElementCommonRepository } from '../uml-element/uml-element-common-repository';
+import { IUMLRelationship, UMLRelationship } from '../uml-relationship/uml-relationship';
+import { recalc } from '../uml-relationship/uml-relationship-saga';
 
 /** Bounds captured at each drag-start, consumed by revertOnSiblingOverlap on drag-end. */
 const moveBoundsCache: { [id: string]: { x: number; y: number; width: number; height: number } } = {};
@@ -105,6 +107,22 @@ function* remove(): SagaIterator {
 
   for (const owner of owners) {
     yield call(render, owner);
+  }
+
+  // After container re-render (which repositions child elements like BPMN lanes),
+  // relationships whose endpoints moved need their absolute canvas bounds refreshed.
+  // The layoutElement saga handles most cases via MOVE events, but is fragile against
+  // timing gaps (an error during an intermediate recalc restarts the saga after MOVE
+  // events have already been dispatched and dropped). This explicit pass guarantees
+  // correct flow positions on every deletion.
+  if (owners.length > 0) {
+    const { elements: afterElements, diagram: afterDiagram }: ModelState = yield select();
+    for (const relId of afterDiagram.ownedRelationships) {
+      const rel = afterElements[relId] as IUMLRelationship | undefined;
+      if (!rel || !UMLRelationship.isUMLRelationship(rel)) continue;
+      if (!afterElements[rel.source.element] || !afterElements[rel.target.element]) continue;
+      yield call(recalc, relId);
+    }
   }
 }
 
