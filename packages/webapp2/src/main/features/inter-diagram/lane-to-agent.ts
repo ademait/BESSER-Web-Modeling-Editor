@@ -2,6 +2,7 @@ import type { UMLModel, UMLElement, UMLRelationship } from '@besser/wme';
 import { UMLDiagramType } from '@besser/wme';
 import type { ElementLineageMap } from '../../shared/types/project';
 import type { AgentDerivationResult, AgentDerivationWarning } from './types';
+import { resolveEdgeKind, type AgenticEdgeKind } from './bpmn-to-component';
 
 /**
  * 29 — BPMN agentic lane → Agent-diagram (state machine) derivation.
@@ -19,15 +20,13 @@ const STATE_W = 140;
 const STATE_H = 40;
 const INIT_SIZE = 45;
 const V_GAP = 70; // vertical gap between stacked states
-// 30 — boundary-state columns: inputs to the left of the init node (-110),
-// outputs to the right of the task chain (0..STATE_W).
-const INPUT_COL_X = -340;
-const OUTPUT_COL_X = 340;
-const BOUNDARY_W = 160;
-const BOUNDARY_H = 40;
+// 45 — scaffolded AgentIntent elements + the inbound-intent edges originate at a
+// column left of the greeting/init node (the old INPUT_COL_X slot, now free since
+// the «input» boundary states are gone).
+const INTENT_COL_X = -340;
 // 39 (4c) — reflection-scaffold column: extra states (self-eval / cross-review /
-// human-approval) sit between the task column (x 0..140) and the output-boundary
-// column (x 340..500), so they overlap neither.
+// human-approval) sit between the task column (x 0..140) and the right, so they
+// don't overlap the task column.
 const REFLECT_COL_X = 160;
 
 const newId = (): string => 'gen-' + Math.random().toString(36).slice(2, 11);
@@ -118,29 +117,19 @@ export function laneToAgentModel(bpmn: UMLModel, laneId: string): AgentDerivatio
   const entries = tasks.filter((t) => !hasPred.has(t.id));
   const entryTasks = entries.length > 0 ? entries : [tasks[0]]; // pure-cycle fallback
 
-  // 30 — cross-lane flows → «input»/«output» boundary states (DQ-1 Option A).
-  // Runs BEFORE the init pass: it returns the task-states a cross-lane input
-  // already drives, so we can suppress their StateInitialNode (30-FU1 — an
-  // input-fed entry must not ALSO get a cold-start marker; two start points is
-  // not a valid state machine, manual test IO-4/IO-6).
   const entryStateId = stateIdByTask.get(entryTasks[0].id)!;
-  const inputFedStateIds = appendBoundaryStates(out, bpmn, laneId, taskIds, stateIdByTask, entryStateId, warnings);
 
   // 39 (4c) — reflection scaffolds: each task with reflectionMode !== 'none' gets
   // self-eval / cross-review / human-approval states spliced after its task-state,
   // re-routing the task's forward edge(s) through them. Runs after the intra-lane
-  // transitions + boundary states (both must exist to be re-routed) and before the
-  // greeting/init wrap so the entry's INCOMING wiring is untouched.
+  // transitions and before the greeting/I/O wrap so the entry's INCOMING wiring is
+  // untouched.
   appendReflectionScaffolds(out, tasks, stateIdByTask);
 
   // 36 — BAF greeting wrapper: a thin initial state so the agent never enters an
-  // LLM-body state on session start (session.event is None then → AttributeError:
-  // 'NoneType' has no attribute 'message' in reply_llm.predict). BAF pattern:
-  //   StateInitialNode → greeting (no body, always safe to enter without an event)
-  //   greeting → first-entry via when_no_intent_matched (fires on the first user
-  //   message when session.event is set). The self-loop on the LLM state
-  //   (when_no_intent_matched().go_to(self)) is NOT emitted here — the derivation
-  //   does not know which states will get LLM bodies; the user adds it manually.
+  // LLM-body state on session start (session.event is None then → AttributeError
+  // in reply_llm.predict). StateInitialNode → greeting → first-entry via
+  // when_no_intent_matched.
   const greetName = sanitizeStateName((lane.name || 'Agent') + '_greet');
   const greetId = newId();
   const greetY = -(STATE_H + V_GAP); // one layout-row above first task (y=0)
@@ -162,14 +151,33 @@ export function laneToAgentModel(bpmn: UMLModel, laneId: string): AgentDerivatio
     bounds: { x: -110, y: greetY - 2, width: INIT_SIZE, height: INIT_SIZE },
   } as unknown as UMLElement;
   emitTransition(out, initId, greetId, 'AgentStateTransitionInit', 'horizontal');
-  // If the first entry task is driven by an «input» boundary, wire greeting →
-  // that boundary (greeting → boundary → task) so the when_no_intent_matched
-  // path flows through the existing data-flow gateway state, not around it.
-  // Falls back to the task-state directly when no boundary can be found.
-  const greetTarget = inputFedStateIds.has(entryStateId)
-    ? (findInputBoundaryFor(out, entryStateId) ?? entryStateId)
-    : entryStateId;
-  emitTransition(out, greetId, greetTarget, 'AgentStateTransition', 'vertical', 'when_no_intent_matched');
+
+  // 45 (memo 44) — cross-lane I/O. Inbound from an AGENTIC peer → a
+  // when_intent_matched edge greeting → consuming task (intentName recv_<peer>,
+  // hidden a2a:in tag in `name`) + a scaffolded AgentIntent. Inbound from a
+  // non-agentic lane / start event → nothing (DQ-3). Outbound → an a2a:out
+  // tag on the producing state's description. Runs BEFORE the cold-start so
+  // we can suppress the cold-start when the entry task already has an intent
+  // transition (prevents two visually-identical arrows from greeting → entry).
+  const intentTargetStates = appendCrossLaneIO(
+    out,
+    bpmn,
+    lane,
+    laneId,
+    taskIds,
+    stateIdByTask,
+    greetId,
+    elementMapping,
+    warnings,
+  );
+
+  // 45-FU — cold-start suppressed when the entry task already received an
+  // agentic-inbound intent transition (they would otherwise visually overlap).
+  // When no intents exist (non-swarm agent), the cold-start is still needed so
+  // BAF can leave greeting on session start (None event).
+  if (!intentTargetStates.has(entryStateId)) {
+    emitTransition(out, greetId, entryStateId, 'AgentStateTransition', 'vertical', 'when_no_intent_matched');
+  }
 
   // 30-FU1 — final layout normalization: straddle the origin so the diagram
   // opens centered (mirrors bpmn-to-component recenterModelOnOrigin).
@@ -251,7 +259,8 @@ function emitTransition(
   type: 'AgentStateTransition' | 'AgentStateTransitionInit',
   orientation: 'vertical' | 'horizontal',
   predefinedType?: string,
-): void {
+  opts?: { intentName?: string; name?: string }, // 45 — A2A intent + hidden tag
+): string {
   const id = newId();
   const sb = (out.elements[srcId] as unknown as { bounds: Bounds }).bounds;
   const tb = (out.elements[tgtId] as unknown as { bounds: Bounds }).bounds;
@@ -262,7 +271,7 @@ function emitTransition(
   const p1 = orientation === 'vertical' ? { x: tb.x + tb.width / 2, y: tb.y } : { x: tb.x, y: tb.y + tb.height / 2 };
   out.relationships[id] = {
     id,
-    name: '',
+    name: opts?.name ?? '',
     type,
     owner: null,
     bounds: {
@@ -278,134 +287,140 @@ function emitTransition(
     // 36 — when_no_intent_matched (and other predefined types) need these three
     // fields so the BESSER backend's AgentStateTransition deserializer reads the
     // correct predefinedType instead of falling back to 'when_intent_matched'.
+    // 45-FU: intentName must also be at top-level so AgentStateTransition
+    // constructor (which reads values.intentName, not values.predefined.intentName)
+    // populates this.intentName correctly on first load.
     ...(predefinedType !== undefined
       ? {
           transitionType: 'predefined' as const,
-          predefined: { predefinedType, conditionValue: '' },
+          predefined:
+            opts?.intentName !== undefined
+              ? { predefinedType, intentName: opts.intentName }
+              : { predefinedType, conditionValue: '' },
+          ...(opts?.intentName !== undefined ? { intentName: opts.intentName } : {}),
           custom: { condition: [] as string[] },
         }
       : {}),
   } as unknown as UMLRelationship;
+  return id;
 }
 
-// ── 30: cross-lane I/O boundary states ──────────────────────────────
+// ── 45: cross-lane I/O (replaces guide-30 boundary states) ──────────
 
 /**
- * For every flow crossing the lane boundary, emit a `«input»`/`«output»`
- * boundary `AgentState` (deduped per direction+external name) and wire it to
- * the in-lane task-state it touches. Synthetic — no lineage entry.
+ * 45 (memo 44) — for every flow crossing the lane boundary:
+ *  - INPUT (target in lane, source external) from an AGENTIC peer lane → a
+ *    `when_intent_matched` transition greeting → consuming task-state, with a
+ *    visible `recv_<peer>` intent and a hidden `a2a:in` tag in `name`; plus a
+ *    deduped `AgentIntent` scaffold. Non-agentic / start-event source → skip
+ *    (the greeting cold-start is the channel, DQ-3).
+ *  - OUTPUT (source in lane, target external) → append an `a2a:out` line to the
+ *    producing task-state's `description` (kind omitted for non-agentic peers).
+ * Pure model mutation; lineage stamped for inbound transitions.
+ * Returns the set of task-state IDs that received a when_intent_matched
+ * transition from greetId (used to suppress the cold-start for those states).
  */
-function appendBoundaryStates(
+function appendCrossLaneIO(
   out: UMLModel,
   bpmn: UMLModel,
+  lane: AnyEl,
   laneId: string,
   taskIds: Set<string>,
   stateIdByTask: Map<string, string>,
-  entryStateId: string,
+  greetId: string,
+  elementMapping: ElementLineageMap,
   warnings: AgentDerivationWarning[],
 ): Set<string> {
   const flows = (Object.values(bpmn.relationships) as Array<UMLRelationship & { flowType?: string }>).filter(
     (r) => r.type === 'BPMNFlow' && (r.flowType === 'sequence' || r.flowType === 'message'),
   );
 
-  // dedup: boundary state per `${dir}\x00${name}`, transitions per `${bId}\x00${sId}`
-  const boundaryIdByKey = new Map<string, string>();
-  const transSeen = new Set<string>();
-  // 30-FU1 — task-states an «input» drives; their cold-start init is suppressed
-  // by the caller (returned at the end). The entry-fallback case below does NOT
-  // add to this set, so a degenerate unresolved input keeps a guaranteed start.
-  const inputFed = new Set<string>();
-  let inputRow = 0;
-  let outputRow = 0;
-
-  const ensureBoundary = (dir: 'input' | 'output', name: string): string => {
-    const key = `${dir}\x00${name}`;
-    const existing = boundaryIdByKey.get(key);
-    if (existing) return existing;
-    const row = dir === 'input' ? inputRow++ : outputRow++;
-    // 39 — share the «input»/«output» state emitter with the reflection scaffold.
-    const id = createBoundaryState(
-      out,
-      dir,
-      dir === 'input' ? `from ${name}` : `to ${name}`,
-      dir === 'input' ? INPUT_COL_X : OUTPUT_COL_X,
-      row * (BOUNDARY_H + V_GAP),
-    );
-    boundaryIdByKey.set(key, id);
-    return id;
-  };
+  const intentIdByName = new Map<string, string>(); // dedup scaffolded AgentIntents
+  let intentRow = 0;
+  const outOrderByState = new Map<string, number>(); // running a2a:out order per producing state
+  const intentTargetStates = new Set<string>(); // states that received a when_intent_matched edge
 
   for (const f of flows) {
-    // 30-FU1 — direction fix: an INPUT lands on the in-lane TARGET and flows
-    // FORWARD through in-lane gateways to the consuming task(s); an OUTPUT
-    // leaves the in-lane SOURCE, produced by task(s) reachable BACKWARD. (The
-    // pre-FU1 args were swapped — harmless for a direct task↔task crossing, but
-    // wrong for a gateway-mediated one, which then fell back to entry: IO-6.)
-    const srcInLane = inLaneTasks(bpmn, laneId, taskIds, f.source.element, 'backward');
-    const tgtInLane = inLaneTasks(bpmn, laneId, taskIds, f.target.element, 'forward');
     const sourceIsInLane = isInLaneNode(bpmn, laneId, f.source.element);
     const targetIsInLane = isInLaneNode(bpmn, laneId, f.target.element);
 
-    // INPUT: target side in lane, source side external.
+    // INPUT: target in lane, source external.
     if (targetIsInLane && !sourceIsInLane) {
-      const name = externalName(bpmn, f.source.element);
-      const bId = ensureBoundary('input', name);
-      if (tgtInLane.length > 0) {
-        for (const t of tgtInLane) {
-          const sId = stateIdByTask.get(t)!;
-          inputFed.add(sId); // 30-FU1 — this entry's cold-start init is suppressed
-          wireBoundary(out, bId, sId, 'input', transSeen);
-        }
-      } else {
-        // Unresolved in-lane endpoint → attach to the entry state and warn
-        // (never silently drop). The entry KEEPS its init (a guaranteed
-        // cold-start for this degenerate case) → NOT added to inputFed.
+      const peerLane = externalLaneElement(bpmn, f.source.element);
+      // DQ-3: only an AGENTIC peer lane becomes an A2A intent; everything else
+      // (pool, start event, human/external lane) folds into the cold-start.
+      if (!peerLane || peerLane.isAgentic !== true) continue;
+      const peerName = externalName(bpmn, f.source.element);
+      const consuming = inLaneTasks(bpmn, laneId, taskIds, f.target.element, 'forward');
+      if (consuming.length === 0) {
         warnings.push({ kind: 'io-attached-to-entry', flowId: f.id });
-        wireBoundary(out, bId, entryStateId, 'input', transSeen);
+        continue; // unresolved agentic input: cold-start covers the entry
+      }
+      const kind = resolveEdgeKind(peerLane as UMLElement, lane as UMLElement, undefined);
+      const ref = peerLane.agentDiagramRef;
+      const tag = a2aTag({ dir: 'in', peer: peerName, ref, flow: f.id, kind });
+      // one intent per (peer, consuming task): recv_<peer>_<task>
+      for (const taskId of consuming) {
+        const sId = stateIdByTask.get(taskId)!;
+        const taskName = sanitizeStateName((bpmn.elements[taskId] as AnyEl).name || 'Task');
+        const intent = recvIntentName(peerName, taskName);
+        if (!intentIdByName.has(intent)) {
+          intentIdByName.set(intent, createIntentScaffold(out, intent, peerName, intentRow++));
+        }
+        const tId = emitTransition(out, greetId, sId, 'AgentStateTransition', 'vertical', 'when_intent_matched', {
+          intentName: intent,
+          name: tag,
+        });
+        intentTargetStates.add(sId);
+        elementMapping[tId] = f.id; // lineage: inbound intent ← inducing flow
       }
       continue;
     }
-    // OUTPUT: source side in lane, target side external.
+
+    // OUTPUT: source in lane, target external.
     if (sourceIsInLane && !targetIsInLane) {
-      const name = externalName(bpmn, f.target.element);
-      const bId = ensureBoundary('output', name);
-      const sources = srcInLane.length > 0 ? srcInLane.map((t) => stateIdByTask.get(t)!) : [entryStateId];
-      if (srcInLane.length === 0) warnings.push({ kind: 'io-attached-to-entry', flowId: f.id });
-      for (const sId of sources) wireBoundary(out, bId, sId, 'output', transSeen);
+      const producing = inLaneTasks(bpmn, laneId, taskIds, f.source.element, 'backward');
+      const states = producing.length > 0 ? producing.map((t) => stateIdByTask.get(t)!) : [];
+      if (states.length === 0) {
+        warnings.push({ kind: 'io-attached-to-entry', flowId: f.id });
+        continue;
+      }
+      const peerLane = externalLaneElement(bpmn, f.target.element);
+      const peerName = externalName(bpmn, f.target.element);
+      const kind =
+        peerLane && peerLane.isAgentic === true
+          ? resolveEdgeKind(lane as UMLElement, peerLane as UMLElement, undefined)
+          : undefined; // non-agentic sink → plain channel, no kind
+      const ref = peerLane?.agentDiagramRef;
+      for (const sId of states) {
+        const order = (outOrderByState.get(sId) ?? 0) + 1;
+        outOrderByState.set(sId, order);
+        const tag = a2aTag({ dir: 'out', peer: peerName, ref, flow: f.id, order, kind });
+        const el = out.elements[sId] as unknown as { description?: string };
+        el.description = el.description ? `${el.description}\n${tag}` : tag;
+      }
     }
   }
-  return inputFed;
-}
-
-function wireBoundary(
-  out: UMLModel,
-  boundaryId: string,
-  taskStateId: string,
-  dir: 'input' | 'output',
-  seen: Set<string>,
-): void {
-  const key = `${boundaryId}\x00${taskStateId}`;
-  if (seen.has(key)) return;
-  seen.add(key);
-  // input: boundary → task; output: task → boundary.
-  if (dir === 'input') emitTransition(out, boundaryId, taskStateId, 'AgentStateTransition', 'horizontal');
-  else emitTransition(out, taskStateId, boundaryId, 'AgentStateTransition', 'horizontal');
+  return intentTargetStates;
 }
 
 /**
- * 36 — find the first «input» boundary state that wires into `taskStateId`.
- * Used by the greeting-wrapper to chain greeting → boundary → task instead of
- * greeting → task directly (preserving the input-boundary as the data-flow gateway).
- * Returns null when the task has no input boundary (normal cold-start path).
+ * 45 — a scaffolded `AgentIntent` element (DQ-5) so `when_intent_matched` binds
+ * to a declared intent. Placeholder description; user adds training phrases.
+ * Laid out in a column left of the greeting/init node.
  */
-function findInputBoundaryFor(out: UMLModel, taskStateId: string): string | null {
-  for (const rel of Object.values(out.relationships)) {
-    if (rel.type !== 'AgentStateTransition') continue;
-    if (rel.target.element !== taskStateId) continue;
-    const src = out.elements[rel.source.element] as unknown as { stereotype?: string };
-    if (src?.stereotype === 'input') return rel.source.element;
-  }
-  return null;
+function createIntentScaffold(out: UMLModel, intentName: string, peerName: string, row: number): string {
+  const id = newId();
+  out.elements[id] = {
+    id,
+    name: intentName,
+    type: 'AgentIntent',
+    owner: null,
+    bounds: { x: INTENT_COL_X, y: row * (STATE_H + V_GAP), width: STATE_W, height: STATE_H },
+    bodies: [],
+    intent_description: `Incoming message from ${peerName} (auto-scaffolded; add training phrases).`,
+  } as unknown as UMLElement;
+  return id;
 }
 
 /**
@@ -496,6 +511,55 @@ function externalName(bpmn: UMLModel, nodeId: string): string {
 }
 
 /**
+ * 45 — the external endpoint's owning agentic *lane* element (a BPMNSwimlane),
+ * walking the full owner chain like externalName. Returns undefined when the
+ * endpoint resolves to a pool / start event / unlinked node — those are NOT
+ * agentic peers (DQ-3 → cold-start for inbound). The agentic check is the
+ * caller's (resolveEdgeKind already returns 'delegates' for non-agentic, but we
+ * gate inbound on isAgentic so a human/external lane stays a cold-start).
+ */
+function externalLaneElement(
+  bpmn: UMLModel,
+  nodeId: string,
+): (UMLElement & { isAgentic?: boolean; role?: unknown; agentDiagramRef?: string }) | undefined {
+  const el = bpmn.elements[nodeId] as (UMLElement & { owner?: string }) | undefined;
+  if (!el) return undefined;
+  if (el.type === 'BPMNSwimlane') return el as never;
+  const guard = new Set<string>();
+  let cur = el.owner ? (bpmn.elements[el.owner] as (UMLElement & { owner?: string }) | undefined) : undefined;
+  while (cur && !guard.has(cur.id)) {
+    guard.add(cur.id);
+    if (cur.type === 'BPMNSwimlane') return cur as never;
+    cur = cur.owner ? (bpmn.elements[cur.owner] as (UMLElement & { owner?: string }) | undefined) : undefined;
+  }
+  return undefined;
+}
+
+/**
+ * 45 — synthetic visible intent name (DQ-2): `recv_<peer>_<task>` so a peer
+ * feeding two different task-states yields two unambiguous intents.
+ * Sanitized to BAF's identifier charset.
+ */
+function recvIntentName(peerName: string, taskName: string): string {
+  return sanitizeStateName('recv_' + peerName + '_' + taskName);
+}
+
+/** 45 — the WME→BESSER A2A wire tag (memo § 3). Empty fields are omitted. */
+function a2aTag(parts: {
+  dir: 'in' | 'out';
+  peer: string;
+  ref?: string;
+  flow: string;
+  order?: number;
+  kind?: AgenticEdgeKind;
+}): string {
+  const seg = [`a2a:${parts.dir}`, `peer=${parts.peer}`, `ref=${parts.ref ?? ''}`, `flow=${parts.flow}`];
+  if (parts.dir === 'out') seg.push(`order=${parts.order ?? 1}`);
+  if (parts.kind) seg.push(`kind=${parts.kind}`);
+  return seg.join(';');
+}
+
+/**
  * 30-FU1 — translate the whole model so its bounding-box midpoint sits on the
  * origin. The editor sizes the canvas symmetrically around (0,0) and the scroll
  * container opens at top-left (uml-diagram.ts), so off-origin content opens
@@ -538,30 +602,6 @@ function recenterAgentModel(out: UMLModel): void {
 }
 
 // ── 39 (4c): reflection scaffolds ───────────────────────────────────
-
-/**
- * 39 — emit an «input»/«output» boundary `AgentState`. This is the guide-30
- * boundary-state emitter factored out of `ensureBoundary` so it can be shared.
- * `rawName` is the full display name (already carrying its `from `/`to `/
- * `review `/`feedback ` prefix); it is sanitized here. Used by
- * `appendBoundaryStates` (cross-lane I/O) AND `appendReflectionScaffolds`
- * (cross-reflection review/feedback) — one definition of the «output»/«input»
- * shape, no duplication.
- */
-function createBoundaryState(out: UMLModel, dir: 'input' | 'output', rawName: string, x: number, y: number): string {
-  const id = newId();
-  out.elements[id] = {
-    id,
-    name: sanitizeStateName(rawName),
-    type: 'AgentState',
-    owner: null,
-    stereotype: dir, // «input» / «output»
-    bounds: { x, y, width: BOUNDARY_W, height: BOUNDARY_H },
-    bodies: [],
-    fallbackBodies: [],
-  } as unknown as UMLElement;
-  return id;
-}
 
 /**
  * 39 — a self-loop transition on `stateId` (source === target). `emitTransition`
@@ -612,11 +652,10 @@ function emitSelfLoop(out: UMLModel, stateId: string): void {
  *  - 'self'  → a `<task>_reflect` self-evaluation state. task → reflect
  *             (when_no_intent_matched), a self-loop on reflect ("revise"), and
  *             reflect → next ("approve"). User adds the LLM body + intent names.
- *  - 'cross' → reuse the guide-30 «output»/«input» boundary states: a
- *             `review_<task>` «output» (send output to a reviewer agent) and a
- *             `feedback_<task>` «input» (await its reply), wired
- *             task → review → feedback → next. The BAF A2A generator already reads
- *             «output»/«input» as cross-agent calls — no generator change.
+ *  - 'cross' → 45: a neutral `<task>_await_review` wait state (no stereotype),
+ *             wired task → await_review → next. Proper A2A-ification (an a2a:in
+ *             intent + tag, like appendCrossLaneIO) is deferred to follow-up
+ *             guide 46-reflection-scaffold-a2a-cleanup.
  *  - 'human' → a `<task>_human_review` wait state. task → human_review
  *             (when_no_intent_matched), human_review → next ("approved"), and
  *             human_review → task ("rejected", loops back for revision).
@@ -678,13 +717,22 @@ function appendReflectionScaffolds(out: UMLModel, tasks: AnyEl[], stateIdByTask:
       for (const n of nexts) emitTransition(out, humanId, n, 'AgentStateTransition', 'vertical'); // generic — "approved"
       emitTransition(out, humanId, sT, 'AgentStateTransition', 'horizontal'); // generic — "rejected" loop back
     } else if (mode === 'cross') {
-      // Single «input» boundary: task → feedback_from_<task> → next.
-      // No separate «output» review state — the sending is implicit; the input
-      // state expresses "awaiting cross-agent feedback" and the BAF A2A generator
-      // already interprets «input» as a cross-agent receive.
-      const feedbackId = createBoundaryState(out, 'input', `feedback from ${taskName}`, REFLECT_COL_X, sb.y);
-      emitTransition(out, sT, feedbackId, 'AgentStateTransition', 'horizontal'); // task → «input» await
-      for (const n of nexts) emitTransition(out, feedbackId, n, 'AgentStateTransition', 'vertical'); // «input» → next
+      // 45 — interim: a neutral wait state (no «input» stereotype, no from_/to_
+      // name) so cross-reflection no longer emits a boundary state. Proper
+      // A2A-ification (an a2a:in intent + tag, like appendCrossLaneIO) is deferred
+      // to follow-up guide 46-reflection-scaffold-a2a-cleanup.
+      const reviewId = newId();
+      out.elements[reviewId] = {
+        id: reviewId,
+        name: `${taskName}_await_review`,
+        type: 'AgentState',
+        owner: null,
+        bounds: { x: REFLECT_COL_X, y: sb.y, width: STATE_W, height: STATE_H },
+        bodies: [],
+        fallbackBodies: [],
+      } as unknown as UMLElement;
+      emitTransition(out, sT, reviewId, 'AgentStateTransition', 'horizontal', 'when_no_intent_matched');
+      for (const n of nexts) emitTransition(out, reviewId, n, 'AgentStateTransition', 'vertical');
     }
   }
 }

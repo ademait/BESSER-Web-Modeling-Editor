@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { UMLModel } from '@besser/wme';
 import { laneToAgentModel } from '../lane-to-agent';
+import divergeMerge from './fixtures/diverge-merge.json';
 
 function bpmn(): UMLModel {
   return {
@@ -98,7 +99,7 @@ describe('29 — laneToAgentModel', () => {
     expect(Object.values(r.model.elements).filter((e) => e.type === 'StateInitialNode')).toHaveLength(1); // → greeting
   });
 
-  describe('30 — cross-lane I/O boundary states', () => {
+  describe('30 → 45 — cross-lane I/O (boundary states removed; A2A tags + DQ-3 cold-start)', () => {
     const laneB = (id: string, name: string) => ({
       id,
       name,
@@ -115,7 +116,9 @@ describe('29 — laneToAgentModel', () => {
       bounds: { x, y: 0, width: 100, height: 60 },
     });
 
-    it('emits an «input» boundary for an incoming cross-lane sequence flow', () => {
+    it('non-agentic inbound → no boundary state; cold-start greeting → entry task', () => {
+      // Before guide 45: a from_Reviewer «input» state was emitted.
+      // After: non-agentic peer folds into the cold-start (DQ-3).
       const m = bpmn();
       Object.assign(m.elements, {
         L: lane('L'),
@@ -126,17 +129,24 @@ describe('29 — laneToAgentModel', () => {
       Object.assign(m.relationships, { f1: seq('f1', 'r1', 't1') }); // Reviewer → worker
       const res = laneToAgentModel(m, 'L');
       if (!res.ok) throw new Error('expected ok');
-      const inputs = Object.values(res.model.elements).filter(
-        (e) => e.type === 'AgentState' && (e as { stereotype?: string }).stereotype === 'input',
+      const boundaryStates = Object.values(res.model.elements).filter(
+        (e) => e.type === 'AgentState' && ['input', 'output'].includes((e as { stereotype?: string }).stereotype ?? ''),
       );
-      expect(inputs).toHaveLength(1);
-      expect(inputs[0].name).toBe('from_Reviewer');
-      // wired into the receiving task-state
-      const trans = Object.values(res.model.relationships).filter((e) => e.type === 'AgentStateTransition');
-      expect(trans.some((tr) => tr.source.element === inputs[0].id)).toBe(true);
+      expect(boundaryStates).toHaveLength(0);
+      // greeting → Work directly via when_no_intent_matched
+      const greet = Object.values(res.model.elements).find((e) => e.type === 'AgentState' && e.name === 'Coder_greet')!;
+      const greetEdge = Object.values(res.model.relationships).find(
+        (e) => e.type === 'AgentStateTransition' && e.source.element === greet.id,
+      )!;
+      expect(greetEdge).toBeDefined();
+      expect(
+        (greetEdge as unknown as { predefined?: { predefinedType?: string } }).predefined?.predefinedType,
+      ).toBe('when_no_intent_matched');
     });
 
-    it('emits an «output» boundary for an outgoing flow + dedups per external lane', () => {
+    it('non-agentic outbound → a2a:out description tag on producing states; no boundary state', () => {
+      // Before guide 45: a single to_Reviewer «output» state was emitted (deduped).
+      // After: an a2a:out tag is appended to each producing task-state's description.
       const m = bpmn();
       Object.assign(m.elements, {
         L: lane('L'),
@@ -149,15 +159,17 @@ describe('29 — laneToAgentModel', () => {
       Object.assign(m.relationships, { f1: seq('f1', 't1', 'r1'), f2: seq('f2', 't2', 'r1') });
       const res = laneToAgentModel(m, 'L');
       if (!res.ok) throw new Error('expected ok');
-      const outputs = Object.values(res.model.elements).filter(
-        (e) => e.type === 'AgentState' && (e as { stereotype?: string }).stereotype === 'output',
+      const boundaryStates = Object.values(res.model.elements).filter(
+        (e) => e.type === 'AgentState' && ['input', 'output'].includes((e as { stereotype?: string }).stereotype ?? ''),
       );
-      expect(outputs).toHaveLength(1); // deduped
-      expect(outputs[0].name).toBe('to_Reviewer');
-      const toBoundary = Object.values(res.model.relationships).filter(
-        (e) => e.type === 'AgentStateTransition' && e.target.element === outputs[0].id,
-      );
-      expect(toBoundary).toHaveLength(2); // one per source task
+      expect(boundaryStates).toHaveLength(0);
+      // both A and B task-states carry an a2a:out tag (no kind for non-agentic)
+      const stateA = Object.values(res.model.elements).find((e) => e.type === 'AgentState' && e.name === 'A')!;
+      const stateB = Object.values(res.model.elements).find((e) => e.type === 'AgentState' && e.name === 'B')!;
+      const descA = (stateA as unknown as { description?: string }).description ?? '';
+      const descB = (stateB as unknown as { description?: string }).description ?? '';
+      expect(descA).toContain('a2a:out;peer=Reviewer;');
+      expect(descB).toContain('a2a:out;peer=Reviewer;');
     });
 
     it('does not emit boundaries for a self-contained lane', () => {
@@ -172,9 +184,9 @@ describe('29 — laneToAgentModel', () => {
       expect(boundaries).toHaveLength(0);
     });
 
-    // 30-FU1 (IO-4): an input-fed task must not also get a StateInitialNode —
-    // two start points is not a valid state machine.
-    it('suppresses the start marker on input-fed tasks (no double start)', () => {
+    // 45 replaces 30-FU1 (IO-4): with no boundary states the entry always gets
+    // the init via greeting — no double-start risk.
+    it('non-agentic sources → 0 boundary states; 1 StateInitialNode (greeting)', () => {
       const m = bpmn();
       Object.assign(m.elements, {
         L: lane('L'),
@@ -186,63 +198,43 @@ describe('29 — laneToAgentModel', () => {
       Object.assign(m.relationships, { f1: seq('f1', 'r1', 't1'), f2: seq('f2', 'r1', 't2') });
       const res = laneToAgentModel(m, 'L');
       if (!res.ok) throw new Error('expected ok');
-      const inputs = Object.values(res.model.elements).filter(
-        (e) => e.type === 'AgentState' && (e as { stereotype?: string }).stereotype === 'input',
-      );
-      expect(inputs).toHaveLength(1); // deduped per external lane
-      const inTrans = Object.values(res.model.relationships).filter(
-        (e) => e.type === 'AgentStateTransition' && e.source.element === inputs[0].id,
-      );
-      expect(inTrans).toHaveLength(2); // one into each fed task
-      // 36 — both tasks are input-fed; greeting is always the StateInitialNode target.
+      expect(
+        Object.values(res.model.elements).filter(
+          (e) => e.type === 'AgentState' && ['input', 'output'].includes((e as { stereotype?: string }).stereotype ?? ''),
+        ),
+      ).toHaveLength(0);
       expect(Object.values(res.model.elements).filter((e) => e.type === 'StateInitialNode')).toHaveLength(1);
     });
 
-    // 30-FU1 (IO-6): a gateway-mediated input wires THROUGH to the downstream
-    // task (not the entry), and that task's double start is suppressed while a
-    // separate standalone task keeps its legitimate cold-start.
-    it('wires a gateway-mediated input to the downstream task and suppresses its double start', () => {
+    // 45 replaces 30-FU1 (IO-6): non-agentic gateway-mediated cross-lane flow →
+    // no boundary state; greeting wires directly to the first entry task.
+    it('non-agentic gateway-mediated input → 0 boundary states; greeting → first entry', () => {
       const m = bpmn();
       Object.assign(m.elements, {
         L: lane('L'),
         R: laneB('R', 'Reviewer'),
-        impl: taskIn('impl', 'Implement', 'L', 10), // standalone cold-start entry
-        tnew: taskIn('tnew', 'Downstream', 'L', 200), // fed via the gateway
-        g: gw('g', 120), // gateway in L
-        r1: taskIn('r1', 'X', 'R', 10), // external source
+        impl: taskIn('impl', 'Implement', 'L', 10),
+        tnew: taskIn('tnew', 'Downstream', 'L', 200),
+        g: gw('g', 120),
+        r1: taskIn('r1', 'X', 'R', 10),
       });
       Object.assign(m.relationships, { f1: seq('f1', 'r1', 'g'), f2: seq('f2', 'g', 'tnew') });
       const res = laneToAgentModel(m, 'L');
       if (!res.ok) throw new Error('expected ok');
+      expect(
+        Object.values(res.model.elements).filter(
+          (e) => e.type === 'AgentState' && (e as { stereotype?: string }).stereotype === 'input',
+        ),
+      ).toHaveLength(0);
+      expect(Object.values(res.model.elements).filter((e) => e.type === 'StateInitialNode')).toHaveLength(1);
       const stateId = (name: string) =>
         Object.values(res.model.elements).find((e) => e.type === 'AgentState' && e.name === name)!.id;
-      const inputs = Object.values(res.model.elements).filter(
-        (e) => e.type === 'AgentState' && (e as { stereotype?: string }).stereotype === 'input',
-      );
-      expect(inputs).toHaveLength(1);
-      expect(inputs[0].name).toBe('from_Reviewer');
-      // input wires through the gateway to the downstream task, NOT the entry.
-      const inTrans = Object.values(res.model.relationships).filter(
-        (e) => e.type === 'AgentStateTransition' && e.source.element === inputs[0].id,
-      );
-      expect(inTrans).toHaveLength(1);
-      expect(inTrans[0].target.element).toBe(stateId('Downstream'));
-      // exactly one start point — on the standalone entry, not the input-fed task.
-      const inits = Object.values(res.model.elements).filter((e) => e.type === 'StateInitialNode');
-      expect(inits).toHaveLength(1);
-      const initTrans = Object.values(res.model.relationships).filter((e) => e.type === 'AgentStateTransitionInit');
-      expect(initTrans).toHaveLength(1);
-      // 36 — init now targets the greeting state, not the task directly
-      const greetState = Object.values(res.model.elements).find(
-        (e) => e.type === 'AgentState' && e.name === 'Coder_greet',
-      )!;
-      expect(initTrans[0].target.element).toBe(greetState.id);
-      // greeting → Implement via when_no_intent_matched (impl is the non-input-fed entry)
-      const greetToImpl = Object.values(res.model.relationships).find(
+      const greetState = Object.values(res.model.elements).find((e) => e.name === 'Coder_greet')!;
+      const greetToEntry = Object.values(res.model.relationships).find(
         (e) => e.type === 'AgentStateTransition' && e.source.element === greetState.id,
       );
-      expect(greetToImpl).toBeDefined();
-      expect(greetToImpl!.target.element).toBe(stateId('Implement'));
+      expect(greetToEntry).toBeDefined();
+      expect(greetToEntry!.target.element).toBe(stateId('Implement'));
     });
 
     it('item 22 — a lane-owned start event does NOT produce a from_<self> boundary', () => {
@@ -300,7 +292,9 @@ describe('29 — laneToAgentModel', () => {
       expect(/[^\w]/.test(taskStates[0].name)).toBe(false);
     });
 
-    it('Bug 1c: external lane with a spaced name → «input» boundary state sanitized', () => {
+    it('Bug 1c: non-agentic external lane → no boundary state emitted (DQ-3)', () => {
+      // Before guide 45: a from_Code_Reviewer «input» state with sanitized name
+      // was emitted. After: non-agentic peer folds into cold-start; no state.
       const m = bpmn();
       Object.assign(m.elements, {
         L: lane('L'),
@@ -318,12 +312,10 @@ describe('29 — laneToAgentModel', () => {
       Object.assign(m.relationships, { f1: seq('f1', 'r1', 't1') });
       const r = laneToAgentModel(m, 'L');
       if (!r.ok) throw new Error('expected ok');
-      const inputs = Object.values(r.model.elements).filter(
+      const inputStates = Object.values(r.model.elements).filter(
         (e) => e.type === 'AgentState' && (e as { stereotype?: string }).stereotype === 'input',
       );
-      expect(inputs).toHaveLength(1);
-      expect(inputs[0].name).toBe('from_Code_Reviewer');
-      expect(inputs[0].name).not.toMatch(/\s/);
+      expect(inputStates).toHaveLength(0);
     });
 
     it('Bug 2: single task entirely driven by an «input» flow → still one StateInitialNode', () => {
@@ -425,7 +417,9 @@ describe('29 — laneToAgentModel', () => {
       ).toBe('when_no_intent_matched');
     });
 
-    it('input-fed entry: greeting connects to the «input» boundary (not the task directly)', () => {
+    it('non-agentic input-fed entry: greeting wires DIRECTLY to the entry task (no boundary chaining)', () => {
+      // Before guide 45: greeting → input-boundary → task.
+      // After: boundary states gone; greeting → task directly.
       const m = bpmn();
       const laneB = (id: string, nm: string) => ({
         id,
@@ -452,14 +446,20 @@ describe('29 — laneToAgentModel', () => {
       const r = laneToAgentModel(m, 'L');
       if (!r.ok) throw new Error('expected ok');
       const greetState = Object.values(r.model.elements).find((e) => e.name === 'Coder_greet')!;
-      const inputBoundary = Object.values(r.model.elements).find(
-        (e) => e.type === 'AgentState' && (e as unknown as { stereotype?: string }).stereotype === 'input',
+      const taskState = Object.values(r.model.elements).find(
+        (e) => e.type === 'AgentState' && r.elementMapping[e.id] === 't1',
       )!;
-      // greeting → input-boundary (not task directly)
+      // 0 boundary states
+      expect(
+        Object.values(r.model.elements).filter(
+          (e) => e.type === 'AgentState' && ['input', 'output'].includes((e as { stereotype?: string }).stereotype ?? ''),
+        ),
+      ).toHaveLength(0);
+      // greeting → task DIRECTLY (no intermediate boundary)
       const greetEdge = Object.values(r.model.relationships).find(
         (e) => e.type === 'AgentStateTransition' && e.source.element === greetState.id,
       )!;
-      expect(greetEdge.target.element).toBe(inputBoundary.id);
+      expect(greetEdge.target.element).toBe(taskState.id);
       expect((greetEdge as unknown as { predefined?: { predefinedType?: string } }).predefined?.predefinedType).toBe(
         'when_no_intent_matched',
       );
@@ -514,23 +514,25 @@ describe('29 — laneToAgentModel', () => {
       expect(ts.some((e) => e.source.element === reflect!.id && e.target.element === code.id)).toBe(true);
     });
 
-    it("'cross' inserts a single «input» feedback_from state wired task → feedback → next (no review output state)", () => {
+    it("'cross' inserts a neutral <task>_await_review wait state (no «input» stereotype)", () => {
+      // Before guide 45: a feedback_from_Plan «input» state was emitted.
+      // After: a neutral Plan_await_review state with no stereotype.
       const m = bpmn();
       Object.assign(m.elements, { L: lane('L'), t1: rtask('t1', 'Plan', 10, 'cross'), t2: task('t2', 'Code', 200) });
       Object.assign(m.relationships, { f1: seq('f1', 't1', 't2') });
       const r = laneToAgentModel(m, 'L');
       if (!r.ok) throw new Error('expected ok');
-      // no review output state
-      expect(findState(r.model, 'review_Plan')).toBeUndefined();
-      const feedback = findState(r.model, 'feedback_from_Plan');
-      expect(feedback).toBeDefined();
-      expect((feedback as unknown as { stereotype?: string }).stereotype).toBe('input');
+      // no «input» / «output» states at all
+      expect(findState(r.model, 'feedback_from_Plan')).toBeUndefined();
+      const waitState = findState(r.model, 'Plan_await_review');
+      expect(waitState).toBeDefined();
+      expect((waitState as unknown as { stereotype?: string }).stereotype).toBeUndefined();
       const plan = findState(r.model, 'Plan')!;
       const code = findState(r.model, 'Code')!;
       const ts = transitions(r.model);
       expect(ts.some((e) => e.source.element === plan.id && e.target.element === code.id)).toBe(false);
-      expect(ts.some((e) => e.source.element === plan.id && e.target.element === feedback!.id)).toBe(true);
-      expect(ts.some((e) => e.source.element === feedback!.id && e.target.element === code.id)).toBe(true);
+      expect(ts.some((e) => e.source.element === plan.id && e.target.element === waitState!.id)).toBe(true);
+      expect(ts.some((e) => e.source.element === waitState!.id && e.target.element === code.id)).toBe(true);
     });
 
     it("'human' inserts a <task>_human_review wait state with approve-forward + reject-loop", () => {
@@ -554,6 +556,208 @@ describe('29 — laneToAgentModel', () => {
       expect(ts.some((e) => e.source.element === human!.id && e.target.element === code.id)).toBe(true);
       // rejected → back to Plan
       expect(ts.some((e) => e.source.element === human!.id && e.target.element === plan.id)).toBe(true);
+    });
+  });
+
+  describe('45 — A2A cross-lane I/O', () => {
+    const agLane = (id: string, name: string, role: string) => ({
+      id,
+      name,
+      type: 'BPMNSwimlane',
+      owner: null,
+      isAgentic: true,
+      role,
+      bounds: { x: 0, y: 400, width: 400, height: 200 },
+    });
+    const agTask = (id: string, name: string, owner: string) => ({
+      id,
+      name,
+      type: 'BPMNTask',
+      owner,
+      bounds: { x: 10, y: 0, width: 100, height: 60 },
+    });
+
+    it('A2A-1: zero AgentStates with stereotype input|output from any path (incl. cross reflection)', () => {
+      const m = bpmn();
+      Object.assign(m.elements, {
+        L: { id: 'L', name: 'Coder', type: 'BPMNSwimlane', owner: null, isAgentic: true, role: 'worker', bounds: { x: 0, y: 0, width: 400, height: 200 } },
+        P: agLane('P', 'Supervisor', 'manager'),
+        t1: { id: 't1', name: 'Plan', type: 'BPMNTask', owner: 'L', bounds: { x: 10, y: 0, width: 100, height: 60 }, reflectionMode: 'cross' },
+        t2: task('t2', 'Code', 200),
+        p1: agTask('p1', 'Assign', 'P'),
+      });
+      Object.assign(m.relationships, {
+        f1: seq('f1', 'p1', 't1'), // agentic inbound
+        f2: seq('f2', 't1', 't2'), // intra-lane
+      });
+      const r = laneToAgentModel(m, 'L');
+      if (!r.ok) throw new Error('expected ok');
+      const boundaryStates = Object.values(r.model.elements).filter(
+        (e) => e.type === 'AgentState' && ['input', 'output'].includes((e as { stereotype?: string }).stereotype ?? ''),
+      );
+      expect(boundaryStates).toHaveLength(0);
+      // 'cross' task → neutral wait state (not a boundary state)
+      expect(
+        Object.values(r.model.elements).find((e) => e.type === 'AgentState' && e.name === 'Plan_await_review'),
+      ).toBeDefined();
+    });
+
+    it('A2A-2: single agentic inbound → when_intent_matched edge + AgentIntent scaffold (diverge-merge fixture)', () => {
+      // Derive lane-wkr (Coder, worker). Flow f2: gw-diver(lane-mgr) → task-repro(lane-wkr).
+      // Expected: 1 AgentIntent recv_Reviewer_Reproduce_and_fix; 1 intent transition
+      // greet→task; hidden a2a:in tag in name.
+      const r = laneToAgentModel(divergeMerge as unknown as UMLModel, 'lane-wkr');
+      if (!r.ok) throw new Error('expected ok');
+
+      const intents = Object.values(r.model.elements).filter((e) => e.type === 'AgentIntent');
+      expect(intents).toHaveLength(1);
+      expect(intents[0].name).toBe('recv_Reviewer_Reproduce_and_fix');
+
+      const greet = Object.values(r.model.elements).find((e) => e.type === 'AgentState' && e.name === 'Coder_greet')!;
+      const intentTrans = Object.values(r.model.relationships).filter(
+        (e) =>
+          e.type === 'AgentStateTransition' &&
+          e.source.element === greet.id &&
+          (e as unknown as { predefined?: { predefinedType?: string } }).predefined?.predefinedType ===
+            'when_intent_matched',
+      );
+      expect(intentTrans).toHaveLength(1);
+      // intentName in predefined block (deserialize path)
+      expect(
+        (intentTrans[0] as unknown as { predefined?: { intentName?: string } }).predefined?.intentName,
+      ).toBe('recv_Reviewer_Reproduce_and_fix');
+      // intentName also at top-level (constructor path — 45-FU fix)
+      expect((intentTrans[0] as unknown as { intentName?: string }).intentName).toBe(
+        'recv_Reviewer_Reproduce_and_fix',
+      );
+      const tag = (intentTrans[0] as unknown as { name?: string }).name ?? '';
+      expect(tag).toBe('a2a:in;peer=Reviewer;ref=;flow=f2;kind=supervises');
+
+      // 45-FU: cold-start suppressed when entry task has an intent transition
+      const coldStart = Object.values(r.model.relationships).filter(
+        (e) =>
+          e.type === 'AgentStateTransition' &&
+          e.source.element === greet.id &&
+          (e as unknown as { predefined?: { predefinedType?: string } }).predefined?.predefinedType ===
+            'when_no_intent_matched',
+      );
+      expect(coldStart).toHaveLength(0);
+    });
+
+    it('A2A-3: multi-peer inbound → 3 greeting edges, 3 distinct recv_* intents, 3 distinct peer= tags', () => {
+      const m = bpmn();
+      Object.assign(m.elements, {
+        L: { id: 'L', name: 'Coder', type: 'BPMNSwimlane', owner: null, isAgentic: true, role: 'worker', bounds: { x: 0, y: 0, width: 400, height: 200 } },
+        X: agLane('X', 'PeerX', 'worker'),
+        Y: agLane('Y', 'PeerY', 'worker'),
+        Z: agLane('Z', 'PeerZ', 'manager'),
+        t1: task('t1', 'Work', 10),
+        x1: agTask('x1', 'TX', 'X'),
+        y1: agTask('y1', 'TY', 'Y'),
+        z1: agTask('z1', 'TZ', 'Z'),
+      });
+      Object.assign(m.relationships, {
+        f1: seq('f1', 'x1', 't1'),
+        f2: seq('f2', 'y1', 't1'),
+        f3: seq('f3', 'z1', 't1'),
+      });
+      const r = laneToAgentModel(m, 'L');
+      if (!r.ok) throw new Error('expected ok');
+
+      const intents = Object.values(r.model.elements).filter((e) => e.type === 'AgentIntent');
+      expect(intents).toHaveLength(3);
+      expect(intents.map((e) => e.name).sort()).toEqual(
+        ['recv_PeerX_Work', 'recv_PeerY_Work', 'recv_PeerZ_Work'],
+      );
+
+      const greet = Object.values(r.model.elements).find((e) => e.type === 'AgentState' && e.name === 'Coder_greet')!;
+      const intentEdges = Object.values(r.model.relationships).filter(
+        (e) =>
+          e.type === 'AgentStateTransition' &&
+          e.source.element === greet.id &&
+          (e as unknown as { predefined?: { predefinedType?: string } }).predefined?.predefinedType ===
+            'when_intent_matched',
+      );
+      expect(intentEdges).toHaveLength(3);
+      const peers = intentEdges
+        .map((e) => {
+          const match = ((e as unknown as { name?: string }).name ?? '').match(/peer=([^;]+)/);
+          return match ? match[1] : '';
+        })
+        .sort();
+      expect(peers).toEqual(['PeerX', 'PeerY', 'PeerZ']);
+    });
+
+    it('A2A-4: non-agentic / start-event inbound → cold-start only, no AgentIntent', () => {
+      const m = bpmn();
+      Object.assign(m.elements, {
+        L: lane('L'),
+        R: { id: 'R', name: 'Human', type: 'BPMNSwimlane', owner: null, isAgentic: false, bounds: { x: 0, y: 300, width: 400, height: 200 } },
+        t1: task('t1', 'Work', 10),
+        r1: { id: 'r1', name: 'Trigger', type: 'BPMNTask', owner: 'R', bounds: { x: 10, y: 0, width: 100, height: 60 } },
+      });
+      Object.assign(m.relationships, { f1: seq('f1', 'r1', 't1') });
+      const r = laneToAgentModel(m, 'L');
+      if (!r.ok) throw new Error('expected ok');
+      expect(Object.values(r.model.elements).filter((e) => e.type === 'AgentIntent')).toHaveLength(0);
+      const greet = Object.values(r.model.elements).find((e) => e.type === 'AgentState' && e.name === 'Coder_greet')!;
+      const greetEdges = Object.values(r.model.relationships).filter(
+        (e) => e.type === 'AgentStateTransition' && e.source.element === greet.id,
+      );
+      // only the cold-start when_no_intent_matched edge
+      expect(greetEdges).toHaveLength(1);
+      expect(
+        (greetEdges[0] as unknown as { predefined?: { predefinedType?: string } }).predefined?.predefinedType,
+      ).toBe('when_no_intent_matched');
+    });
+
+    it('A2A-5: agentic outbound → a2a:out tag on producing state description; ascending order for fan-out', () => {
+      const m = bpmn();
+      Object.assign(m.elements, {
+        L: { id: 'L', name: 'Coder', type: 'BPMNSwimlane', owner: null, isAgentic: true, role: 'worker', bounds: { x: 0, y: 0, width: 400, height: 200 } },
+        P1: agLane('P1', 'Reviewer', 'manager'),
+        P2: agLane('P2', 'Tester', 'worker'),
+        t1: task('t1', 'Write', 10),
+        p1t: agTask('p1t', 'Review', 'P1'),
+        p2t: agTask('p2t', 'Test', 'P2'),
+      });
+      Object.assign(m.relationships, {
+        f1: seq('f1', 't1', 'p1t'),
+        f2: seq('f2', 't1', 'p2t'),
+      });
+      const r = laneToAgentModel(m, 'L');
+      if (!r.ok) throw new Error('expected ok');
+
+      const writeState = Object.values(r.model.elements).find(
+        (e) => e.type === 'AgentState' && r.elementMapping[e.id] === 't1',
+      )!;
+      const desc = (writeState as unknown as { description?: string }).description ?? '';
+      expect(desc).toContain('a2a:out;peer=Reviewer;');
+      expect(desc).toContain('a2a:out;peer=Tester;');
+      const order1 = Number(desc.match(/peer=Reviewer[^\n]*order=(\d+)/)?.[1]);
+      const order2 = Number(desc.match(/peer=Tester[^\n]*order=(\d+)/)?.[1]);
+      expect(order1).toBeLessThan(order2);
+    });
+
+    it('A2A-6: non-agentic outbound sink → a2a:out tag present, no kind= field', () => {
+      const m = bpmn();
+      Object.assign(m.elements, {
+        L: lane('L'),
+        E: { id: 'E', name: 'External', type: 'BPMNSwimlane', owner: null, isAgentic: false, bounds: { x: 0, y: 300, width: 400, height: 200 } },
+        t1: task('t1', 'Work', 10),
+        e1: { id: 'e1', name: 'Recv', type: 'BPMNTask', owner: 'E', bounds: { x: 10, y: 0, width: 100, height: 60 } },
+      });
+      Object.assign(m.relationships, { f1: seq('f1', 't1', 'e1') });
+      const r = laneToAgentModel(m, 'L');
+      if (!r.ok) throw new Error('expected ok');
+
+      const workState = Object.values(r.model.elements).find(
+        (e) => e.type === 'AgentState' && r.elementMapping[e.id] === 't1',
+      )!;
+      const desc = (workState as unknown as { description?: string }).description ?? '';
+      expect(desc).toContain('a2a:out;peer=External;');
+      expect(desc).toContain('order=1');
+      expect(desc).not.toContain('kind=');
     });
   });
 });

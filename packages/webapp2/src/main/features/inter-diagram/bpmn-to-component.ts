@@ -13,7 +13,7 @@ type LaneCrossingFlow = {
   gatewayId?: string;
 };
 
-type AgenticEdgeKind = 'delegates' | 'supervises' | 'revises' | 'collaborates';
+export type AgenticEdgeKind = 'delegates' | 'supervises' | 'revises' | 'collaborates';
 
 export type DerivationOpts = {
   /** id → model for every AgentDiagram in the project (DQ4). Omitted →
@@ -340,7 +340,11 @@ const isLaneRole = (r: unknown): r is LaneRole => r === 'manager' || r === 'work
 // `_gateway` is retained in the signature for call-site stability and a possible
 // future gateway-aware heuristic; T1d reads nothing off it (its agentic merge
 // fields were deleted in the rationalization).
-function resolveEdgeKind(srcLane: UMLElement, tgtLane: UMLElement, _gateway: UMLElement | undefined): AgenticEdgeKind {
+export function resolveEdgeKind(
+  srcLane: UMLElement,
+  tgtLane: UMLElement,
+  _gateway: UMLElement | undefined,
+): AgenticEdgeKind {
   const srcAgentic = (srcLane as unknown as { isAgentic?: boolean }).isAgentic === true;
   const tgtAgentic = (tgtLane as unknown as { isAgentic?: boolean }).isAgentic === true;
 
