@@ -45,7 +45,153 @@ export class BPMNDiagramConverter implements DiagramConverter {
     return this.convertCompleteSystem({ nodes: [spec], flows: [] });
   }
 
+  private convertAgenticSystem(systemSpec: any) {
+    const pools: any[] = Array.isArray(systemSpec?.pools) ? systemSpec.pools : [];
+    const nodes: any[] = Array.isArray(systemSpec?.nodes) ? systemSpec.nodes : [];
+    const flows: any[] = Array.isArray(systemSpec?.flows) ? systemSpec.flows : [];
+
+    const elements: Record<string, any> = {};
+    const relationships: Record<string, any> = {};
+    const idMap: Record<string, string> = {};  // spec id → apollon id
+
+    const POOL_BORDER = 40;       // left header width
+    const LANE_HEIGHT = 160;      // height per lane
+    const LANE_CONTENT_X = 100;   // content start X within lane (after label)
+    const TASK_W = 160;
+    const TASK_H = 60;
+    const NODE_GAP = 80;
+
+    let totalPoolW = 0;
+
+    pools.forEach((pool) => {
+      const lanes: any[] = Array.isArray(pool.swimlanes) ? pool.swimlanes : [];
+      const laneW = Math.max(700, LANE_CONTENT_X + 200 + (lanes.length > 0 ? 400 : 200));
+      const poolH = lanes.length * LANE_HEIGHT;
+      const poolW = laneW + POOL_BORDER;
+      const poolX = totalPoolW;
+      const poolY = 0;
+
+      const poolId = generateUniqueId('pool');
+      idMap[pool.id] = poolId;
+      elements[poolId] = {
+        id: poolId, name: typeof pool.name === 'string' ? pool.name : '',
+        type: 'BPMNPool', owner: null,
+        bounds: { x: poolX, y: poolY, width: poolW, height: poolH },
+      };
+
+      lanes.forEach((lane, laneIdx) => {
+        const laneId = generateUniqueId('lane');
+        idMap[lane.id] = laneId;
+        const laneX = poolX + POOL_BORDER;
+        const laneY = poolY + laneIdx * LANE_HEIGHT;
+        elements[laneId] = {
+          id: laneId, name: typeof lane.name === 'string' ? lane.name : '',
+          type: 'BPMNSwimlane', owner: poolId,
+          bounds: { x: laneX, y: laneY, width: laneW, height: LANE_HEIGHT },
+          isAgentic: lane.isAgentic !== false,
+          role: lane.role || 'worker',
+          trustScore: typeof lane.trustScore === 'number' ? lane.trustScore : 0,
+          multiplicity: typeof lane.multiplicity === 'number' ? lane.multiplicity : 1,
+        };
+      });
+
+      totalPoolW += poolW + 60;  // gap between pools
+    });
+
+    // Place nodes — group by owner (lane)
+    const nodesByLane: Record<string, any[]> = {};
+    nodes.forEach((n) => {
+      const owner = n.owner || '';
+      if (!nodesByLane[owner]) nodesByLane[owner] = [];
+      nodesByLane[owner].push(n);
+    });
+
+    Object.entries(nodesByLane).forEach(([laneSpecId, laneNodes]) => {
+      const laneApolId = idMap[laneSpecId];
+      const laneEl = laneApolId ? elements[laneApolId] : null;
+      laneNodes.forEach((n, idx) => {
+        const apollonType = this.normalizeType(n.type);
+        const isTask = apollonType === 'BPMNTask';
+        const w = isTask ? TASK_W : EVENT_SIZE;
+        const h = isTask ? TASK_H : EVENT_SIZE;
+        const nodeId = generateUniqueId('bpmn');
+        idMap[n.id] = nodeId;
+
+        let x = 0, y = 0;
+        if (laneEl) {
+          const lb = laneEl.bounds;
+          x = lb.x + LANE_CONTENT_X + idx * (Math.max(TASK_W, EVENT_SIZE) + NODE_GAP);
+          y = lb.y + (LANE_HEIGHT - h) / 2;
+        }
+
+        const base: any = {
+          id: nodeId, name: typeof n.name === 'string' ? n.name : '',
+          type: apollonType, owner: laneApolId || null,
+          bounds: { x, y, width: w, height: h },
+        };
+
+        if (apollonType === 'BPMNTask') {
+          base.taskType = TASK_TYPES.has(String(n.taskType)) ? n.taskType : 'default';
+          base.marker = 'none';
+          base.isAgentic = false;
+          base.reflectionMode = 'none';
+          base.trustScore = 0;
+        } else if (apollonType === 'BPMNGateway') {
+          base.gatewayType = GATEWAY_TYPES.has(String(n.gatewayType)) ? n.gatewayType : 'exclusive';
+        } else {
+          base.eventType = n.eventType || 'default';
+        }
+        elements[nodeId] = base;
+      });
+    });
+
+    // Flows
+    flows.forEach((f) => {
+      const sourceId = idMap[String(f.source)];
+      const targetId = idMap[String(f.target)];
+      if (!sourceId || !targetId) return;
+      const relId = generateUniqueId('flow');
+      relationships[relId] = {
+        id: relId, name: typeof f.name === 'string' ? f.name : '',
+        type: 'BPMNFlow', owner: null,
+        bounds: { x: 0, y: 0, width: 100, height: 1 },
+        path: [{ x: 0, y: 0 }, { x: 100, y: 0 }],
+        source: { direction: 'Right', element: sourceId },
+        target: { direction: 'Left', element: targetId },
+        isManuallyLayouted: false, flowType: 'sequence', isDefault: false,
+      };
+    });
+
+    // Centre
+    const placed = Object.values(elements);
+    if (placed.length) {
+      const minX = Math.min(...placed.map((e) => e.bounds.x));
+      const minY = Math.min(...placed.map((e) => e.bounds.y));
+      const maxX = Math.max(...placed.map((e) => e.bounds.x + e.bounds.width));
+      const maxY = Math.max(...placed.map((e) => e.bounds.y + e.bounds.height));
+      const offsetX = -(minX + maxX) / 2;
+      const offsetY = -(minY + maxY) / 2;
+      placed.forEach((e) => { e.bounds.x += offsetX; e.bounds.y += offsetY; });
+    }
+
+    const allBounds = Object.values(elements).map((e) => e.bounds);
+    const totalW = allBounds.length ? Math.max(...allBounds.map(b => b.x + b.width)) - Math.min(...allBounds.map(b => b.x)) : 800;
+    const totalH = allBounds.length ? Math.max(...allBounds.map(b => b.y + b.height)) - Math.min(...allBounds.map(b => b.y)) : 500;
+
+    return {
+      version: '3.0.0', type: 'BPMNDiagram',
+      size: { width: Math.max(800, totalW + 80), height: Math.max(400, totalH + 80) },
+      interactive: { elements: {}, relationships: {} },
+      elements, relationships, assessments: {},
+    };
+  }
+
   convertCompleteSystem(systemSpec: any) {
+    // Agentic BPMN (has pools/swimlanes)
+    if (Array.isArray(systemSpec?.pools) && systemSpec.pools.length > 0) {
+      return this.convertAgenticSystem(systemSpec);
+    }
+    // Flat BPMN below
     const rawNodes: SpecNode[] = Array.isArray(systemSpec?.nodes) ? systemSpec.nodes : [];
     const flows: SpecFlow[] = Array.isArray(systemSpec?.flows) ? systemSpec.flows : [];
 

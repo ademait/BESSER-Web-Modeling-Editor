@@ -11,6 +11,8 @@ import { AgentDiagramConverter } from './AgentDiagramConverter';
 import { QuantumCircuitConverter } from './QuantumCircuitConverter';
 import { GUIDiagramConverter } from './GUIDiagramConverter';
 import { BPMNDiagramConverter } from './BPMNDiagramConverter';
+import { ComponentDiagramConverter } from './ComponentDiagramConverter';
+import { DeploymentDiagramConverter } from './DeploymentDiagramConverter';
 
 export class ConverterFactory {
   private static converters: Map<string, DiagramConverter> = new Map();
@@ -24,6 +26,8 @@ export class ConverterFactory {
       this.converters.set('QuantumCircuitDiagram', new QuantumCircuitConverter());
       this.converters.set('GUINoCodeDiagram', new GUIDiagramConverter());
       this.converters.set('BPMN', new BPMNDiagramConverter());
+      this.converters.set('ComponentDiagram', new ComponentDiagramConverter());
+      this.converters.set('DeploymentDiagram', new DeploymentDiagramConverter());
     }
   }
 
@@ -56,3 +60,5 @@ export { AgentDiagramConverter } from './AgentDiagramConverter';
 export { QuantumCircuitConverter } from './QuantumCircuitConverter';
 export { GUIDiagramConverter } from './GUIDiagramConverter';
 export { BPMNDiagramConverter } from './BPMNDiagramConverter';
+export { ComponentDiagramConverter } from './ComponentDiagramConverter';
+export { DeploymentDiagramConverter } from './DeploymentDiagramConverter';

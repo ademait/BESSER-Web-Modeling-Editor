@@ -20,3 +20,5 @@ export { StateMachineModifier } from './StateMachineModifier';
 export { QuantumCircuitModifier } from './QuantumCircuitModifier';
 export { GUIDiagramModifier } from './GUIDiagramModifier';
 export { BPMNDiagramModifier } from './BPMNDiagramModifier';
+export { ComponentDiagramModifier } from './ComponentDiagramModifier';
+export { DeploymentDiagramModifier } from './DeploymentDiagramModifier';

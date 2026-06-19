@@ -31,6 +31,11 @@ export interface ModificationTarget {
   nodeId?: string;
   nodeName?: string;
   flowId?: string;
+  // Component / Deployment
+  elementId?: string;
+  elementName?: string;
+  poolName?: string;
+  swimlaneName?: string;
 }
 
 export interface ModificationChanges {
@@ -57,6 +62,14 @@ export interface ModificationChanges {
   taskType?: string;
   gatewayType?: string;
   eventKind?: string;
+  // Component / Deployment / Agentic BPMN
+  dependencyStereotype?: string;
+  role?: string;
+  isAgentic?: boolean;
+  trustScore?: number;
+  multiplicity?: number;
+  poolName?: string;
+  owner?: string;
   // add_class fields
   className?: string;
   attributes?: Array<{ name: string; type?: string; visibility?: string; value?: string }>;
@@ -106,7 +119,29 @@ export interface ModelModification {
     | 'promote_attribute'
     | 'add_enum'
     | 'add_code_block'
-    | 'add_rag_element';
+    | 'add_rag_element'
+    // BPMN (task/gateway/event/flow) already covered; pool/lane are new:
+    | 'add_task'
+    | 'add_gateway'
+    | 'add_event'
+    | 'add_flow'
+    | 'modify_node'
+    | 'remove_flow'
+    // Component diagram
+    | 'add_component'
+    | 'add_subsystem'
+    | 'add_dependency'
+    | 'modify_element'
+    | 'remove_dependency'
+    // Deployment diagram
+    | 'add_node'
+    | 'add_artifact'
+    // Agentic BPMN
+    | 'add_pool'
+    | 'add_swimlane'
+    | 'modify_swimlane'
+    | 'remove_swimlane'
+    | 'remove_pool';
   target: ModificationTarget;
   changes: ModificationChanges;
   message?: string;
