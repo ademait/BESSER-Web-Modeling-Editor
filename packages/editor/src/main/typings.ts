@@ -280,6 +280,9 @@ export type BPMNTask = UMLElement & {
   // 11 — cross-diagram link from an agentic task to the BESSER Agent
   // diagram that defines its internal behavior (retarget of 08 from lane).
   agentDiagramRef?: string;
+  // 47 — cross-reflection reviewer: the ID of the agentic BPMN lane whose
+  // agent reviews this task's output. Absent = placeholder peer="reviewer".
+  reflectionReviewerLaneId?: string;
 };
 
 export type BPMNSubprocess = UMLElement & {

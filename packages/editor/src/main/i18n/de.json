@@ -133,6 +133,8 @@
       "BPMNReflectionSelf": "Selbstreflexion",
       "BPMNReflectionCross": "Kreuzreflexion",
       "BPMNReflectionHuman": "Menschliche Reflexion",
+      "BPMNReflectionReviewerLabel": "Reviewer-Agent",
+      "BPMNReflectionReviewerUnspecified": "(Nicht angegeben)",
       "BPMNGovernanceLabel": "Governance-Richtlinie (DSL)",
       "BPMNGovernanceGenerate": "Generieren",
       "BPMNGovernanceRegenerate": "Neu generieren",

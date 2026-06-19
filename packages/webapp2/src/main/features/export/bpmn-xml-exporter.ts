@@ -417,6 +417,8 @@ interface AnyAgentic {
   trustScore?: number;
   multiplicity?: number;
   agentDiagramRef?: string;
+  // 47 — reviewer lane UUID for cross-reflection.
+  reflectionReviewerLaneId?: string;
   governanceDsl?: string;
 }
 
@@ -441,6 +443,9 @@ function emitAgenticExtension(lines: string[], el: AnyAgentic, indent: string): 
   // Emitted only when set, so non-linked constructs add nothing.
   if (el.agentDiagramRef !== undefined) {
     attrs.push(`agentDiagramRef="${escapeAttr(el.agentDiagramRef)}"`);
+  }
+  if (el.reflectionReviewerLaneId !== undefined && el.reflectionReviewerLaneId !== '') {
+    attrs.push(`reflectionReviewerLaneId="${escapeAttr(el.reflectionReviewerLaneId)}"`);
   }
   lines.push(`${indent}<bpmn:extensionElements>`);
   lines.push(`${indent}  <agentic:agentic ${attrs.join(' ')}/>`);

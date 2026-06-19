@@ -55,6 +55,9 @@ export class BPMNTask extends UMLContainer {
   // behavior" on the popup. UUID-only; survives an isAgentic toggle off
   // (the popup hides the section but keeps the ref).
   agentDiagramRef?: string;
+  // 47 — reviewer lane UUID for cross-reflection (reflectionMode === 'cross').
+  // Absent means the reviewer is unspecified (peer="reviewer" placeholder).
+  reflectionReviewerLaneId?: string;
 
   constructor(values?: DeepPartial<BPMNTask>) {
     super(values);
@@ -66,6 +69,7 @@ export class BPMNTask extends UMLContainer {
     this.trustScore = clampTrustScore(values?.trustScore ?? BPMNTask.defaultTrustScore);
     // Optional pass-through — undefined when not linked.
     this.agentDiagramRef = values?.agentDiagramRef ?? undefined;
+    this.reflectionReviewerLaneId = values?.reflectionReviewerLaneId ?? undefined;
   }
 
   serialize(children?: UMLContainer[]): Apollon.BPMNTask {
@@ -78,6 +82,7 @@ export class BPMNTask extends UMLContainer {
       reflectionMode: this.reflectionMode,
       trustScore: this.trustScore,
       agentDiagramRef: this.agentDiagramRef,
+      reflectionReviewerLaneId: this.reflectionReviewerLaneId,
     };
   }
 
@@ -89,6 +94,7 @@ export class BPMNTask extends UMLContainer {
       reflectionMode?: BPMNReflectionMode;
       trustScore?: number;
       agentDiagramRef?: string;
+      reflectionReviewerLaneId?: string;
     },
     children?: Apollon.UMLModelElement[],
   ): void {
@@ -99,6 +105,7 @@ export class BPMNTask extends UMLContainer {
     this.reflectionMode = values.reflectionMode || BPMNTask.defaultReflectionMode;
     this.trustScore = clampTrustScore(values.trustScore ?? BPMNTask.defaultTrustScore);
     this.agentDiagramRef = values.agentDiagramRef ?? undefined;
+    this.reflectionReviewerLaneId = values.reflectionReviewerLaneId ?? undefined;
   }
 
   render(canvas: ILayer): ILayoutable[] {

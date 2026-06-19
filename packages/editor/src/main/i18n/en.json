@@ -140,6 +140,8 @@
       "BPMNReflectionSelf": "Self-reflection",
       "BPMNReflectionCross": "Cross-reflection",
       "BPMNReflectionHuman": "Human-reflection",
+      "BPMNReflectionReviewerLabel": "Reviewer agent",
+      "BPMNReflectionReviewerUnspecified": "(Unspecified)",
       "BPMNGovernanceLabel": "Governance policy (DSL)",
       "BPMNGovernanceGenerate": "Generate",
       "BPMNGovernanceRegenerate": "Regenerate",

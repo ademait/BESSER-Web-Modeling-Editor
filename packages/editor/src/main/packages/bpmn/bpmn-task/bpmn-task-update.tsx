@@ -25,17 +25,32 @@ interface OwnProps {
   element: BPMNTask;
 }
 
+// 47 — agentic lanes available as cross-reflection reviewer candidates.
+interface StateProps {
+  agenticLanes: Array<{ id: string; name: string }>;
+}
 
 interface DispatchProps {
   update: typeof UMLElementRepository.update;
   delete: typeof UMLElementRepository.delete;
 }
 
-type Props = OwnProps & DispatchProps & I18nContext;
+type Props = OwnProps & StateProps & DispatchProps & I18nContext;
+
+const mapStateToProps = (state: ModelState, ownProps: OwnProps): StateProps => ({
+  agenticLanes: Object.values(state.elements)
+    .filter(
+      (el) =>
+        el.type === 'BPMNSwimlane' &&
+        (el as { isAgentic?: boolean }).isAgentic === true &&
+        el.id !== ownProps.element.owner,
+    )
+    .map((el) => ({ id: el.id, name: el.name })),
+});
 
 const enhance = compose<ComponentClass<OwnProps>>(
   localized,
-  connect<unknown, DispatchProps, OwnProps, ModelState>(null, {
+  connect<StateProps, DispatchProps, OwnProps, ModelState>(mapStateToProps, {
     update: UMLElementRepository.update,
     delete: UMLElementRepository.delete,
   }),
@@ -146,6 +161,25 @@ class BPMNTaskUpdateComponent extends Component<Props, State> {
                 </Dropdown.Item>
               </Dropdown>
             </section>
+            {element.reflectionMode === 'cross' && (
+              <section>
+                <Divider />
+                <span>{this.props.translate('packages.BPMNDiagram.BPMNReflectionReviewerLabel')}</span>
+                <Dropdown
+                  value={element.reflectionReviewerLaneId ?? ''}
+                  onChange={this.changeReviewerLane(element.id)}
+                >
+                  <Dropdown.Item value={''}>
+                    {this.props.translate('packages.BPMNDiagram.BPMNReflectionReviewerUnspecified')}
+                  </Dropdown.Item>
+                  {this.props.agenticLanes.map((l) => (
+                    <Dropdown.Item key={l.id} value={l.id}>
+                      {l.name || l.id}
+                    </Dropdown.Item>
+                  ))}
+                </Dropdown>
+              </section>
+            )}
             <section>
               <Divider />
               <Flex>
@@ -210,6 +244,11 @@ class BPMNTaskUpdateComponent extends Component<Props, State> {
    */
   private changeReflectionMode = (id: string) => (value: string) => {
     this.props.update<BPMNTask>(id, { reflectionMode: value as BPMNReflectionMode });
+  };
+
+  // 47 — set or clear the reviewer lane for cross-reflection.
+  private changeReviewerLane = (id: string) => (value: string) => {
+    this.props.update<BPMNTask>(id, { reflectionReviewerLaneId: value === '' ? undefined : value });
   };
 
   /**

@@ -182,6 +182,8 @@ function parseAgenticExtension(
   // target project may not even contain the diagram). C4 webapp2
   // post-validator handles the dead-ref toast per plan OQ-F.
   agentDiagramRef?: string;
+  // 47 — reviewer lane UUID for cross-reflection.
+  reflectionReviewerLaneId?: string;
   // 02 — governance DSL CDATA child (merging gateways only). Opaque string.
   governanceDsl?: string;
 } {
@@ -235,6 +237,10 @@ function parseAgenticExtension(
   const ref = a.getAttribute('agentDiagramRef');
   if (ref !== null && ref !== '') {
     out.agentDiagramRef = ref;
+  }
+  const reviewerRef = a.getAttribute('reflectionReviewerLaneId');
+  if (reviewerRef !== null && reviewerRef !== '') {
+    out.reflectionReviewerLaneId = reviewerRef;
   }
   // 02 — governance DSL is a sibling CDATA child of <agentic:agentic>, not an
   // attribute. Read it off the same extensionElements parent.

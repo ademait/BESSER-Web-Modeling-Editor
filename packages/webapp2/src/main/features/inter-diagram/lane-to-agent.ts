@@ -60,6 +60,8 @@ type AnyEl = UMLElement & {
   flowType?: string;
   // 39 — read on BPMN tasks to pick the reflection scaffold ('none' = skip).
   reflectionMode?: 'none' | 'self' | 'cross' | 'human';
+  // 47 — reviewer lane UUID for cross-reflection (absent = placeholder).
+  reflectionReviewerLaneId?: string;
   bounds: Bounds;
 };
 
@@ -154,7 +156,7 @@ export function laneToAgentModel(bpmn: UMLModel, laneId: string): AgentDerivatio
   // tag on the producing state + a greeting→next when_intent_matched edge
   // (intentName recv_reviewer_<task>) + an AgentIntent scaffold. Returns the
   // states it wired an intent edge into (unioned into the cold-start guard).
-  const reflectIntentTargets = appendReflectionScaffolds(out, tasks, stateIdByTask, greetId, elementMapping);
+  const reflectIntentTargets = appendReflectionScaffolds(out, tasks, stateIdByTask, greetId, elementMapping, bpmn.elements);
 
   // 45 (memo 44) — cross-lane I/O. Inbound from an AGENTIC peer → a
   // when_intent_matched edge greeting → consuming task (intentName recv_<peer>,
@@ -690,6 +692,7 @@ function appendReflectionScaffolds(
   stateIdByTask: Map<string, string>,
   greetId: string,
   elementMapping: ElementLineageMap,
+  bpmnElements: UMLModel['elements'],
 ): Set<string> {
   const taskStateIds = new Set(stateIdByTask.values());
   // 46 — states that received a greeting→next when_intent_matched edge from a
@@ -748,33 +751,36 @@ function appendReflectionScaffolds(
       for (const n of nexts) emitTransition(out, humanId, n, 'AgentStateTransition', 'vertical'); // generic — "approved"
       emitTransition(out, humanId, sT, 'AgentStateTransition', 'horizontal'); // generic — "rejected" loop back
     } else if (mode === 'cross') {
-      // 46 — A2A round-trip with a placeholder reviewer (no new state):
-      //  (a) an a2a:out tag on the producing state's description ("send my
-      //      output to a reviewer"); kind=revises is fixed (producer→reviewer is
-      //      the canonical revision behaviour), ref empty (reviewer not modelled),
-      //      flow=reflect:<taskId> marks reflection-induced A2A.
-      //  (b) for each forward `next`: a greeting→next when_intent_matched edge
-      //      ("reviewer's feedback arrived, proceed") + a deduped AgentIntent
-      //      scaffold recv_reviewer_<task>. Empty `nexts` (terminal task) → (a)
-      //      only. The inbound edge is lineaged to the inducing task.
+      // 47 — resolve the chosen reviewer lane (if set); fall back to placeholder.
+      const reviewerLaneId = t.reflectionReviewerLaneId;
+      const reviewerEl = reviewerLaneId ? (bpmnElements[reviewerLaneId] as AnyEl | undefined) : undefined;
+      const reviewerName = reviewerEl ? sanitizeStateName(reviewerEl.name || 'reviewer') : 'reviewer';
+      const reviewerRef = reviewerLaneId;
+
+      // 46 — A2A round-trip (no new state):
+      //  (a) a2a:out tag on the producing state; peer=<reviewer lane name> or
+      //      peer=reviewer (placeholder), ref=<laneId or empty>.
+      //  (b) for each forward `next`: greeting→next when_intent_matched edge +
+      //      deduped AgentIntent scaffold. Terminal cross task → (a) only.
+      //      The inbound edge is lineaged to the inducing task.
       const outEl = out.elements[sT] as unknown as { description?: string };
       const outTag = a2aTag({
         dir: 'out',
-        peer: 'reviewer',
-        ref: undefined,
+        peer: reviewerName,
+        ref: reviewerRef,
         flow: `reflect:${t.id}`,
         order: nextOutOrder(outEl.description),
         kind: 'revises',
       });
       outEl.description = outEl.description ? `${outEl.description}\n${outTag}` : outTag;
       for (const n of nexts) {
-        const intent = recvIntentName('reviewer', taskName);
+        const intent = recvIntentName(reviewerName, taskName);
         if (!reflectIntentIds.has(intent)) {
-          reflectIntentIds.set(intent, createIntentScaffold(out, intent, 'reviewer', reflectIntentIds.size));
+          reflectIntentIds.set(intent, createIntentScaffold(out, intent, reviewerName, reflectIntentIds.size));
         }
         const tId = emitTransition(out, greetId, n, 'AgentStateTransition', 'vertical', 'when_intent_matched', {
           intentName: intent,
-          name: a2aTag({ dir: 'in', peer: 'reviewer', ref: undefined, flow: `reflect:${t.id}`, kind: 'revises' }),
+          name: a2aTag({ dir: 'in', peer: reviewerName, ref: reviewerRef, flow: `reflect:${t.id}`, kind: 'revises' }),
         });
         reflectIntentTargets.add(n);
         elementMapping[tId] = t.id; // lineage: inbound feedback intent ← inducing task
