@@ -119,17 +119,14 @@ export function laneToAgentModel(bpmn: UMLModel, laneId: string): AgentDerivatio
 
   const entryStateId = stateIdByTask.get(entryTasks[0].id)!;
 
-  // 39 (4c) — reflection scaffolds: each task with reflectionMode !== 'none' gets
-  // self-eval / cross-review / human-approval states spliced after its task-state,
-  // re-routing the task's forward edge(s) through them. Runs after the intra-lane
-  // transitions and before the greeting/I/O wrap so the entry's INCOMING wiring is
-  // untouched.
-  appendReflectionScaffolds(out, tasks, stateIdByTask);
-
   // 36 — BAF greeting wrapper: a thin initial state so the agent never enters an
   // LLM-body state on session start (session.event is None then → AttributeError
   // in reply_llm.predict). StateInitialNode → greeting → first-entry via
   // when_no_intent_matched.
+  // 46 — created BEFORE the reflection pass: cross-reflection now hangs its
+  // inbound a2a:in intent edge off `greetId` (like appendCrossLaneIO), so the
+  // greeting must already exist. The reflection re-route only deletes
+  // task-state→task-state edges, so init→greeting is never disturbed.
   const greetName = sanitizeStateName((lane.name || 'Agent') + '_greet');
   const greetId = newId();
   const greetY = -(STATE_H + V_GAP); // one layout-row above first task (y=0)
@@ -152,6 +149,13 @@ export function laneToAgentModel(bpmn: UMLModel, laneId: string): AgentDerivatio
   } as unknown as UMLElement;
   emitTransition(out, initId, greetId, 'AgentStateTransitionInit', 'horizontal');
 
+  // 39 (4c) / 46 — reflection scaffolds. self/human splice intra-agent states
+  // after the task-state. cross is inter-agent → A2A: no new state, an a2a:out
+  // tag on the producing state + a greeting→next when_intent_matched edge
+  // (intentName recv_reviewer_<task>) + an AgentIntent scaffold. Returns the
+  // states it wired an intent edge into (unioned into the cold-start guard).
+  const reflectIntentTargets = appendReflectionScaffolds(out, tasks, stateIdByTask, greetId, elementMapping);
+
   // 45 (memo 44) — cross-lane I/O. Inbound from an AGENTIC peer → a
   // when_intent_matched edge greeting → consuming task (intentName recv_<peer>,
   // hidden a2a:in tag in `name`) + a scaffolded AgentIntent. Inbound from a
@@ -159,7 +163,7 @@ export function laneToAgentModel(bpmn: UMLModel, laneId: string): AgentDerivatio
   // tag on the producing state's description. Runs BEFORE the cold-start so
   // we can suppress the cold-start when the entry task already has an intent
   // transition (prevents two visually-identical arrows from greeting → entry).
-  const intentTargetStates = appendCrossLaneIO(
+  const ioIntentTargets = appendCrossLaneIO(
     out,
     bpmn,
     lane,
@@ -171,10 +175,12 @@ export function laneToAgentModel(bpmn: UMLModel, laneId: string): AgentDerivatio
     warnings,
   );
 
-  // 45-FU — cold-start suppressed when the entry task already received an
-  // agentic-inbound intent transition (they would otherwise visually overlap).
-  // When no intents exist (non-swarm agent), the cold-start is still needed so
-  // BAF can leave greeting on session start (None event).
+  // 45-FU / 46 — cold-start suppressed when the entry state already received an
+  // agentic-inbound intent transition (from cross-lane I/O OR cross-reflection);
+  // they would otherwise visually overlap. When no intents exist (non-swarm
+  // agent), the cold-start is still needed so BAF can leave greeting on session
+  // start (None event).
+  const intentTargetStates = new Set<string>([...reflectIntentTargets, ...ioIntentTargets]);
   if (!intentTargetStates.has(entryStateId)) {
     emitTransition(out, greetId, entryStateId, 'AgentStateTransition', 'vertical', 'when_no_intent_matched');
   }
@@ -336,8 +342,9 @@ function appendCrossLaneIO(
   );
 
   const intentIdByName = new Map<string, string>(); // dedup scaffolded AgentIntents
-  let intentRow = 0;
-  const outOrderByState = new Map<string, number>(); // running a2a:out order per producing state
+  // 46 — reflection scaffolds run first and may have placed AgentIntents in the
+  // same INTENT_COL_X column; start below them so rows don't overlap.
+  let intentRow = Object.values(out.elements).filter((e) => e.type === 'AgentIntent').length;
   const intentTargetStates = new Set<string>(); // states that received a when_intent_matched edge
 
   for (const f of flows) {
@@ -393,10 +400,8 @@ function appendCrossLaneIO(
           : undefined; // non-agentic sink → plain channel, no kind
       const ref = peerLane?.agentDiagramRef;
       for (const sId of states) {
-        const order = (outOrderByState.get(sId) ?? 0) + 1;
-        outOrderByState.set(sId, order);
-        const tag = a2aTag({ dir: 'out', peer: peerName, ref, flow: f.id, order, kind });
         const el = out.elements[sId] as unknown as { description?: string };
+        const tag = a2aTag({ dir: 'out', peer: peerName, ref, flow: f.id, order: nextOutOrder(el.description), kind });
         el.description = el.description ? `${el.description}\n${tag}` : tag;
       }
     }
@@ -560,6 +565,17 @@ function a2aTag(parts: {
 }
 
 /**
+ * 46 — next 1-based `order` for an outbound A2A tag on a state's description.
+ * Counts existing `a2a:out;` lines so the reflection pass and the cross-lane I/O
+ * pass don't both emit `order=1` when they tag the same producing state.
+ */
+function nextOutOrder(description?: string): number {
+  if (!description) return 1;
+  const m = description.match(/(^|\n)a2a:out;/g);
+  return (m ? m.length : 0) + 1;
+}
+
+/**
  * 30-FU1 — translate the whole model so its bounding-box midpoint sits on the
  * origin. The editor sizes the canvas symmetrically around (0,0) and the scroll
  * container opens at top-left (uml-diagram.ts), so off-origin content opens
@@ -652,21 +668,36 @@ function emitSelfLoop(out: UMLModel, stateId: string): void {
  *  - 'self'  → a `<task>_reflect` self-evaluation state. task → reflect
  *             (when_no_intent_matched), a self-loop on reflect ("revise"), and
  *             reflect → next ("approve"). User adds the LLM body + intent names.
- *  - 'cross' → 45: a neutral `<task>_await_review` wait state (no stereotype),
- *             wired task → await_review → next. Proper A2A-ification (an a2a:in
- *             intent + tag, like appendCrossLaneIO) is deferred to follow-up
- *             guide 46-reflection-scaffold-a2a-cleanup.
+ *  - 'cross' → 46: inter-agent, so A2A (no new state). The producing state's
+ *             `description` gets an a2a:out;peer=reviewer;…;kind=revises tag, and
+ *             each forward `next` gets a greeting→next when_intent_matched edge
+ *             (intentName recv_reviewer_<task>, hidden a2a:in tag in `name`) plus
+ *             a deduped AgentIntent scaffold. Terminal cross task → outbound tag
+ *             only. Returns the set of states wired an inbound intent edge.
  *  - 'human' → a `<task>_human_review` wait state. task → human_review
  *             (when_no_intent_matched), human_review → next ("approved"), and
  *             human_review → task ("rejected", loops back for revision).
  *
  * Re-route = delete the task's existing forward edges to OTHER task-states and
  * re-emit them off the reflection exit (no double path). Boundary edges (target
- * not a task-state) and the task's incoming edges are left intact. Reflection
- * states are synthetic → no `elementMapping` entry (matches guide 30).
+ * not a task-state) and the task's incoming edges are left intact. self/human
+ * states are synthetic → no `elementMapping` entry (matches guide 30); the cross
+ * inbound intent edge IS lineaged to its inducing task.
  */
-function appendReflectionScaffolds(out: UMLModel, tasks: AnyEl[], stateIdByTask: Map<string, string>): void {
+function appendReflectionScaffolds(
+  out: UMLModel,
+  tasks: AnyEl[],
+  stateIdByTask: Map<string, string>,
+  greetId: string,
+  elementMapping: ElementLineageMap,
+): Set<string> {
   const taskStateIds = new Set(stateIdByTask.values());
+  // 46 — states that received a greeting→next when_intent_matched edge from a
+  // cross-reflection (unioned into the cold-start guard by the caller).
+  const reflectIntentTargets = new Set<string>();
+  // 46 — dedup AgentIntent scaffolds per intentName across all cross tasks; the
+  // map size also drives the intent-column row for new scaffolds.
+  const reflectIntentIds = new Map<string, string>();
   for (const t of tasks) {
     const mode = t.reflectionMode ?? 'none';
     if (mode === 'none') continue;
@@ -717,22 +748,38 @@ function appendReflectionScaffolds(out: UMLModel, tasks: AnyEl[], stateIdByTask:
       for (const n of nexts) emitTransition(out, humanId, n, 'AgentStateTransition', 'vertical'); // generic — "approved"
       emitTransition(out, humanId, sT, 'AgentStateTransition', 'horizontal'); // generic — "rejected" loop back
     } else if (mode === 'cross') {
-      // 45 — interim: a neutral wait state (no «input» stereotype, no from_/to_
-      // name) so cross-reflection no longer emits a boundary state. Proper
-      // A2A-ification (an a2a:in intent + tag, like appendCrossLaneIO) is deferred
-      // to follow-up guide 46-reflection-scaffold-a2a-cleanup.
-      const reviewId = newId();
-      out.elements[reviewId] = {
-        id: reviewId,
-        name: `${taskName}_await_review`,
-        type: 'AgentState',
-        owner: null,
-        bounds: { x: REFLECT_COL_X, y: sb.y, width: STATE_W, height: STATE_H },
-        bodies: [],
-        fallbackBodies: [],
-      } as unknown as UMLElement;
-      emitTransition(out, sT, reviewId, 'AgentStateTransition', 'horizontal', 'when_no_intent_matched');
-      for (const n of nexts) emitTransition(out, reviewId, n, 'AgentStateTransition', 'vertical');
+      // 46 — A2A round-trip with a placeholder reviewer (no new state):
+      //  (a) an a2a:out tag on the producing state's description ("send my
+      //      output to a reviewer"); kind=revises is fixed (producer→reviewer is
+      //      the canonical revision behaviour), ref empty (reviewer not modelled),
+      //      flow=reflect:<taskId> marks reflection-induced A2A.
+      //  (b) for each forward `next`: a greeting→next when_intent_matched edge
+      //      ("reviewer's feedback arrived, proceed") + a deduped AgentIntent
+      //      scaffold recv_reviewer_<task>. Empty `nexts` (terminal task) → (a)
+      //      only. The inbound edge is lineaged to the inducing task.
+      const outEl = out.elements[sT] as unknown as { description?: string };
+      const outTag = a2aTag({
+        dir: 'out',
+        peer: 'reviewer',
+        ref: undefined,
+        flow: `reflect:${t.id}`,
+        order: nextOutOrder(outEl.description),
+        kind: 'revises',
+      });
+      outEl.description = outEl.description ? `${outEl.description}\n${outTag}` : outTag;
+      for (const n of nexts) {
+        const intent = recvIntentName('reviewer', taskName);
+        if (!reflectIntentIds.has(intent)) {
+          reflectIntentIds.set(intent, createIntentScaffold(out, intent, 'reviewer', reflectIntentIds.size));
+        }
+        const tId = emitTransition(out, greetId, n, 'AgentStateTransition', 'vertical', 'when_intent_matched', {
+          intentName: intent,
+          name: a2aTag({ dir: 'in', peer: 'reviewer', ref: undefined, flow: `reflect:${t.id}`, kind: 'revises' }),
+        });
+        reflectIntentTargets.add(n);
+        elementMapping[tId] = t.id; // lineage: inbound feedback intent ← inducing task
+      }
     }
   }
+  return reflectIntentTargets;
 }
