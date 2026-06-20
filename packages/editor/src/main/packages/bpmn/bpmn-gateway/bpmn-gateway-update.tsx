@@ -31,8 +31,6 @@ const NO_DEFAULT_GATEWAY_TYPES: ReadonlySet<BPMNGatewayType> = new Set<BPMNGatew
 // T1c — friendly labels for the governance policy dropdown. Keyed to i18n.
 const govPolicyKey = (p: GovPolicyType): string => {
   switch (p) {
-    case 'VotingPolicy':
-      return 'BPMNGovPolicyVoting';
     case 'MajorityPolicy':
       return 'BPMNGovPolicyMajority';
     case 'AbsoluteMajorityPolicy':
@@ -124,7 +122,7 @@ const GovHeaderRow = styled.div`
 type State = { colorOpen: boolean; confirmRegenerate: boolean; govPolicyType: GovPolicyType };
 
 class BPMNGatewayUpdateComponent extends Component<Props, State> {
-  state = { colorOpen: false, confirmRegenerate: false, govPolicyType: 'VotingPolicy' as GovPolicyType };
+  state = { colorOpen: false, confirmRegenerate: false, govPolicyType: 'MajorityPolicy' as GovPolicyType };
 
   private toggleColor = () => {
     this.setState((state) => ({

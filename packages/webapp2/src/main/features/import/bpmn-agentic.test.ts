@@ -743,11 +743,12 @@ describe('governance DSL round-trip (guide 02 / G4)', () => {
       '    Tasks:',
       '        AND',
       'Participants:',
-      '    Roles : worker',
+      '    Individuals :',
+      '        (Agent) WorkerAgent { confidence : 0.80 }',
       'MajorityPolicy ANDPolicy {',
       '    Scope: AND',
       '    DecisionType as BooleanDecision',
-      '    Participant list : worker',
+      '    Participant list : WorkerAgent',
       '    Parameters:',
       '        ratio : 0.5',
       '}',
@@ -908,7 +909,8 @@ describe('generateGovernanceDsl policyType (T1c)', () => {
     const dsl = generateGovernanceDsl('MR', fixture, 'LeaderDrivenPolicy');
     expect(dsl).toContain('ManagerLane');
     expect(dsl).not.toContain('WorkerLane');
-    expect(dsl).toContain('role : supervision');
+    expect(dsl).not.toContain('role :');
+    expect(dsl).not.toContain('Roles :');
     expect(dsl).not.toContain('TODO');
   });
 });
