@@ -3,12 +3,32 @@ export type BPMNMarkerType = 'none' | 'parallel multi instance' | 'sequential mu
 // Agentic BPMN attributes (SEAA'25 / CAiSE'25 extension — paper §4.1–§4.2).
 // Folded into the base BPMNSwimlane / BPMNTask as an `isAgentic` flag rather
 // than separate element types (04D pivot — see 04D guide §1).
-// - BPMNAgentRole: the v2 Profile.role (RoleEnum). The paper notes the enum is
-//   extensible (e.g. 'coder') — kept minimal for the foundation.
+// - BPMNAgentRole: the lane's agent category. Aligned (guide 48) with the
+//   Component-diagram AgentCategory vocabulary (AGENT_CATEGORY_TOKENS in
+//   common/agentic/agentic-tokens.ts) so the BPMN→Component derivation maps a
+//   lane role straight onto an AgentCategory stereotype with no translation.
+//   The enum is extensible per the paper; these four are the canonical set.
 // - BPMNReflectionMode: the SelfReflection / CrossReflection / HumanReflection
 //   subclasses flattened to an attribute enum; 'none' covers the optional case.
 // - clampTrustScore: trustScore is a 0–100 percentage (paper §4.1 / §4.2).
-export type BPMNAgentRole = 'worker' | 'manager';
+export type BPMNAgentRole = 'solution' | 'supervision' | 'collaboration' | 'consensus';
+
+// Legacy → new role migration (guide 48). Pre-48 diagrams / .bpmn files /
+// modeling-agent output carry the old binary enum; map it on every input
+// boundary (JSON deserialize, XML import, agent injection) so the role is
+// never silently dropped. Unknown values fall back to the default 'solution'.
+const LEGACY_ROLE_MAP: Record<string, BPMNAgentRole> = {
+  worker: 'solution',
+  manager: 'supervision',
+};
+
+export function migrateLegacyRole(role: unknown): BPMNAgentRole {
+  if (typeof role !== 'string') return 'solution';
+  if (role === 'solution' || role === 'supervision' || role === 'collaboration' || role === 'consensus') {
+    return role;
+  }
+  return LEGACY_ROLE_MAP[role] ?? 'solution';
+}
 
 export type BPMNReflectionMode = 'none' | 'self' | 'cross' | 'human';
 

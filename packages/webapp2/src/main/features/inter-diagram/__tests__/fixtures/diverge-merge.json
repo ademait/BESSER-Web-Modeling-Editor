@@ -17,7 +17,7 @@
       "owner": "pool-1",
       "bounds": { "x": 60, "y": 60, "width": 580, "height": 120 },
       "isAgentic": true,
-      "role": "manager",
+      "role": "supervision",
       "trustScore": 80
     },
     "lane-wkr": {
@@ -27,7 +27,7 @@
       "owner": "pool-1",
       "bounds": { "x": 60, "y": 200, "width": 580, "height": 120 },
       "isAgentic": true,
-      "role": "worker",
+      "role": "solution",
       "trustScore": 60
     },
     "lane-main": {
@@ -37,7 +37,7 @@
       "owner": "pool-1",
       "bounds": { "x": 60, "y": 340, "width": 580, "height": 120 },
       "isAgentic": false,
-      "role": "worker",
+      "role": "solution",
       "trustScore": 0
     },
     "task-assign": {

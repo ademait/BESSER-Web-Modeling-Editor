@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { UMLModel } from '@besser/wme';
-import { bpmnModelToComponentModel } from '../bpmn-to-component';
+import type { UMLModel, UMLElement } from '@besser/wme';
+import { bpmnModelToComponentModel, resolveEdgeKind } from '../bpmn-to-component';
 import flatNoPools from './fixtures/flat-no-pools.json';
 import singlePoolNoLanes from './fixtures/single-pool-no-lanes.json';
 import minimalAgentic from './fixtures/minimal-agentic.json';
@@ -52,8 +52,13 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
       expect(els.filter((e) => e.type === 'Subsystem')).toHaveLength(1);
       const components = els.filter((e) => e.type === 'Component');
       expect(components).toHaveLength(2);
+      // guide 48: lane role flows to Component stereotype
       const solutions = components.filter((c) => (c as unknown as { stereotype?: string }).stereotype === 'solution');
-      expect(solutions).toHaveLength(2);
+      const supervisions = components.filter(
+        (c) => (c as unknown as { stereotype?: string }).stereotype === 'supervision',
+      );
+      expect(solutions).toHaveLength(1);
+      expect(supervisions).toHaveLength(1);
     });
     it('emits exactly 1 `supervises` edge (manager → worker, T1d; no `has` edges)', () => {
       if (!r.ok) throw new Error('expected ok');
@@ -147,13 +152,14 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
       expect(els.filter((e) => e.type === 'Component')).toHaveLength(2);
     });
 
-    it('marks both agentic lanes `solution` and derives no Component for the non-agentic lane', () => {
+    it('maps lane roles to Component stereotypes and skips the non-agentic lane', () => {
       if (!r.ok) throw new Error('expected ok');
       const comps = Object.values(r.model.elements)
         .filter((e) => e.type === 'Component')
         .map((c) => (c as unknown as { stereotype?: string }).stereotype)
         .sort();
-      expect(comps).toEqual(['solution', 'solution']);
+      // lane-mgr → supervision, lane-wkr → solution (guide 48)
+      expect(comps).toEqual(['solution', 'supervision']);
     });
 
     it('emits one revises + one supervises edge (the delegate-to-Maintainer is gone)', () => {
@@ -167,7 +173,10 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
     it('derives no Component from the non-agentic Maintainer lane', () => {
       if (!r.ok) throw new Error('expected ok');
       const comps = Object.values(r.model.elements).filter((e) => e.type === 'Component');
-      expect(comps.every((c) => (c as unknown as { stereotype?: string }).stereotype === 'solution')).toBe(true);
+      const AGENTIC_STEREOS = new Set(['solution', 'supervision', 'collaboration', 'consensus']);
+      expect(comps.every((c) => AGENTIC_STEREOS.has((c as unknown as { stereotype?: string }).stereotype ?? ''))).toBe(
+        true,
+      );
       expect(comps.some((c) => c.name === 'Maintainer')).toBe(false);
     });
   });
@@ -194,7 +203,11 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
       if (!r.ok) throw new Error('expected ok');
       const components = Object.values(r.model.elements).filter((e) => e.type === 'Component');
       // Meeting 2026-06-08 §1: only agentic lanes become Components.
-      const nonAgentic = components.filter((e) => (e as unknown as { stereotype?: string }).stereotype !== 'solution');
+      // guide 48: supervision/collaboration/consensus are also valid agentic stereotypes.
+      const AGENTIC_STEREOS = new Set(['solution', 'supervision', 'collaboration', 'consensus']);
+      const nonAgentic = components.filter(
+        (e) => !AGENTIC_STEREOS.has((e as unknown as { stereotype?: string }).stereotype ?? ''),
+      );
       expect(nonAgentic).toHaveLength(0);
       expect(components.length).toBeGreaterThan(0);
       for (const a of components) {
@@ -275,7 +288,7 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
             name: 'Researcher',
             owner: 'P1',
             isAgentic: true,
-            role: 'worker',
+            role: 'solution',
             bounds: { x: 20, y: 0, width: 380, height: 200 },
             ...laneOverrides,
           },
@@ -404,7 +417,7 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
             name: 'Researcher',
             owner: 'P1',
             isAgentic: true,
-            role: 'worker',
+            role: 'solution',
             bounds: { x: 20, y: 0, width: 380, height: 200 },
           },
           T1: {
@@ -441,7 +454,7 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
             name: 'Researcher',
             owner: 'P1',
             isAgentic: true,
-            role: 'worker',
+            role: 'solution',
             bounds: { x: 20, y: 0, width: 380, height: 200 },
           },
           T1: {
@@ -458,7 +471,7 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
             name: 'Analyst',
             owner: 'P1',
             isAgentic: true,
-            role: 'worker',
+            role: 'solution',
             bounds: { x: 20, y: 200, width: 380, height: 200 },
           },
           T2: {
@@ -573,7 +586,7 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
             name: 'Researcher',
             owner: 'P1',
             isAgentic: true,
-            role: 'worker',
+            role: 'solution',
             bounds: { x: 20, y: 0, width: 380, height: 200 },
           },
           T1: {
@@ -683,7 +696,7 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
             name: 'A',
             owner: 'P1',
             isAgentic: true,
-            role: 'worker',
+            role: 'solution',
             bounds: { x: 20, y: 0, width: 380, height: 200 },
           },
           T1: {
@@ -700,7 +713,7 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
             name: 'B',
             owner: 'P1',
             isAgentic: true,
-            role: 'worker',
+            role: 'solution',
             bounds: { x: 20, y: 200, width: 380, height: 200 },
           },
           T2: {
@@ -775,7 +788,7 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
             name: 'Researcher',
             owner: 'P1',
             isAgentic: true,
-            role: 'worker',
+            role: 'solution',
             bounds: { x: 20, y: 0, width: 380, height: 200 },
           },
           T1: {
@@ -914,7 +927,7 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
             name: 'Researcher',
             owner: 'P1',
             isAgentic: true,
-            role: 'worker',
+            role: 'solution',
             bounds: { x: 20, y: 0, width: 380, height: 200 },
           },
           T1: {
@@ -1113,6 +1126,25 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
       ) as unknown as { agentModelRef?: string };
       expect(comp).toBeDefined();
       expect(comp.agentModelRef).toBeUndefined();
+    });
+  });
+
+  describe('resolveEdgeKind — role vocabulary (guide 48)', () => {
+    const lane = (role: string): UMLElement =>
+      ({ id: role, type: 'BPMNSwimlane', isAgentic: true, role }) as unknown as UMLElement;
+
+    it('supervision → solution ⟹ supervises (old manager → worker)', () => {
+      expect(resolveEdgeKind(lane('supervision'), lane('solution'), undefined)).toBe('supervises');
+    });
+    it('solution → supervision ⟹ revises (old worker → manager)', () => {
+      expect(resolveEdgeKind(lane('solution'), lane('supervision'), undefined)).toBe('revises');
+    });
+    it('collaboration → collaboration ⟹ collaborates (peer)', () => {
+      expect(resolveEdgeKind(lane('collaboration'), lane('collaboration'), undefined)).toBe('collaborates');
+    });
+    it('non-agentic endpoint ⟹ delegates (fallback)', () => {
+      const plain = { id: 'x', type: 'BPMNSwimlane', isAgentic: false, role: 'solution' } as unknown as UMLElement;
+      expect(resolveEdgeKind(plain, lane('supervision'), undefined)).toBe('delegates');
     });
   });
 });

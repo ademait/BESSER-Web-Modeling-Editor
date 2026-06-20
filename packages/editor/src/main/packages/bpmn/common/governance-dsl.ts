@@ -130,18 +130,22 @@ export function generateGovernanceDsl(
     }
   }
 
-  // For LeaderDrivenPolicy the decision authority is the manager lane(s). If
-  // manager lanes exist in the block, restrict participants to them; fall back
-  // to all agentic lanes when none are present.
+  // For LeaderDrivenPolicy the decision authority is the supervision lane(s).
+  // If supervision lanes exist in the block, restrict participants to them;
+  // fall back to all agentic lanes when none are present. (guide 48: the lane
+  // role 'manager' was renamed to 'supervision'.)
   const allLanes = Array.from(lanes.values());
-  const managerLanes = allLanes.filter((l) => l.role === 'manager');
+  const supervisionLanes = allLanes.filter((l) => l.role === 'supervision');
   const participantLanes =
-    policyType === 'LeaderDrivenPolicy' && managerLanes.length > 0 ? managerLanes : allLanes;
+    policyType === 'LeaderDrivenPolicy' && supervisionLanes.length > 0 ? supervisionLanes : allLanes;
 
   const agents: { id: string; confidence: string; role?: string }[] = [];
   const roles = new Set<string>();
   for (const lane of participantLanes) {
-    const role = lane.role === 'manager' || lane.role === 'worker' ? lane.role : undefined;
+    // guide 48: any of the four AgentCategory role tokens is a valid role
+    // string; emit it as-is. (`lane.role` is the duck-typed `string | undefined`
+    // from AnyEl, so no narrowing guard is needed.)
+    const role = typeof lane.role === 'string' && lane.role ? lane.role : undefined;
     if (role) roles.add(role);
     agents.push({
       id: sanitizeId(lane.name, `Agent_${lane.id.slice(0, 8)}`),

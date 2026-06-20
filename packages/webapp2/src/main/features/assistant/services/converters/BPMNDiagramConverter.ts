@@ -11,6 +11,7 @@
  */
 
 import { DiagramConverter, generateUniqueId } from './base';
+import { migrateLegacyRole } from '@besser/wme';
 
 interface SpecNode {
   id?: string;
@@ -52,11 +53,11 @@ export class BPMNDiagramConverter implements DiagramConverter {
 
     const elements: Record<string, any> = {};
     const relationships: Record<string, any> = {};
-    const idMap: Record<string, string> = {};  // spec id → apollon id
+    const idMap: Record<string, string> = {}; // spec id → apollon id
 
-    const POOL_BORDER = 40;       // left header width
-    const LANE_HEIGHT = 160;      // height per lane
-    const LANE_CONTENT_X = 100;   // content start X within lane (after label)
+    const POOL_BORDER = 40; // left header width
+    const LANE_HEIGHT = 160; // height per lane
+    const LANE_CONTENT_X = 100; // content start X within lane (after label)
     const TASK_W = 160;
     const TASK_H = 60;
     const NODE_GAP = 80;
@@ -74,8 +75,10 @@ export class BPMNDiagramConverter implements DiagramConverter {
       const poolId = generateUniqueId('pool');
       idMap[pool.id] = poolId;
       elements[poolId] = {
-        id: poolId, name: typeof pool.name === 'string' ? pool.name : '',
-        type: 'BPMNPool', owner: null,
+        id: poolId,
+        name: typeof pool.name === 'string' ? pool.name : '',
+        type: 'BPMNPool',
+        owner: null,
         bounds: { x: poolX, y: poolY, width: poolW, height: poolH },
       };
 
@@ -85,17 +88,19 @@ export class BPMNDiagramConverter implements DiagramConverter {
         const laneX = poolX + POOL_BORDER;
         const laneY = poolY + laneIdx * LANE_HEIGHT;
         elements[laneId] = {
-          id: laneId, name: typeof lane.name === 'string' ? lane.name : '',
-          type: 'BPMNSwimlane', owner: poolId,
+          id: laneId,
+          name: typeof lane.name === 'string' ? lane.name : '',
+          type: 'BPMNSwimlane',
+          owner: poolId,
           bounds: { x: laneX, y: laneY, width: laneW, height: LANE_HEIGHT },
           isAgentic: lane.isAgentic !== false,
-          role: lane.role || 'worker',
+          role: migrateLegacyRole(lane.role), // guide 48: default 'solution'; migrate legacy tokens
           trustScore: typeof lane.trustScore === 'number' ? lane.trustScore : 0,
           multiplicity: typeof lane.multiplicity === 'number' ? lane.multiplicity : 1,
         };
       });
 
-      totalPoolW += poolW + 60;  // gap between pools
+      totalPoolW += poolW + 60; // gap between pools
     });
 
     // Place nodes — group by owner (lane)
@@ -117,7 +122,8 @@ export class BPMNDiagramConverter implements DiagramConverter {
         const nodeId = generateUniqueId('bpmn');
         idMap[n.id] = nodeId;
 
-        let x = 0, y = 0;
+        let x = 0,
+          y = 0;
         if (laneEl) {
           const lb = laneEl.bounds;
           x = lb.x + LANE_CONTENT_X + idx * (Math.max(TASK_W, EVENT_SIZE) + NODE_GAP);
@@ -125,8 +131,10 @@ export class BPMNDiagramConverter implements DiagramConverter {
         }
 
         const base: any = {
-          id: nodeId, name: typeof n.name === 'string' ? n.name : '',
-          type: apollonType, owner: laneApolId || null,
+          id: nodeId,
+          name: typeof n.name === 'string' ? n.name : '',
+          type: apollonType,
+          owner: laneApolId || null,
           bounds: { x, y, width: w, height: h },
         };
 
@@ -152,13 +160,20 @@ export class BPMNDiagramConverter implements DiagramConverter {
       if (!sourceId || !targetId) return;
       const relId = generateUniqueId('flow');
       relationships[relId] = {
-        id: relId, name: typeof f.name === 'string' ? f.name : '',
-        type: 'BPMNFlow', owner: null,
+        id: relId,
+        name: typeof f.name === 'string' ? f.name : '',
+        type: 'BPMNFlow',
+        owner: null,
         bounds: { x: 0, y: 0, width: 100, height: 1 },
-        path: [{ x: 0, y: 0 }, { x: 100, y: 0 }],
+        path: [
+          { x: 0, y: 0 },
+          { x: 100, y: 0 },
+        ],
         source: { direction: 'Right', element: sourceId },
         target: { direction: 'Left', element: targetId },
-        isManuallyLayouted: false, flowType: 'sequence', isDefault: false,
+        isManuallyLayouted: false,
+        flowType: 'sequence',
+        isDefault: false,
       };
     });
 
@@ -171,18 +186,28 @@ export class BPMNDiagramConverter implements DiagramConverter {
       const maxY = Math.max(...placed.map((e) => e.bounds.y + e.bounds.height));
       const offsetX = -(minX + maxX) / 2;
       const offsetY = -(minY + maxY) / 2;
-      placed.forEach((e) => { e.bounds.x += offsetX; e.bounds.y += offsetY; });
+      placed.forEach((e) => {
+        e.bounds.x += offsetX;
+        e.bounds.y += offsetY;
+      });
     }
 
     const allBounds = Object.values(elements).map((e) => e.bounds);
-    const totalW = allBounds.length ? Math.max(...allBounds.map(b => b.x + b.width)) - Math.min(...allBounds.map(b => b.x)) : 800;
-    const totalH = allBounds.length ? Math.max(...allBounds.map(b => b.y + b.height)) - Math.min(...allBounds.map(b => b.y)) : 500;
+    const totalW = allBounds.length
+      ? Math.max(...allBounds.map((b) => b.x + b.width)) - Math.min(...allBounds.map((b) => b.x))
+      : 800;
+    const totalH = allBounds.length
+      ? Math.max(...allBounds.map((b) => b.y + b.height)) - Math.min(...allBounds.map((b) => b.y))
+      : 500;
 
     return {
-      version: '3.0.0', type: 'BPMNDiagram',
+      version: '3.0.0',
+      type: 'BPMNDiagram',
       size: { width: Math.max(800, totalW + 80), height: Math.max(400, totalH + 80) },
       interactive: { elements: {}, relationships: {} },
-      elements, relationships, assessments: {},
+      elements,
+      relationships,
+      assessments: {},
     };
   }
 
@@ -257,7 +282,10 @@ export class BPMNDiagramConverter implements DiagramConverter {
         type: 'BPMNFlow',
         owner: null,
         bounds: { x: 0, y: 0, width: 100, height: 1 },
-        path: [{ x: 0, y: 0 }, { x: 100, y: 0 }],
+        path: [
+          { x: 0, y: 0 },
+          { x: 100, y: 0 },
+        ],
         source: { direction: sourceDir, element: sourceId },
         target: { direction: targetDir, element: targetId },
         isManuallyLayouted: false,
@@ -312,18 +340,32 @@ export class BPMNDiagramConverter implements DiagramConverter {
     const ids = new Set(nodes.map((n) => n.id));
     const succ: Record<string, string[]> = {};
     const indeg: Record<string, number> = {};
-    nodes.forEach((n) => { succ[n.id] = []; indeg[n.id] = 0; });
+    nodes.forEach((n) => {
+      succ[n.id] = [];
+      indeg[n.id] = 0;
+    });
     flows.forEach((f) => {
       const s = String(f.source);
       const t = String(f.target);
-      if (ids.has(s) && ids.has(t) && s !== t) { succ[s].push(t); indeg[t] += 1; }
+      if (ids.has(s) && ids.has(t) && s !== t) {
+        succ[s].push(t);
+        indeg[t] += 1;
+      }
     });
 
     const layer: Record<string, number> = {};
     const remaining = { ...indeg };
     const queue: string[] = [];
-    nodes.forEach((n) => { if (indeg[n.id] === 0) { layer[n.id] = 0; queue.push(n.id); } });
-    if (queue.length === 0 && nodes.length) { layer[nodes[0].id] = 0; queue.push(nodes[0].id); }
+    nodes.forEach((n) => {
+      if (indeg[n.id] === 0) {
+        layer[n.id] = 0;
+        queue.push(n.id);
+      }
+    });
+    if (queue.length === 0 && nodes.length) {
+      layer[nodes[0].id] = 0;
+      queue.push(nodes[0].id);
+    }
 
     const visited = new Set<string>();
     while (queue.length) {
@@ -337,7 +379,9 @@ export class BPMNDiagramConverter implements DiagramConverter {
         if (remaining[v] <= 0 && !visited.has(v)) queue.push(v);
       });
     }
-    nodes.forEach((n) => { if (!(n.id in layer)) layer[n.id] = 0; });
+    nodes.forEach((n) => {
+      if (!(n.id in layer)) layer[n.id] = 0;
+    });
     return layer;
   }
 

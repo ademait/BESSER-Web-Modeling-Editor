@@ -312,30 +312,23 @@ function poolFor(bpmn: UMLModel, el: UMLElement): string | null {
   return null;
 }
 
-// ── Edge-kind heuristic (T1d — role-keyed) ──────────────────────────
+// ── Edge-kind heuristic (T1d — role-keyed; vocabulary widened in guide 48) ──
 //
-// P3′ rationalization: the SEAA'25 collaborationMode / mergingStrategy were
-// deleted from the gateway, so the edge kind is now decided purely by the lane
-// ROLE PAIR. This table is intentionally a single, swappable lookup: when the
-// lane role axis migrates to profiles (T1h — e.g. solution / coder / supervisor),
-// swap LaneRole + ROLE_EDGE_MAP here without touching the call site.
+// The edge kind is decided purely by the lane ROLE PAIR. Guide 48 widened the
+// lane role from the binary worker/manager to the four AgentCategory tokens
+// (solution / supervision / collaboration / consensus), aligning level-2 with
+// the level-1 Component vocabulary. The supervision role plays the old
+// `manager` part; every other role plays the old `worker` part, so the rules
+// below reproduce the prior outcomes 1:1 (supervision→other = supervises,
+// other→supervision = revises, other→other = collaborates).
 //
-// NOTE the collapse: a bare `manager → worker` handoff used to split into
-// `supervises` (role-cooperation gateway) vs `delegates` (voting). With the
-// gateway signal gone it resolves to ONE kind — `supervises` (memo 08 § 7).
-// Flip the 'manager->worker' entry to 'delegates' if you want delegation
-// semantics instead (see guide 03 § 0). `delegates` is otherwise the fallback
-// for unclassifiable / non-agentic edges.
-type LaneRole = 'manager' | 'worker';
+// `delegates` is the fallback for an unclassifiable / non-agentic edge (and,
+// by the rules below, a supervision→supervision handoff — see guide 48 § Step 6).
+type LaneRole = 'solution' | 'supervision' | 'collaboration' | 'consensus';
 
-const ROLE_EDGE_MAP: Record<`${LaneRole}->${LaneRole}`, AgenticEdgeKind> = {
-  'worker->manager': 'revises',
-  'manager->worker': 'supervises',
-  'worker->worker': 'collaborates',
-  'manager->manager': 'collaborates',
-};
+const LANE_ROLES: ReadonlySet<string> = new Set<LaneRole>(['solution', 'supervision', 'collaboration', 'consensus']);
 
-const isLaneRole = (r: unknown): r is LaneRole => r === 'manager' || r === 'worker';
+const isLaneRole = (r: unknown): r is LaneRole => typeof r === 'string' && LANE_ROLES.has(r);
 
 // `_gateway` is retained in the signature for call-site stability and a possible
 // future gateway-aware heuristic; T1d reads nothing off it (its agentic merge
@@ -355,7 +348,12 @@ export function resolveEdgeKind(
   const tgtRole = (tgtLane as unknown as { role?: unknown }).role;
   if (!isLaneRole(srcRole) || !isLaneRole(tgtRole)) return 'delegates';
 
-  return ROLE_EDGE_MAP[`${srcRole}->${tgtRole}`] ?? 'delegates';
+  const srcSupervises = srcRole === 'supervision';
+  const tgtSupervises = tgtRole === 'supervision';
+  if (srcSupervises && !tgtSupervises) return 'supervises';
+  if (!srcSupervises && tgtSupervises) return 'revises';
+  if (!srcSupervises && !tgtSupervises) return 'collaborates';
+  return 'delegates'; // supervision → supervision: ambiguous → generic delegation
 }
 
 // ── Capability traversal (16, plan 15 §4–§5) ────────────────────────
@@ -702,8 +700,10 @@ function emitLaneComponent(
   layout: LayoutCursor,
   sourceDiagramId?: string,
 ): string {
-  // Only ever called for agentic lanes (meeting 2026-06-08 §1) — every
-  // emitted lane-Component is a `solution` agent.
+  // Only ever called for agentic lanes (meeting 2026-06-08 §1). The lane's
+  // role (guide 48: solution/supervision/collaboration/consensus) maps
+  // directly to the Component stereotype, aligning level-2 BPMN with the
+  // level-1 Component vocabulary.
   const id = newId();
   const bounds = {
     x: layout.laneInSubsystemX,
@@ -718,13 +718,14 @@ function emitLaneComponent(
   // BESSER deployment generator (6b-2) consumes it; absent when the lane was
   // never linked.
   const agentDiagramRef = (lane as unknown as { agentDiagramRef?: string }).agentDiagramRef;
+  const laneRole = (lane as unknown as { role?: string }).role;
   out.elements[id] = {
     id,
     name: lane.name || 'Agent',
     type: 'Component',
     owner: subsystemId,
     bounds,
-    stereotype: 'solution',
+    stereotype: laneRole ?? 'solution',
     displayStereotype: true,
     // 21 — BESSER `AgenticComponent.process_model_refs` (diagram-grained,
     // memo 17 § 5): the source BPMN diagram this agent participates in.

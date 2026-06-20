@@ -642,7 +642,14 @@ describe('29 — laneToAgentModel', () => {
       const m = bpmn();
       Object.assign(m.elements, {
         L: lane('L'),
-        L2: { id: 'L2', name: 'Supervisor', type: 'BPMNSwimlane', owner: null, isAgentic: true, bounds: { x: 0, y: 200, width: 400, height: 80 } },
+        L2: {
+          id: 'L2',
+          name: 'Supervisor',
+          type: 'BPMNSwimlane',
+          owner: null,
+          isAgentic: true,
+          bounds: { x: 0, y: 200, width: 400, height: 80 },
+        },
         t1: { ...task('t1', 'Plan', 10), reflectionMode: 'cross', reflectionReviewerLaneId: 'L2' },
         t2: task('t2', 'Code', 200),
       });
@@ -677,7 +684,14 @@ describe('29 — laneToAgentModel', () => {
       const m = bpmn();
       Object.assign(m.elements, {
         L: lane('L'),
-        L2: { id: 'L2', name: 'Supervisor', type: 'BPMNSwimlane', owner: null, isAgentic: true, bounds: { x: 0, y: 200, width: 400, height: 80 } },
+        L2: {
+          id: 'L2',
+          name: 'Supervisor',
+          type: 'BPMNSwimlane',
+          owner: null,
+          isAgentic: true,
+          bounds: { x: 0, y: 200, width: 400, height: 80 },
+        },
         t1: { ...task('t1', 'Plan', 10), reflectionMode: 'cross' }, // no reflectionReviewerLaneId
         t2: task('t2', 'Code', 200),
       });
@@ -738,10 +752,10 @@ describe('29 — laneToAgentModel', () => {
           type: 'BPMNSwimlane',
           owner: null,
           isAgentic: true,
-          role: 'worker',
+          role: 'solution',
           bounds: { x: 0, y: 0, width: 400, height: 200 },
         },
-        P: agLane('P', 'Supervisor', 'manager'),
+        P: agLane('P', 'Supervisor', 'supervision'),
         t1: {
           id: 't1',
           name: 'Plan',
@@ -827,12 +841,12 @@ describe('29 — laneToAgentModel', () => {
           type: 'BPMNSwimlane',
           owner: null,
           isAgentic: true,
-          role: 'worker',
+          role: 'solution',
           bounds: { x: 0, y: 0, width: 400, height: 200 },
         },
-        X: agLane('X', 'PeerX', 'worker'),
-        Y: agLane('Y', 'PeerY', 'worker'),
-        Z: agLane('Z', 'PeerZ', 'manager'),
+        X: agLane('X', 'PeerX', 'solution'),
+        Y: agLane('Y', 'PeerY', 'solution'),
+        Z: agLane('Z', 'PeerZ', 'supervision'),
         t1: task('t1', 'Work', 10),
         x1: agTask('x1', 'TX', 'X'),
         y1: agTask('y1', 'TY', 'Y'),
@@ -913,11 +927,11 @@ describe('29 — laneToAgentModel', () => {
           type: 'BPMNSwimlane',
           owner: null,
           isAgentic: true,
-          role: 'worker',
+          role: 'solution',
           bounds: { x: 0, y: 0, width: 400, height: 200 },
         },
-        P1: agLane('P1', 'Reviewer', 'manager'),
-        P2: agLane('P2', 'Tester', 'worker'),
+        P1: agLane('P1', 'Reviewer', 'supervision'),
+        P2: agLane('P2', 'Tester', 'solution'),
         t1: task('t1', 'Write', 10),
         p1t: agTask('p1t', 'Review', 'P1'),
         p2t: agTask('p2t', 'Test', 'P2'),

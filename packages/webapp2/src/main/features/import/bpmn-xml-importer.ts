@@ -1,5 +1,6 @@
 import {
   BPMNAgentRole,
+  migrateLegacyRole,
   BPMNGatewayRole,
   BPMNReflectionMode,
   UMLDiagramType,
@@ -202,8 +203,11 @@ function parseAgenticExtension(
     });
     return undefined;
   };
-  const role = oneOf('role', ['worker', 'manager'] as const);
-  if (role !== undefined) out.role = role;
+  // guide 48: accept the four AgentCategory tokens AND legacy worker/manager
+  // (migrated), so pre-48 .bpmn files still import their lane role. Only emit
+  // when the attribute was actually present — absence keeps the model default.
+  const rawRole = a.getAttribute('role');
+  if (rawRole !== null) out.role = migrateLegacyRole(rawRole);
   const reflectionMode = oneOf('reflectionMode', ['none', 'self', 'cross', 'human'] as const);
   if (reflectionMode !== undefined) out.reflectionMode = reflectionMode;
   const gatewayRole = oneOf('gatewayRole', ['diverging', 'merging'] as const);

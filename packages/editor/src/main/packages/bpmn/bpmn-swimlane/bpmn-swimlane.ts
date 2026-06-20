@@ -8,7 +8,7 @@ import { ILayoutable } from '../../../services/layouter/layoutable';
 import { UMLContainer } from '../../../services/uml-container/uml-container';
 import { assign } from '../../../utils/fx/assign';
 import * as Apollon from '../../../typings';
-import { BPMNAgentRole, clampTrustScore, clampMultiplicity } from '../common/types';
+import { BPMNAgentRole, clampTrustScore, clampMultiplicity, migrateLegacyRole } from '../common/types';
 
 export class BPMNSwimlane extends UMLContainer {
   static DEFAULT_HEIGHT = 80;
@@ -25,7 +25,7 @@ export class BPMNSwimlane extends UMLContainer {
 
   // Agentic BPMN (04D): a lane is marked agentic via `isAgentic` rather than a
   // separate element type. `role` / `trustScore` are only meaningful when set.
-  static defaultRole: BPMNAgentRole = 'worker';
+  static defaultRole: BPMNAgentRole = 'solution';
   static defaultTrustScore = 0;
   static defaultMultiplicity = 1;
 
@@ -87,7 +87,10 @@ export class BPMNSwimlane extends UMLContainer {
   ): void {
     super.deserialize(values, children);
     this.isAgentic = values.isAgentic ?? false;
-    this.role = values.role ?? BPMNSwimlane.defaultRole;
+    // guide 48: legacy diagrams carry 'worker' / 'manager'; migrate to the
+    // four-token vocabulary on load. Cast to string first — `values.role` is
+    // typed `BPMNAgentRole | undefined`, which TS narrows to the *new* union.
+    this.role = migrateLegacyRole(values.role as string | undefined);
     this.trustScore = clampTrustScore(values.trustScore ?? BPMNSwimlane.defaultTrustScore);
     this.multiplicity = clampMultiplicity(values.multiplicity ?? BPMNSwimlane.defaultMultiplicity);
     this.agentDiagramRef = values.agentDiagramRef ?? undefined;

@@ -17,7 +17,7 @@
       "owner": "pool-a",
       "bounds": { "x": 60, "y": 60, "width": 480, "height": 160 },
       "isAgentic": true,
-      "role": "manager",
+      "role": "supervision",
       "trustScore": 80
     },
     "task-a-mgr": {

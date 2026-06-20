@@ -17,7 +17,7 @@
       "owner": "pool-a",
       "bounds": { "x": 60, "y": 60, "width": 380, "height": 120 },
       "isAgentic": true,
-      "role": "manager",
+      "role": "supervision",
       "trustScore": 70
     },
     "task-a": {
@@ -42,7 +42,7 @@
       "owner": "pool-b",
       "bounds": { "x": 60, "y": 280, "width": 380, "height": 120 },
       "isAgentic": true,
-      "role": "worker",
+      "role": "solution",
       "trustScore": 60
     },
     "task-b": {

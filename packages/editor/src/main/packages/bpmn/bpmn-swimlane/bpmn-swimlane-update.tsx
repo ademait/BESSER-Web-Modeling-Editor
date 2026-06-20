@@ -72,7 +72,12 @@ const enhance = compose<ComponentClass<OwnProps>>(
       swapLaneBounds: (idA: string, boundsA: IBounds, idB: string, boundsB: IBounds) => {
         dispatch({
           type: UMLElementActionTypes.UPDATE,
-          payload: { values: [{ id: idA, bounds: boundsA }, { id: idB, bounds: boundsB }] },
+          payload: {
+            values: [
+              { id: idA, bounds: boundsA },
+              { id: idB, bounds: boundsB },
+            ],
+          },
           undoable: false,
         });
         dispatch(LayouterRepository.layout());
@@ -134,11 +139,17 @@ class BPMNSwimlaneUpdateComponent extends Component<Props, State> {
             <section>
               <Divider />
               <Dropdown value={element.role} onChange={this.changeRole(element.id)}>
-                <Dropdown.Item value={'worker'}>
-                  {this.props.translate('packages.BPMNDiagram.BPMNAgentRoleWorker')}
+                <Dropdown.Item value={'solution'}>
+                  {this.props.translate('packages.BPMNDiagram.BPMNAgentRoleSolution')}
                 </Dropdown.Item>
-                <Dropdown.Item value={'manager'}>
-                  {this.props.translate('packages.BPMNDiagram.BPMNAgentRoleManager')}
+                <Dropdown.Item value={'supervision'}>
+                  {this.props.translate('packages.BPMNDiagram.BPMNAgentRoleSupervision')}
+                </Dropdown.Item>
+                <Dropdown.Item value={'collaboration'}>
+                  {this.props.translate('packages.BPMNDiagram.BPMNAgentRoleCollaboration')}
+                </Dropdown.Item>
+                <Dropdown.Item value={'consensus'}>
+                  {this.props.translate('packages.BPMNDiagram.BPMNAgentRoleConsensus')}
                 </Dropdown.Item>
               </Dropdown>
             </section>
@@ -175,19 +186,19 @@ class BPMNSwimlaneUpdateComponent extends Component<Props, State> {
   private moveUp = () => {
     const { element, prevLaneId, prevLaneBounds } = this.props;
     if (!prevLaneId || !prevLaneBounds) return;
-    this.props.swapLaneBounds(
-      element.id, { ...element.bounds, y: prevLaneBounds.y },
-      prevLaneId, { ...prevLaneBounds, y: element.bounds.y },
-    );
+    this.props.swapLaneBounds(element.id, { ...element.bounds, y: prevLaneBounds.y }, prevLaneId, {
+      ...prevLaneBounds,
+      y: element.bounds.y,
+    });
   };
 
   private moveDown = () => {
     const { element, nextLaneId, nextLaneBounds } = this.props;
     if (!nextLaneId || !nextLaneBounds) return;
-    this.props.swapLaneBounds(
-      element.id, { ...element.bounds, y: nextLaneBounds.y },
-      nextLaneId, { ...nextLaneBounds, y: element.bounds.y },
-    );
+    this.props.swapLaneBounds(element.id, { ...element.bounds, y: nextLaneBounds.y }, nextLaneId, {
+      ...nextLaneBounds,
+      y: element.bounds.y,
+    });
   };
 
   private rename = (id: string) => (value: string) => this.props.update(id, { name: value });

@@ -3,6 +3,14 @@ import { ThemedRect } from '../../../components/theme/themedComponents';
 import { BPMNSwimlane } from './bpmn-swimlane';
 import { Multiline } from '../../../utils/svg/multiline';
 import { BPMNBotIcon } from '../common/icons/bpmn-bot-icon';
+import { BPMNAgentRole } from '../common/types';
+
+const ROLE_BADGE: Record<BPMNAgentRole, string> = {
+  solution: 'S',
+  supervision: 'Sv',
+  collaboration: 'C',
+  consensus: 'Cn',
+};
 
 export const BPMNSwimlaneComponent: FunctionComponent<Props> = ({ element, fillColor, textColor, children }) => {
   const fg = textColor || element.textColor;
@@ -24,25 +32,25 @@ export const BPMNSwimlaneComponent: FunctionComponent<Props> = ({ element, fillC
       >
         {element.name}
       </Multiline>
-      {/* Agentic BPMN (04D): bot icon + role letter + trust score stack vertically
+      {/* Agentic BPMN: bot icon + role letter + trust score stack vertically
           to the right of the (vertical) lane name so the header stays narrow. */}
       {element.isAgentic && (
         <>
-          <BPMNBotIcon x={34} y={element.bounds.height / 2 - 20} color={fg} />
+          <BPMNBotIcon x={34} y={element.bounds.height / 2 - 23} color={fg} />
           <text
             x={42}
-            y={element.bounds.height / 2 + 4}
-            fontSize={11}
+            y={element.bounds.height / 2 + 8}
+            fontSize={9}
             fontWeight="bold"
             textAnchor="middle"
             fill={fg}
             pointerEvents="none"
           >
-            {element.role === 'manager' ? 'm' : 'w'}
+            {ROLE_BADGE[element.role] ?? 'S'}
           </text>
           <text
             x={42}
-            y={element.bounds.height / 2 + 18}
+            y={element.bounds.height / 2 + 23}
             fontSize={10}
             textAnchor="middle"
             fill={fg}
@@ -53,7 +61,7 @@ export const BPMNSwimlaneComponent: FunctionComponent<Props> = ({ element, fillC
           {element.multiplicity > 1 && (
             <text
               x={42}
-              y={element.bounds.height / 2 + 32}
+              y={element.bounds.height / 2 + 38}
               fontSize={11}
               fontWeight="bold"
               textAnchor="middle"

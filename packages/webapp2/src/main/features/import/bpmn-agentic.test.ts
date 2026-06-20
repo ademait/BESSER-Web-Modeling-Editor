@@ -67,7 +67,7 @@ describe('agentic round-trip (04D2)', () => {
 
     const lane = findEl('AgentReviewer');
     expect(lane?.isAgentic).toBe(true);
-    expect(lane?.role).toBe('manager');
+    expect(lane?.role).toBe('supervision');
     expect(lane?.trustScore).toBe(90);
     expect(lane?.multiplicity).toBe(3);
 
@@ -281,7 +281,7 @@ function buildFixtureAgenticModel(): UMLModel {
         owner: 'Pool_1',
         bounds: bounds(40, 0, 560, 300),
         isAgentic: true,
-        role: 'manager',
+        role: 'supervision',
         trustScore: 90,
         multiplicity: 3,
       } as unknown as UMLModel['elements'][string],
@@ -835,11 +835,33 @@ describe('generateGovernanceDsl policyType (T1c)', () => {
     // ManagerLane owns both gateways but has NO tasks — the BFS walk would
     // miss it entirely without the explicit owner-seeding step.
     const fixture = {
-      L_MGR: { id: 'L_MGR', type: 'BPMNSwimlane', name: 'ManagerLane', isAgentic: true, role: 'manager', trustScore: 90 },
-      L_WRK: { id: 'L_WRK', type: 'BPMNSwimlane', name: 'WorkerLane', isAgentic: true, role: 'worker', trustScore: 80 },
+      L_MGR: {
+        id: 'L_MGR',
+        type: 'BPMNSwimlane',
+        name: 'ManagerLane',
+        isAgentic: true,
+        role: 'supervision',
+        trustScore: 90,
+      },
+      L_WRK: {
+        id: 'L_WRK',
+        type: 'BPMNSwimlane',
+        name: 'WorkerLane',
+        isAgentic: true,
+        role: 'solution',
+        trustScore: 80,
+      },
       DIV: { id: 'DIV', type: 'BPMNGateway', isAgentic: true, gatewayRole: 'diverging', owner: 'L_MGR' },
       T1: { id: 'T1', type: 'BPMNTask', owner: 'L_WRK' },
-      MR: { id: 'MR', type: 'BPMNGateway', name: 'Merge', isAgentic: true, gatewayRole: 'merging', owner: 'L_MGR', trustScore: 70 },
+      MR: {
+        id: 'MR',
+        type: 'BPMNGateway',
+        name: 'Merge',
+        isAgentic: true,
+        gatewayRole: 'merging',
+        owner: 'L_MGR',
+        trustScore: 70,
+      },
       F1: { id: 'F1', type: 'BPMNFlow', flowType: 'sequence', source: { element: 'DIV' }, target: { element: 'T1' } },
       F2: { id: 'F2', type: 'BPMNFlow', flowType: 'sequence', source: { element: 'T1' }, target: { element: 'MR' } },
     } as Record<string, never>;
@@ -853,18 +875,40 @@ describe('generateGovernanceDsl policyType (T1c)', () => {
     // Same block: manager lane (gateways only) + worker lane (task). For
     // LeaderDrivenPolicy the participant list must show the manager, not the workers.
     const fixture = {
-      L_MGR: { id: 'L_MGR', type: 'BPMNSwimlane', name: 'ManagerLane', isAgentic: true, role: 'manager', trustScore: 90 },
-      L_WRK: { id: 'L_WRK', type: 'BPMNSwimlane', name: 'WorkerLane', isAgentic: true, role: 'worker', trustScore: 80 },
+      L_MGR: {
+        id: 'L_MGR',
+        type: 'BPMNSwimlane',
+        name: 'ManagerLane',
+        isAgentic: true,
+        role: 'supervision',
+        trustScore: 90,
+      },
+      L_WRK: {
+        id: 'L_WRK',
+        type: 'BPMNSwimlane',
+        name: 'WorkerLane',
+        isAgentic: true,
+        role: 'solution',
+        trustScore: 80,
+      },
       DIV: { id: 'DIV', type: 'BPMNGateway', isAgentic: true, gatewayRole: 'diverging', owner: 'L_MGR' },
       T1: { id: 'T1', type: 'BPMNTask', owner: 'L_WRK' },
-      MR: { id: 'MR', type: 'BPMNGateway', name: 'Merge', isAgentic: true, gatewayRole: 'merging', owner: 'L_MGR', trustScore: 70 },
+      MR: {
+        id: 'MR',
+        type: 'BPMNGateway',
+        name: 'Merge',
+        isAgentic: true,
+        gatewayRole: 'merging',
+        owner: 'L_MGR',
+        trustScore: 70,
+      },
       F1: { id: 'F1', type: 'BPMNFlow', flowType: 'sequence', source: { element: 'DIV' }, target: { element: 'T1' } },
       F2: { id: 'F2', type: 'BPMNFlow', flowType: 'sequence', source: { element: 'T1' }, target: { element: 'MR' } },
     } as Record<string, never>;
     const dsl = generateGovernanceDsl('MR', fixture, 'LeaderDrivenPolicy');
     expect(dsl).toContain('ManagerLane');
     expect(dsl).not.toContain('WorkerLane');
-    expect(dsl).toContain('role : manager');
+    expect(dsl).toContain('role : supervision');
     expect(dsl).not.toContain('TODO');
   });
 });
