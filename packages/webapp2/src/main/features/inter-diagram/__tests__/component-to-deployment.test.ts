@@ -264,20 +264,98 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
     });
     const r = componentModelToDeploymentModel(m);
 
-    it('emits 1 Subsystem node, 2 DeploymentComponents (owner=null), 0 STRUCTURAL associations, 0 warnings', () => {
+    it('emits 1 Subsystem node, 2 DeploymentComponents (owner=null), 1 STRUCTURAL association (ExecEnv→ExecEnv), 0 warnings', () => {
       if (!r.ok) throw new Error('expected ok');
       expect(subsystemNodes(r)).toHaveLength(1);
       const dcs = componentsOf(r);
       expect(dcs).toHaveLength(2);
       expect(dcs.every((d) => d.owner === null)).toBe(true);
-      // Both agents share one Subsystem → the dep anchors to the same outer node → collapses.
-      expect(associationsOf(r)).toHaveLength(0);
+      // 48 (D2): intra-pool dep now draws between ExecEnv nodes, not outer node.
+      expect(associationsOf(r)).toHaveLength(1);
       expect(r.warnings).toEqual([]);
     });
     it('04-FU3 — still emits 2 manifest DeploymentDependencies (one per Component-Artifact pair)', () => {
       if (!r.ok) throw new Error('expected ok');
       const manifest = Object.values(r.model.relationships).filter((rel) => rel.type === 'DeploymentDependency');
       expect(manifest).toHaveLength(2);
+    });
+  });
+
+  describe('48 — intra-pool agent-to-agent → ExecEnv CommunicationPath', () => {
+    // Three agents in ONE pool → ONE outer Subsystem → previously all deps collapsed.
+    // After 48, each has its own ExecEnv; intra-pool deps emit between ExecEnvs.
+    const m = makeBaseModel();
+    Object.assign(m.elements as Record<string, unknown>, {
+      s1: el('s1', 'Subsystem', 'Swarm', null),
+      sup: el('sup', 'Component', 'Supervisor', 's1', 'supervision'),
+      cod: el('cod', 'Component', 'Coder', 's1', 'solution'),
+      rev: el('rev', 'Component', 'Reviewer', 's1', 'solution'),
+    });
+    Object.assign(m.relationships as Record<string, unknown>, {
+      r1: dep('r1', 'sup', 'cod', 'supervises'),
+      r2: dep('r2', 'cod', 'rev', 'collaborates'),
+      r3: dep('r3', 'rev', 'sup', 'revises'),
+    });
+    const r = componentModelToDeploymentModel(m);
+
+    it('emits 3 ExecEnv nodes (one per agent) under one Docker Host', () => {
+      if (!r.ok) throw new Error('expected ok');
+      expect(execEnvNodes(r)).toHaveLength(3);
+      expect(hostNodes(r)).toHaveLength(1);
+    });
+
+    it('emits 3 DeploymentAssociations between ExecEnv nodes (not outer Subsystem node)', () => {
+      if (!r.ok) throw new Error('expected ok');
+      const assocs = associationsOf(r);
+      expect(assocs).toHaveLength(3);
+      const eeIds = new Set(execEnvNodes(r).map((n) => n.id));
+      for (const a of assocs) {
+        const asR = a as unknown as { source: { element: string }; target: { element: string } };
+        expect(eeIds.has(asR.source.element)).toBe(true);
+        expect(eeIds.has(asR.target.element)).toBe(true);
+      }
+    });
+
+    it('emits no warnings', () => {
+      if (!r.ok) throw new Error('expected ok');
+      expect(r.warnings).toEqual([]);
+    });
+
+    it('cross-pool deps still produce associations between the two groups ExecEnv nodes', () => {
+      const m2 = makeBaseModel();
+      Object.assign(m2.elements as Record<string, unknown>, {
+        s1: el('s1', 'Subsystem', 'Pool A', null),
+        s2: el('s2', 'Subsystem', 'Pool B', null),
+        c1: el('c1', 'Component', 'Agent A', 's1', 'solution'),
+        c2: el('c2', 'Component', 'Agent B', 's2', 'solution'),
+      });
+      Object.assign(m2.relationships as Record<string, unknown>, {
+        r1: dep('r1', 'c1', 'c2', 'delegates'),
+      });
+      const r2 = componentModelToDeploymentModel(m2);
+      if (!r2.ok) throw new Error('expected ok');
+      const assocs = associationsOf(r2);
+      expect(assocs).toHaveLength(1);
+      const eeIds = new Set(execEnvNodes(r2).map((n) => n.id));
+      const a = assocs[0] as unknown as { source: { element: string }; target: { element: string } };
+      expect(eeIds.has(a.source.element)).toBe(true);
+      expect(eeIds.has(a.target.element)).toBe(true);
+    });
+
+    it('bidirectional ComponentDependency (A→B + B→A) collapses to 1 DeploymentAssociation', () => {
+      const m3 = makeBaseModel();
+      Object.assign(m3.elements as Record<string, unknown>, {
+        s1: el('s1', 'Subsystem', 'Swarm', null),
+        c1: el('c1', 'Component', 'Supervisor', 's1', 'supervision'),
+        c2: el('c2', 'Component', 'Coder', 's1', 'solution'),
+      });
+      Object.assign(m3.relationships as Record<string, unknown>, {
+        r1: dep('r1', 'c1', 'c2', 'supervises'),
+        r2: dep('r2', 'c2', 'c1', 'revises'),
+      });
+      const r3 = componentModelToDeploymentModel(m3);
+      if (!r3.ok) throw new Error('expected ok');
+      expect(associationsOf(r3)).toHaveLength(1);
     });
   });
 
@@ -627,7 +705,7 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
   });
 
   describe('35 / Bug 16 — multiplicity not applied to capability-stereotyped artifacts', () => {
-    it('agent gets [N] suffix; capability is excluded entirely (no [M] artifact)', () => {
+    it('agent gets [N] suffix on its Artifact; capability is excluded entirely', () => {
       const m = makeBaseModel();
       Object.assign(m.elements as Record<string, unknown>, {
         s1: el('s1', 'Subsystem', 'A', null),
@@ -637,10 +715,10 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
       const r = componentModelToDeploymentModel(m, { agent: 3, llm: 5 });
       expect(r.ok).toBe(true);
       if (!r.ok) return;
-      // The agent fans out into 3 ExecEnvs; the capability (llm) is excluded entirely,
-      // so its ×5 is ignored and it produces no artifact.
+      // One ExecEnv per agent; the Artifact carries [N] when multiplicity > 1.
+      // The capability (llm) is excluded entirely (no artifact, no [M] notation).
       const artifacts = artifactsOf(r);
-      expect(artifacts.map((a) => a.name).sort()).toEqual(['Solver_1', 'Solver_2', 'Solver_3']);
+      expect(artifacts.map((a) => a.name).sort()).toEqual(['Solver [3]']);
     });
 
     it('agent without multiplicity entry produces a clean (no [N]) artifact name', () => {

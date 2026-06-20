@@ -78,10 +78,13 @@ export function componentModelToDeploymentModel(
 
   // 38 — emit one nested subtree per group, stacking groups left-to-right.
   // `nodeIdBySubsystemId` / `nodeIdByCompId` map to the OUTER node (the kept
-  // Subsystem node, or the orphan Docker Host) so Phase 3 associations behave
-  // exactly as in 04-FU2 (intra-group collapse, cross-group draw).
+  // Subsystem node, or the orphan Docker Host) — used as the fallback for
+  // Subsystem-level endpoints (external black-box pools) in Phase 3.
+  // `execEnvIdByCompId` maps each source Component to its ExecEnv node (48 —
+  // D2: preferred endpoint for agent-to-agent CommunicationPath derivation).
   const nodeIdBySubsystemId = new Map<string, string>(); // subsystem.id → outer Subsystem node id
-  const nodeIdByCompId = new Map<string, string>(); // sourceComponentId → association-anchor node id
+  const nodeIdByCompId = new Map<string, string>(); // sourceComponentId → outer node (fallback)
+  const execEnvIdByCompId = new Map<string, string>(); // sourceComponentId → ExecEnv node id
   let cursorX = -320;
   const originY = -200;
 
@@ -90,7 +93,7 @@ export function componentModelToDeploymentModel(
     const subComps = componentsBySubsystemId.get(sub.id) ?? [];
     // Skip Subsystems whose entire subtree held only capability Components.
     if (subComps.length === 0 && !aliveSubsystemIds.has(sub.id)) continue;
-    const { outerNodeId, bounds } = emitGroupSubtree(
+    const { outerNodeId, bounds, execEnvByCompId } = emitGroupSubtree(
       out,
       sub.name,
       sub,
@@ -103,12 +106,13 @@ export function componentModelToDeploymentModel(
     nodeIdBySubsystemId.set(sub.id, outerNodeId);
     elementMapping[outerNodeId] = sub.id; // DeploymentNode ← source Subsystem
     for (const comp of subComps) nodeIdByCompId.set(comp.id, outerNodeId);
+    for (const [cId, eeId] of execEnvByCompId) execEnvIdByCompId.set(cId, eeId);
     cursorX = bounds.x + bounds.width + GROUP_GAP;
   }
 
   // Phase 1+2 — orphan bucket (no Subsystem to keep → top-level Docker Host).
   if (orphanComponents.length > 0) {
-    const { outerNodeId, bounds } = emitGroupSubtree(
+    const { outerNodeId, bounds, execEnvByCompId } = emitGroupSubtree(
       out,
       'Docker Host',
       null,
@@ -120,6 +124,7 @@ export function componentModelToDeploymentModel(
     );
     // Orphan Docker Host is synthetic — no elementMapping entry.
     for (const comp of orphanComponents) nodeIdByCompId.set(comp.id, outerNodeId);
+    for (const [cId, eeId] of execEnvByCompId) execEnvIdByCompId.set(cId, eeId);
     cursorX = bounds.x + bounds.width + GROUP_GAP;
   }
 
@@ -129,21 +134,28 @@ export function componentModelToDeploymentModel(
     warnings.push({ kind: 'flat-scaffold' });
   }
 
-  // Phase 3 — cross-group ComponentDependencies → DeploymentAssociation.
-  // Intra-group deps collapse silently (OQ-2). Direction-preserving dedup (OQ-5).
-  // Endpoint may be a Component or a Subsystem (04-FU2); resolveToNodeId maps both
-  // to their outer node. (Logic unchanged.)
+  // Phase 3 — ComponentDependencies → DeploymentAssociation.
+  // 48 (D2): resolve endpoints to ExecEnv nodes (per-container specificity) first;
+  // fall back to the outer node for Subsystem-level endpoints (external black-box
+  // pools) that have no ExecEnv. This allows intra-pool agent-to-agent deps to emit
+  // a DeploymentAssociation → CommunicationPath between their individual ExecEnv
+  // containers, since ExecEnv ids are always distinct even within the same Subsystem.
+  // A pair is still deduped (OQ-5); only a same-ExecEnv-id pair is skipped
+  // (shouldn't occur for two distinct agents).
   const dedup = new Set<string>();
   for (const rel of Object.values(component.relationships)) {
     if (rel.type !== 'ComponentDependency') continue;
-    const srcNodeId = resolveToNodeId(component, rel.source.element, nodeIdByCompId, nodeIdBySubsystemId);
-    const tgtNodeId = resolveToNodeId(component, rel.target.element, nodeIdByCompId, nodeIdBySubsystemId);
-    if (!srcNodeId || !tgtNodeId) continue;
-    if (srcNodeId === tgtNodeId) continue; // intra-group — silent drop
-    const key = `${srcNodeId}\x00${tgtNodeId}`;
+    const srcId = resolveToExecEnvOrNodeId(
+      component, rel.source.element, execEnvIdByCompId, nodeIdByCompId, nodeIdBySubsystemId,
+    );
+    const tgtId = resolveToExecEnvOrNodeId(
+      component, rel.target.element, execEnvIdByCompId, nodeIdByCompId, nodeIdBySubsystemId,
+    );
+    if (!srcId || !tgtId || srcId === tgtId) continue;
+    const key = [srcId, tgtId].sort().join('\x00'); // CommunicationPath is undirected — collapse both directions
     if (dedup.has(key)) continue;
     dedup.add(key);
-    const edgeId = emitDeploymentAssociation(out, srcNodeId, tgtNodeId);
+    const edgeId = emitDeploymentAssociation(out, srcId, tgtId);
     elementMapping[edgeId] = rel.id; // DeploymentAssociation ← source ComponentDependency
   }
 
@@ -247,6 +259,24 @@ function resolveToNodeId(
   return undefined;
 }
 
+/**
+ * 48 (D2) — resolve a ComponentDependency endpoint to a DeploymentNode ID,
+ * preferring the agent's ExecEnv node (per-container specificity) over the
+ * outer Subsystem node. Falls back to `resolveToNodeId` for Subsystem-level
+ * endpoints (external black-box pools) that have no corresponding ExecEnv.
+ */
+function resolveToExecEnvOrNodeId(
+  model: UMLModel,
+  elementId: string,
+  execEnvIdByCompId: Map<string, string>,
+  nodeIdByCompId: Map<string, string>,
+  nodeIdBySubsystemId: Map<string, string>,
+): string | undefined {
+  const eeId = execEnvIdByCompId.get(elementId);
+  if (eeId) return eeId;
+  return resolveToNodeId(model, elementId, nodeIdByCompId, nodeIdBySubsystemId);
+}
+
 // ── Layout constants (38 — per-agent ExecutionEnvironment nesting) ──
 // Bottom-up nesting: Subsystem › Docker Host › ExecutionEnvironment › Artifact,
 // with the logical DeploymentComponent in a row below the Subsystem.
@@ -340,7 +370,7 @@ function emitGroupSubtree(
   originX: number,
   originY: number,
   elementMapping: ElementLineageMap,
-): { outerNodeId: string; bounds: Bounds } {
+): { outerNodeId: string; bounds: Bounds; execEnvByCompId: Map<string, string> } {
   // Nested-subsystem placeholder (OQ-1): a Subsystem kept alive only by a
   // descendant child Subsystem has no agents of its own — emit a bare node.
   if (agents.length === 0) {
@@ -357,7 +387,7 @@ function emitGroupSubtree(
         ? ((outerSource as unknown as { displayStereotype?: boolean }).displayStereotype ?? true)
         : true,
     } as unknown as UMLElement;
-    return { outerNodeId: id, bounds };
+    return { outerNodeId: id, bounds, execEnvByCompId: new Map() };
   }
 
   const count = agents.length;
@@ -413,6 +443,9 @@ function emitGroupSubtree(
   if (!outerSource) outerNodeId = hostId;
 
   // ── One ExecutionEnvironment (+ Artifact + Component + manifest edge) per agent ──
+  // 48 (D2) — collect the ExecEnv id per source Component so Phase 3 can
+  // connect agent-to-agent pairs via their individual container nodes.
+  const execEnvByCompId = new Map<string, string>();
   for (let i = 0; i < agents.length; i++) {
     const comp = agents[i];
     const name = comp.name || 'Agent';
@@ -430,6 +463,7 @@ function emitGroupSubtree(
       stereotype: 'executionEnvironment', // D-38-1
       displayStereotype: true,
     } as unknown as UMLElement;
+    execEnvByCompId.set(comp.id, eeId); // 48 — source Component → its ExecEnv node
 
     // Artifact INSIDE the ExecutionEnvironment (owner = ExecEnv).
     const artifactId = newId();
@@ -480,7 +514,7 @@ function emitGroupSubtree(
     emitManifestDependency(out, artifactId, artifactBounds, componentId, componentBounds);
   }
 
-  return { outerNodeId, bounds: outerBounds };
+  return { outerNodeId, bounds: outerBounds, execEnvByCompId };
 }
 
 function emitManifestDependency(

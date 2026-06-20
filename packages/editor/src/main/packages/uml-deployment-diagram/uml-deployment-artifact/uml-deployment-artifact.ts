@@ -11,7 +11,6 @@ import { UMLElementType } from '../../uml-element-type';
 
 export class UMLDeploymentArtifact extends UMLElement {
   static supportedRelationships = [
-    DeploymentRelationshipType.DeploymentAssociation,
     DeploymentRelationshipType.DeploymentDependency,
     DeploymentRelationshipType.DeploymentInterfaceProvided,
     DeploymentRelationshipType.DeploymentInterfaceRequired,
