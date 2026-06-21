@@ -1,12 +1,10 @@
 import React, { FunctionComponent } from 'react';
 
-// Agentic BPMN merge marker for merging gateways (SEAA'25 §4.4 glyph, retained
-// through the T1/P3′ rationalization): two bars with arrows pointing inward
-// (flows merging). The two-letter mergingStrategy label was REMOVED (T1b) — the
-// strategy enum is deleted and the merge axis now lives in the governance DSL.
-// The glyph signals "this is the merging side of an agentic collaboration
-// block"; a separate governance badge (BPMNGovernanceBadgeIcon) flags whether a
-// policy is attached.
+// Agentic BPMN merge marker for merging gateways (SEAA'25 § 4.4 glyph): two
+// bars with arrows pointing inward (flows merging). It carries no strategy
+// label — the merge axis lives in the governance DSL instead. The glyph signals
+// "this is the merging side of an agentic collaboration block"; a separate
+// governance badge (BPMNGovernanceBadgeIcon) flags whether a policy is attached.
 export const BPMNMergeMarkerIcon: FunctionComponent<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg
     {...props}

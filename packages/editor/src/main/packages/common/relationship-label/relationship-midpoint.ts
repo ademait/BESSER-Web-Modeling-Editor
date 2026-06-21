@@ -10,7 +10,7 @@ export interface RelationshipMidpoint {
 /**
  * Geometric midpoint of a relationship polyline + the dominant local
  * axis at that point. Used to anchor edge labels (name, «stereotype»,
- * and — Phase C — the agentic bot icon).
+ * and the agentic bot icon).
  *
  * Extracted verbatim from the original inline algorithm in
  * uml-deployment-association-component.tsx so every edge component

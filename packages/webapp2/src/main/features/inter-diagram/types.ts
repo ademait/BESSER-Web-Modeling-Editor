@@ -9,9 +9,9 @@ import type { ElementLineageMap } from '../../shared/types/project';
  * or a "Generated with N warnings" hint.
  *
  * `model` is `null` when the input is unusable (e.g. a flat BPMN with
- * no pool / lane structure — see plan § 3 pre-conditions).
+ * no pool / lane structure).
  *
- * `elementMapping` (06-v2): derived element id → source BPMN element
+ * `elementMapping`: derived element id → source BPMN element
  * id. Synthetic emissions (external Components) have no entry.
  */
 export type DerivationResult =
@@ -25,19 +25,19 @@ export type DerivationWarning =
   | { kind: 'flow-skipped-non-agentic-source'; flowId: string }
   | { kind: 'dropped-task-in-non-agentic-lane'; taskId: string }
   | { kind: 'inferred-external-component'; messageFlowId: string }
-  // 16-FU3 (P2) — an agentic lane resolves to more than
-  // CAPABILITY_WARN_THRESHOLD distinct capabilities; its has/uses edges
-  // fan out and the grouped diagram gets busy. Advisory only — every
-  // capability is still emitted. `count` is the deduped total (DQ5).
+  // An agentic lane resolves to more than CAPABILITY_WARN_THRESHOLD distinct
+  // capabilities; its has/uses edges fan out and the grouped diagram gets
+  // busy. Advisory only — every capability is still emitted. `count` is the
+  // deduped total.
   | { kind: 'capability-heavy-agent'; laneId: string; count: number }
-  // 16-FU3 (P2, per-zone) — a single grouped zone (Skills or Tools) holds
-  // more than CAPABILITY_ZONE_WARN_THRESHOLD unique capability boxes; the
-  // zone is crowded even if no single agent is heavy. Advisory only.
+  // Per-zone: a single grouped zone (Skills or Tools) holds more than
+  // CAPABILITY_ZONE_WARN_THRESHOLD unique capability boxes; the zone is
+  // crowded even if no single agent is heavy. Advisory only.
   | { kind: 'capability-heavy-zone'; zone: string; count: number }
-  // 16-FU4 (P3) — a task in an agentic lane links an Agent diagram that is
-  // not in the project (deleted, or a cross-project paste with a dangling
-  // ref — guide 08/11). Its tools/skills are skipped silently; this surfaces
-  // the skip so the user learns why the capabilities didn't appear.
+  // A task in an agentic lane links an Agent diagram that is not in the
+  // project (deleted, or a cross-project paste with a dangling ref). Its
+  // tools/skills are skipped silently; this surfaces the skip so the user
+  // learns why the capabilities didn't appear.
   // Warn-only — nothing about the skip changes. `taskName` pinpoints the
   // offending BPMN task (the dead ref UUID is not surfaced — it resolves to
   // nothing the user recognises); `taskId` is the stable console id.
@@ -50,8 +50,6 @@ export type DerivationWarning =
  * derivation. Kept as a sibling type (not a generic) to avoid
  * overloading the BPMN-side discriminated union — the calling UI
  * code only ever handles one direction at a time.
- *
- * See `.claude/inter-diagram/03-component-to-deployment-derivation-plan.md`.
  */
 export type DeploymentDerivationResult =
   | { ok: true; model: UMLModel; warnings: DeploymentDerivationWarning[]; elementMapping: ElementLineageMap }
@@ -64,7 +62,7 @@ export type DeploymentDerivationRefusalReason =
   | 'no-components';
 
 /**
- * Per OQ-2, intra-Subsystem dependency drops and agentic-edge stereotype
+ * Intra-Subsystem dependency drops and agentic-edge stereotype
  * drops are *not* warnings — they're correct behaviour from the
  * Deployment view's perspective. The only thing we surface is
  * `flat-scaffold`: the input had no Subsystems, so the result is one
@@ -74,10 +72,10 @@ export type DeploymentDerivationRefusalReason =
 export type DeploymentDerivationWarning = { kind: 'flat-scaffold' };
 
 /**
- * 29 — Outcome of `laneToAgentModel(bpmn, laneId)`. Mirrors `DerivationResult`
+ * Outcome of `laneToAgentModel(bpmn, laneId)`. Mirrors `DerivationResult`
  * but for the BPMN-lane → Agent-diagram derivation. `model` is a populated
  * AgentDiagram UMLModel; `elementMapping` maps derived AgentState id → source
- * BPMN task id (lineage). Cross-lane I/O boundary states are guide 30.
+ * BPMN task id (lineage).
  */
 export type AgentDerivationResult =
   | { ok: true; model: UMLModel; warnings: AgentDerivationWarning[]; elementMapping: ElementLineageMap }
@@ -89,7 +87,7 @@ export type AgentDerivationRefusalReason =
   | 'lane-not-agentic'
   | 'no-tasks-in-lane';
 
-// 30 — cross-lane I/O boundary states. A crossing flow whose in-lane endpoint
+// Cross-lane I/O boundary states. A crossing flow whose in-lane endpoint
 // can't be resolved to a specific task is still acknowledged, attached to the
 // entry state, and surfaced here (never silently dropped).
 export type AgentDerivationWarning = { kind: 'io-attached-to-entry'; flowId: string };

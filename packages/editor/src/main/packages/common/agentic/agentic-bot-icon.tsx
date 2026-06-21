@@ -11,11 +11,7 @@ interface Props {
 }
 
 /**
- * Robot-head glyph marking an agentic element on the canvas (Phase C).
- *
- * Drawn fresh for this branch — BPMN's bot icon lives on `dev/bpmn`
- * only and must not be cross-ported (`.claude/CLAUDE.md`,
- * `03-prework-render-layer-inventory.md` § 2). ~16 px tall.
+ * Robot-head glyph marking an agentic element on the canvas. ~16 px tall.
  */
 export const AgenticBotIcon: FunctionComponent<Props> = ({ x, y, strokeColor }) => (
   <g transform={`translate(${x}, ${y})`} pointerEvents="none" data-cy="agentic-bot-icon">

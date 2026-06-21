@@ -1,7 +1,7 @@
 import { resolveUpstreamDivergingGateway } from '../bpmn-flow/bpmn-flow-validator';
 
 // Duck-typed read-only view over the unified elements+flows map (same shape the
-// FU1 walkers use — on the editor side this is Redux `state.elements`).
+// upstream-resolution walkers use — on the editor side this is Redux `state.elements`).
 type AnyEl = {
   id: string;
   type: string;
@@ -26,10 +26,10 @@ function sanitizeId(raw: string | undefined, fallback: string): string {
   return s || fallback;
 }
 
-// T1c (P3′): the user picks the governance policy directly from the merge-gateway
-// popup dropdown — there is no `mergingStrategy` to map from any more. This is the
-// offered set (LazyConsensus / Composed stay manual-only). The string values are
-// the govdsl PolicyType keywords, so the mapping is a near-identity.
+// The user picks the governance policy directly from the merge-gateway popup
+// dropdown. This is the offered set (LazyConsensus / Composed stay manual-only).
+// The string values are the govdsl PolicyType keywords, so the mapping is a
+// near-identity.
 export type GovPolicyType =
   | 'MajorityPolicy'
   | 'AbsoluteMajorityPolicy'
@@ -48,9 +48,9 @@ interface PolicyChoice {
   ratio?: number; // undefined → no Parameters block (leader-driven / consensus)
 }
 
-// T1c — the chosen policy type IS the policy. ratio is a FIXED default (mapping-
-// spec §4.4 — never trustScore-derived). The voting family takes a ratio; the
-// leader-driven and consensus skeletons omit Parameters (the user fills them in).
+// The chosen policy type IS the policy. ratio is a FIXED default (never
+// trustScore-derived). The voting family takes a ratio; the leader-driven and
+// consensus skeletons omit Parameters (the user fills them in).
 function policyFor(policyType: GovPolicyType): PolicyChoice {
   switch (policyType) {
     case 'MajorityPolicy':
@@ -64,9 +64,8 @@ function policyFor(policyType: GovPolicyType): PolicyChoice {
 
 /**
  * Generate a starter Governance-DSL (.gov) instance for an agentic *merging*
- * gateway, per `.claude/governance-dsl/01-mapping-spec.md`. Pure: reads the
- * unified elements map, returns a string. The caller persists it onto the
- * gateway's `governanceDsl` field.
+ * gateway. Pure: reads the unified elements map, returns a string. The caller
+ * persists it onto the gateway's `governanceDsl` field.
  */
 export function generateGovernanceDsl(
   mergingGatewayId: string,
@@ -81,12 +80,12 @@ export function generateGovernanceDsl(
     (policyType as string) === 'VotingPolicy' ? 'MajorityPolicy' : policyType;
   const choice = policyFor(effectivePolicyType);
 
-  // Scope = the merging gateway itself (the one-per-block anchor). Spec §4.1.
+  // Scope = the merging gateway itself (the one-per-block anchor).
   const scopeId = sanitizeId(gw?.name, `MergeDecision_${mergingGatewayId.slice(0, 8)}`);
   const policyId = `${scopeId}Policy`;
 
-  // Participants = the agentic lanes (agents) of the collaboration block. Spec
-  // §4.2 — walk forward from the bounding diverging gateway and collect each
+  // Participants = the agentic lanes (agents) of the collaboration block —
+  // walk forward from the bounding diverging gateway and collect each
   // element's owning lane if the lane is agentic. We check LANE-level isAgentic,
   // not task-level: a normal (non-agentic) task inside an agentic lane is a
   // valid participant because the lane is the agent, not the task.
@@ -133,8 +132,7 @@ export function generateGovernanceDsl(
 
   // For LeaderDrivenPolicy the decision authority is the supervision lane(s).
   // If supervision lanes exist in the block, restrict participants to them;
-  // fall back to all agentic lanes when none are present. (guide 48: the lane
-  // role 'manager' was renamed to 'supervision'.)
+  // fall back to all agentic lanes when none are present.
   const allLanes = Array.from(lanes.values());
   const supervisionLanes = allLanes.filter((l) => l.role === 'supervision');
   const participantLanes =

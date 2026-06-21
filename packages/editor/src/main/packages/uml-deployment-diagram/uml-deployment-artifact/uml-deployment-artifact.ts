@@ -22,9 +22,9 @@ export class UMLDeploymentArtifact extends UMLElement {
   // Auto-populated by the Component→Deployment derivation; persisted here
   // so it survives the editor load/save round-trip.
   manifests: string[] = [];
-  // 33 (6b-1) — UUID of the Agent diagram this artifact deploys, threaded from
+  // UUID of the Agent diagram this artifact deploys, threaded from
   // the source Component's `agentModelRef`. BESSER reads it as
-  // `Artifact.agent_model_ref` (guide 08-/6b-2) to bake the right BAF agent
+  // `Artifact.agent_model_ref` to bake the right BAF agent
   // into this artifact's build context. Optional, single (1:1 lane→agent link).
   agentModelRef?: string;
 

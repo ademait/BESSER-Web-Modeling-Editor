@@ -21,7 +21,7 @@ import { laneToAgentModel } from './lane-to-agent';
 import { hashUmlModel } from './lineage-hash';
 
 /**
- * 08 — webapp2-side linker passed to `editor.setAgentDiagramLinker(...)`.
+ * webapp2-side linker passed to `editor.setAgentDiagramLinker(...)`.
  *
  * Contract: see `AgentDiagramLinker` in @besser/wme. The lifecycle is:
  *
@@ -46,8 +46,6 @@ import { hashUmlModel } from './lineage-hash';
  *    the popup keeps the Define button.
  *  - openByRef on a vanished ref → no-op (the popup will have rendered
  *    the Define button instead anyway).
- *
- * See `.claude/inter-diagram/08-lane-agent-link-guide.md` § 6.
  */
 export function useAgentDiagramLinker(editorRef: MutableRefObject<ApollonEditor | null>): AgentDiagramLinker {
   const dispatch = useAppDispatch();
@@ -90,9 +88,9 @@ export function useAgentDiagramLinker(editorRef: MutableRefObject<ApollonEditor 
         return null;
       }
 
-      // 29 — if the source element is a LANE, derive a populated Agent diagram
-      // (states from tasks). If it's a TASK (guide 11), leave the empty-diagram
-      // path untouched. A lane that refuses to derive (no tasks) falls back to
+      // If the source element is a LANE, derive a populated Agent diagram
+      // (states from tasks). If it's a TASK, leave the empty-diagram path
+      // untouched. A lane that refuses to derive (no tasks) falls back to
       // empty so the link still works.
       const sourceEl = sourceDiagram.model.elements?.[laneId] as { type?: string } | undefined;
       const isLaneSource = sourceEl?.type === 'BPMNSwimlane';
@@ -108,7 +106,7 @@ export function useAgentDiagramLinker(editorRef: MutableRefObject<ApollonEditor 
             }
           : undefined;
 
-      // Step 1 — flush the editor's in-memory BPMN to storage. Captures
+      // Flush the editor's in-memory BPMN to storage. Captures
       // any pending edits sitting in the 300ms debounce window (e.g. the
       // user just toggled isAgentic on, then immediately clicked Define).
       // Without this, the storage-direct write below would overlay onto
@@ -122,11 +120,12 @@ export function useAgentDiagramLinker(editorRef: MutableRefObject<ApollonEditor 
         }
       }
 
-      // Step 2 — add the Agent diagram. This sets activeDiagram = new
+      // Add the Agent diagram. This sets activeDiagram = new
       // Agent, sets currentDiagramIndices.AgentDiagram, AND bumps
       // editorRevision (the BPMN editor will be torn down + a new
       // editor created from the now-active Agent diagram). Note that
-      // addDiagramThunk does NOT update activeDiagramType — step 4 does.
+      // addDiagramThunk does NOT update activeDiagramType — the type
+      // switch below does.
       let newDiagramId: string;
       try {
         const added = await dispatch(
@@ -139,10 +138,10 @@ export function useAgentDiagramLinker(editorRef: MutableRefObject<ApollonEditor 
         return null;
       }
 
-      // Step 3 — write the ref to the source BPMN lane in storage
+      // Write the ref to the source BPMN lane in storage
       // directly (bypassing the editor's model-change subscription,
       // which is now dispatching against a soon-to-be-destroyed editor).
-      // Read fresh storage so we pick up: (a) the step-1 flush and (b)
+      // Read fresh storage so we pick up: (a) the earlier flush and (b)
       // the new Agent diagram already added by addDiagramThunk.
       const fresh = ProjectStorageRepository.getCurrentProject();
       if (fresh) {
@@ -153,9 +152,9 @@ export function useAgentDiagramLinker(editorRef: MutableRefObject<ApollonEditor 
             const storageLane = bpmn.model.elements?.[laneId] as
               | { type?: string; agentDiagramRef?: string }
               | undefined;
-            // 11 — the affordance now lives on the agentic TASK; accept it,
+            // The affordance now lives on the agentic TASK; accept it,
             // and keep BPMNSwimlane for tolerant handling of any legacy
-            // lane-linked element (D3). `laneId` is a carry-over name.
+            // lane-linked element. `laneId` is a carry-over name.
             if (storageLane && (storageLane.type === 'BPMNTask' || storageLane.type === 'BPMNSwimlane')) {
               const updatedBpmn: ProjectDiagram = {
                 ...bpmn,

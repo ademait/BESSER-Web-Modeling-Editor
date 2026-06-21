@@ -244,7 +244,7 @@ export class ProjectStorageRepository {
     projectId: string,
     diagramType: SupportedDiagramType,
     title?: string,
-    /** 06-v1: set on hook-driven derivations; absent on user-created diagrams. */
+    /** Set on hook-driven derivations; absent on user-created diagrams. */
     derivedFrom?: import('../../types/project').DiagramLineage,
   ): { index: number; diagram: ProjectDiagram } | null {
     const project = this.loadProject(projectId);

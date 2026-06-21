@@ -32,13 +32,13 @@ export * from './services/diagram-bridge';
 export * from './services/settings/settings-service';
 
 // Export BPMN flow semantics + validation (consumed by webapp2's BPMN
-// import / export + the Phase C vitest coverage).
+// import / export + the validation vitest coverage).
 export * from './packages/bpmn/bpmn-flow/bpmn-flow-semantics';
 export * from './packages/bpmn/bpmn-flow/bpmn-flow-validator';
 
 // Export BPMN common attribute types — including the Agentic BPMN attributes
-// (BPMNAgentRole / BPMNReflectionMode / clampTrustScore) consumed by the Phase D
-// vitest coverage and, later, the 04D2 extension serializer.
+// (BPMNAgentRole / BPMNReflectionMode / clampTrustScore) consumed by the
+// agentic vitest coverage and the extension serializer.
 export * from './packages/bpmn/common/types';
 export * from './packages/bpmn/common/governance-dsl';
 
@@ -46,11 +46,11 @@ export * from './packages/bpmn/common/governance-dsl';
 // Used when working with patching operations in TypeScript
 export type { Patch } from './services/patcher';
 
-// 08 — public type for the agent-diagram linker callback object; the host
+// Public type for the agent-diagram linker callback object; the host
 // (webapp2) implements this and passes it to `editor.setAgentDiagramLinker`.
 export type { AgentDiagramLinker } from './components/agent-diagram-linker/AgentDiagramLinkerContext';
 
-// 19 — public types for the cross-diagram element-picker provider; the host
+// Public types for the cross-diagram element-picker provider; the host
 // (webapp2) implements `ElementPickerProvider` and passes it to
 // `editor.setElementPickerProvider` (see `useElementPickerProvider`).
 export type { ElementPickerProvider, PickableElement } from './components/element-picker/ElementPickerContext';

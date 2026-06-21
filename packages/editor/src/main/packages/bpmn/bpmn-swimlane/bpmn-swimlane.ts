@@ -46,11 +46,11 @@ export class BPMNSwimlane extends UMLContainer {
   // Meeting 2026-06-08 §3: swarm size — N identical copies of this agent.
   // Only meaningful when isAgentic; default 1. [[swarm-multiplicity-semantics]]
   multiplicity: number;
-  // 08 (07-plan D2): forward link to the BESSER Agent diagram that
-  // defines this lane's agent. Set only when isAgentic === true and the
-  // user has clicked "Define BESSER agent" on the popup. UUID-only —
-  // the title side is cosmetic (plan OQ-D). Survives isAgentic toggle
-  // off (plan OQ-B); the popup hides the section but keeps the ref.
+  // Forward link to the BESSER Agent diagram that defines this lane's
+  // agent. Set only when isAgentic === true and the user has clicked
+  // "Define BESSER agent" on the popup. UUID-only — the title side is
+  // cosmetic. Survives an isAgentic toggle off; the popup hides the
+  // section but keeps the ref.
   agentDiagramRef?: string;
 
   constructor(values?: DeepPartial<BPMNSwimlane>) {
@@ -87,7 +87,7 @@ export class BPMNSwimlane extends UMLContainer {
   ): void {
     super.deserialize(values, children);
     this.isAgentic = values.isAgentic ?? false;
-    // guide 48: legacy diagrams carry 'worker' / 'manager'; migrate to the
+    // Legacy diagrams carry 'worker' / 'manager'; migrate to the
     // four-token vocabulary on load. Cast to string first — `values.role` is
     // typed `BPMNAgentRole | undefined`, which TS narrows to the *new* union.
     this.role = migrateLegacyRole(values.role as string | undefined);

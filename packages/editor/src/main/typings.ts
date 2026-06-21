@@ -225,9 +225,9 @@ export type UMLDeploymentNode = UMLElement & {
 
 export type UMLDeploymentArtifact = UMLElement & {
   manifests?: string[];
-  // 33 (6b-1) — UUID of the Agent diagram this artifact deploys, threaded
+  // UUID of the Agent diagram this artifact deploys, threaded
   // from the source agentic lane's `agentDiagramRef` via Component.agentModelRef.
-  // BESSER reads this as `Artifact.agent_model_ref` (guide 08-/6b-2) to resolve
+  // BESSER reads this as `Artifact.agent_model_ref` to resolve
   // which BAF agent to bake into the artifact's build context.
   agentModelRef?: string;
 };
@@ -247,10 +247,10 @@ export type UMLComponentComponent = UMLElement & {
   displayStereotype: boolean;
   realizes?: string[];
   processModelRefs?: string[];
-  // 33 (6b-1) — UUID of the Agent diagram this agent-Component is defined by,
+  // UUID of the Agent diagram this agent-Component is defined by,
   // copied from the source lane's `agentDiagramRef` during BPMN→Component
-  // derivation. Waypoint on the way to the Deployment Artifact (full-via-Artifact,
-  // memo 07 § 8).
+  // derivation. Waypoint on the way to the Deployment Artifact (carried via
+  // the Artifact).
   agentModelRef?: string;
 };
 
@@ -259,9 +259,9 @@ export type UMLPetriNetPlace = UMLElement & {
   capacity: number | string;
 };
 
-// Agentic BPMN (04D): `isAgentic` / `role` / `reflectionMode` / `trustScore`
+// Agentic BPMN: `isAgentic` / `role` / `reflectionMode` / `trustScore`
 // live on the base swimlane and task — there are no separate agentic types.
-// 08 (07-plan D2): `agentDiagramRef` is an optional cross-diagram link
+// `agentDiagramRef` is an optional cross-diagram link
 // from an agentic lane to the BESSER Agent diagram that defines its agent.
 export type BPMNSwimlane = UMLElement & {
   isAgentic: boolean;
@@ -277,10 +277,10 @@ export type BPMNTask = UMLElement & {
   isAgentic: boolean;
   reflectionMode: BPMNReflectionMode;
   trustScore: number;
-  // 11 — cross-diagram link from an agentic task to the BESSER Agent
-  // diagram that defines its internal behavior (retarget of 08 from lane).
+  // Cross-diagram link from an agentic task to the BESSER Agent
+  // diagram that defines its internal behavior.
   agentDiagramRef?: string;
-  // 47 — cross-reflection reviewer: the ID of the agentic BPMN lane whose
+  // Cross-reflection reviewer: the ID of the agentic BPMN lane whose
   // agent reviews this task's output. Absent = placeholder peer="reviewer".
   reflectionReviewerLaneId?: string;
 };

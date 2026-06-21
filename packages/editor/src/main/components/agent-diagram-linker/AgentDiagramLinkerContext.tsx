@@ -7,14 +7,12 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
  * Agent diagram, switching the active diagram) lives in the host; the
  * editor only renders the affordance and dispatches the click via the
  * host-supplied callbacks.
- *
- * See `.claude/inter-diagram/08-lane-agent-link-guide.md` § 5.
  */
 export interface AgentDiagramLinker {
   /** True iff `ref` resolves to an Agent diagram that currently exists
    *  in the project. Used by the popup to decide whether to render
    *  "Open Agent diagram" (alive) or "Define BESSER agent" (dead /
-   *  absent — plan OQ-F / D5). */
+   *  absent). */
   isRefAlive: (ref: string) => boolean;
   /** Atomic for the Define click. The host:
    *   1. Flushes the editor's in-memory BPMN model to storage

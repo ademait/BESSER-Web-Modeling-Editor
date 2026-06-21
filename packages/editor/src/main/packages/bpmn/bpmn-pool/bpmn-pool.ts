@@ -18,7 +18,7 @@ export class BPMNPool extends UMLPackage {
     movable: true,
     // Both axes allowed at the gesture level; the real constraint is enforced
     // per-instance in render(): an empty pool resizes vertically, a laned pool
-    // stays lane-driven (its height delta is rejected). See guide 15.
+    // stays lane-driven (its height delta is rejected).
     resizable: true,
     connectable: true,
   };

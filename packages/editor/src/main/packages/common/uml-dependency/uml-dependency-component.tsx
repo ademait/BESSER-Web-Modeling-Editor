@@ -6,7 +6,7 @@ import { relationshipMidpoint, relationshipLabelLayout } from '../relationship-l
 
 export const UMLDependencyComponent: FunctionComponent<Props> = ({ element }) => {
   // Shared by ComponentDependency and DeploymentDependency (components.ts).
-  // Only ComponentDependency owns a user-editable `stereotype` (Phase A); a
+  // Only ComponentDependency owns a user-editable `stereotype`; a
   // DeploymentDependency can carry a leftover one after a type-switch from
   // DeploymentAssociation — hidden in its popup, never serialized — so it must
   // not render here. Gate on the type that actually owns the field. (Bare

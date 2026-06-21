@@ -5,13 +5,11 @@ import { Body } from '../controls/typography/typography';
 import { useLineage } from './LineageContext';
 
 /**
- * 06-v2 — drop-in popup footer rendered conditionally when the host's
+ * Drop-in popup footer rendered conditionally when the host's
  * lineage provider resolves a source element for `elementId`. Safe to
  * mount unconditionally inside any popup: it renders nothing for
  * elements that have no source (synthetic emissions, user-created
  * elements, popups in non-derived diagrams).
- *
- * See `.adem/inter-diagram/06-lineage-tracking-guide.md` § 3 v2 S12.2.
  */
 const SourceButton = styled.button`
   background: none;
@@ -37,7 +35,7 @@ export const LineageSourceLink: React.FC<{ elementId: string }> = ({ elementId }
   const resolved = lineage.resolveSource(elementId);
   if (!resolved) return null;
 
-  // 06-v2 LT-5 follow-up — prefer element-level label so the popup link
+  // Prefer element-level label so the popup link
   // adds value beyond the diagram-level badge already shown in the tab
   // bar. Falls back to diagram-level wording if the host could not look
   // up the source element (e.g. provider populated only the diagram).

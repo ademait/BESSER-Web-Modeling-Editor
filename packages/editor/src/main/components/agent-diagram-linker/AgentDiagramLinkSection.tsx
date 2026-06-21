@@ -23,9 +23,7 @@ type Props = OwnProps & I18nContext;
  *   - **alive ref** → "Open Agent diagram" button
  *   - **no ref / dead ref** → "Define BESSER agent" button — click
  *     creates a new Agent diagram and overwrites whatever (if anything)
- *     was in the ref slot (plan D5 / OQ-F).
- *
- * See `.claude/inter-diagram/08-lane-agent-link-guide.md` § 5.
+ *     was in the ref slot.
  */
 const AgentDiagramLinkSectionComponent: React.FC<Props> = ({ laneId, laneName, agentDiagramRef, translate }) => {
   const linker = useAgentDiagramLinker();

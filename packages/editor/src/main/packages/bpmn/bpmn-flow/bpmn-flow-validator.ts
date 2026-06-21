@@ -110,11 +110,11 @@ export function validateAllBpmnFlows(elementsById: Record<string, AnyElement>): 
 
 // ─── Agentic collaboration-mode resolution (04D2-followup F1) ───────────────
 //
-// Paper §4.3: a collaboration block is enclosed between a diverging and a
+// SEAA'25 § 4.3: a collaboration block is enclosed between a diverging and a
 // merging gateway. The diverging gateway carries the `CollaborationMode`;
 // the merging gateway and any agentic task inside the block *inherit* it.
 // These helpers resolve that inheritance from a unified elements+flows map
-// (same shape used by validateAllBpmnFlows after the 04C FB1 fix).
+// (same shape used by validateAllBpmnFlows).
 
 type AnyAgenticGateway = AnyElement & {
   isAgentic?: boolean;

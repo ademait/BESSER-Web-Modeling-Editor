@@ -1,15 +1,15 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
 /**
- * 19 — cross-diagram element picker, supplied by the host (webapp2) at
- * editor-init time. Same shape as the lineage provider (guide 06): the
+ * Cross-diagram element picker, supplied by the host (webapp2) at
+ * editor-init time. Same shape as the lineage provider: the
  * editor stays storage-agnostic; the host owns project data and answers
  * "what elements of these types exist in other diagrams?".
  *
  * Used by element-grained cross-refs (`realizes` → Class; `manifests` →
- * Component in guide 20). The returned `id` is the target element's stable
+ * Component). The returned `id` is the target element's stable
  * model id (the key in its diagram's `model.elements`) — exactly the
- * cross-diagram id BESSER resolves at generation time (memo 17 § 5).
+ * cross-diagram id BESSER resolves at generation time.
  */
 export interface PickableElement {
   /** Stable model id of the target element (its `.id`). Stored on the ref. */

@@ -4,28 +4,27 @@
  * These strings are the `.value` strings of the BESSER metamodel enums
  * in `besser/BUML/metamodel/uml_component/agentic.py` (AgentCategory,
  * AgenticEdgeKind). The BESSER converter keys entirely on the WME
- * `stereotype` string — see component-deployment `04-` § 8.4 — so this
- * module is the WME-side mirror of that contract. Keep it in sync if
- * the metamodel enums change.
+ * `stereotype` string, so this module is the WME-side mirror of that
+ * contract. Keep it in sync if the metamodel enums change.
  *
- * Phase C is "C-lite": agentic-ness is *derived* from the stereotype
- * string, never stored as a typed field.
+ * Agentic-ness is *derived* from the stereotype string, never stored as
+ * a typed field.
  */
 
 /** AgentCategory — an agent's collaboration role. `none` is the default
  *  ("an agent, role unspecified") and is intentionally not a preset. */
 export const AGENT_CATEGORY_TOKENS = ['solution', 'supervision', 'consensus', 'collaboration'] as const;
 
-// Human-actor tokens removed (meeting 2026-06-08 §1): a human has no
+// Human-actor tokens are intentionally absent: a human has no
 // implementation and is not shown in the Component view. The BPMN→Component
 // derivation skips non-agentic lanes entirely (see bpmn-to-component.ts).
 
 /** Component capability subtypes. `skill`/`tool` ← `agentic.py` Skill/Tool;
- *  `llm`/`db`/`rag` (meeting 2026-06-08 §5) ← agent-diagram body reply-types
+ *  `llm`/`db`/`rag` ← agent-diagram body reply-types
  *  (LLMReply/DBReply/RAGReply), surfaced as Components by the BPMN→Component
  *  derivation. All capabilities — NOT agents (no bot icon: isAgentStereotype
  *  keys only on AGENT_CATEGORY_TOKENS). BESSER `uml_component/agentic.py` token
- *  recognition for llm/db/rag is the cross-repo follow-up (5c). */
+ *  recognition for llm/db/rag is a pending cross-repo follow-up. */
 export const CAPABILITY_TOKENS = ['skill', 'tool', 'llm', 'db', 'rag'] as const;
 
 /** Locality — base-MM `Locality` enum. Non-agentic; classifies any
@@ -58,7 +57,7 @@ export const COMPONENT_STEREOTYPE_PRESETS: readonly string[] = [
 export const COMPONENT_EDGE_STEREOTYPE_PRESETS: readonly string[] = [...AGENTIC_EDGE_KIND_TOKENS];
 
 /** Split a free-text stereotype into normalised lowercase tokens.
- *  Mirrors the BESSER converter split `[,\s]+` (02-prework § 9). */
+ *  Mirrors the BESSER converter split `[,\s]+`. */
 export function stereotypeTokens(stereotype?: string): string[] {
   return (stereotype ?? '')
     .split(/[,\s]+/)
@@ -67,10 +66,8 @@ export function stereotypeTokens(stereotype?: string): string[] {
 }
 
 /** True when any token names an AgentCategory — i.e. the element is an agent
- *  (would convert to an `AgenticComponent`). `human` was removed (meeting
- *  2026-06-08 §1); `skill` / `tool` / locality tokens do NOT make an element
- *  an agent. NB: BESSER's `stereotype_has_agentic_tokens` still unions the
- *  human tokens until the cross-repo removal lands (meeting item 1c). */
+ *  (would convert to an `AgenticComponent`). `skill` / `tool` / locality
+ *  tokens do NOT make an element an agent. */
 export function isAgentStereotype(stereotype?: string): boolean {
   const agentTokens = new Set<string>(AGENT_CATEGORY_TOKENS);
   return stereotypeTokens(stereotype).some((t) => agentTokens.has(t));

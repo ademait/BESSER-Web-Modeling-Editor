@@ -11,7 +11,7 @@ export class UMLComponentComponent extends UMLComponent {
     ComponentRelationshipType.ComponentInterfaceRequired,
   ];
   type = ComponentElementType.Component;
-  // 33 (6b-1) — Agent-diagram UUID this agent-Component is defined by
+  // Agent-diagram UUID this agent-Component is defined by
   // (from the source lane's `agentDiagramRef`). Optional, single (1:1 link).
   agentModelRef?: string;
 

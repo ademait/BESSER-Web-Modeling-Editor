@@ -366,19 +366,17 @@ export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({
         toast.success('Component diagram generated — switched to the new diagram.');
       }
     } catch (err) {
-      // 02-FU2 (2026-05-27): the addDiagramThunk inside
-      // useGenerateComponentDiagram throws "Cannot add more diagrams
-      // (limit reached)" when the project hits its per-type diagram
-      // cap. Surface that (and any other thunk rejection) as a toast
-      // instead of letting React swallow the unhandled rejection.
-      // 02-FU3 (2026-05-27): surface both the raw error message and
-      // the actionable hint, so the user knows what happened AND
-      // what to do next.
-      // 02-FU4 (2026-05-28): `.unwrap()` on a rejected createAsyncThunk
-      // re-throws a SerializedError (plain object with `.message`),
-      // not the original Error. `instanceof Error` is false, so the
-      // old code fell to String(err) → "[object Object]". Read
-      // `.message` off the object directly when present.
+      // The addDiagramThunk inside useGenerateComponentDiagram throws
+      // "Cannot add more diagrams (limit reached)" when the project hits
+      // its per-type diagram cap. Surface that (and any other thunk
+      // rejection) as a toast instead of letting React swallow the
+      // unhandled rejection. Surface both the raw error message and the
+      // actionable hint, so the user knows what happened AND what to do
+      // next.
+      // `.unwrap()` on a rejected createAsyncThunk re-throws a
+      // SerializedError (plain object with `.message`), not the original
+      // Error. `instanceof Error` is false, so reading `.message` off the
+      // object directly is required when present.
       const message =
         err instanceof Error
           ? err.message
@@ -409,10 +407,9 @@ export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({
         return;
       }
       if (r.warnings.length > 0) {
-        // Per 03- § 8 OQ-2, the only warning kind is `flat-scaffold`.
-        // 04-FU4 (2026-05-28): wording revised per NT-3 — lead with
-        // what was emitted (the synthetic Default Host) rather than
-        // the abstract "flat scaffold" framing.
+        // The only warning kind is `flat-scaffold`. The wording leads with
+        // what was emitted (the synthetic Default Host) rather than the
+        // abstract "flat scaffold" framing.
         toast.warning(
           'Default Host node created as a placeholder — add Subsystems to your Component diagram for a richer layout.',
         );
@@ -421,8 +418,8 @@ export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({
         toast.success('Deployment diagram generated — switched to the new diagram.');
       }
     } catch (err) {
-      // Carry-over from 02-FU4: read `.message` off the rejected
-      // thunk's SerializedError regardless of `instanceof Error`.
+      // Read `.message` off the rejected thunk's SerializedError
+      // regardless of `instanceof Error`.
       const message =
         err instanceof Error
           ? err.message

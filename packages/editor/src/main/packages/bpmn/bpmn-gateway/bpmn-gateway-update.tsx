@@ -28,7 +28,7 @@ import { BPMNGatewayRole, clampTrustScore } from '../common/types';
 // cannot carry a default outgoing sequence flow.
 const NO_DEFAULT_GATEWAY_TYPES: ReadonlySet<BPMNGatewayType> = new Set<BPMNGatewayType>(['parallel', 'event-based']);
 
-// T1c — friendly labels for the governance policy dropdown. Keyed to i18n.
+// Friendly labels for the governance policy dropdown. Keyed to i18n.
 const govPolicyKey = (p: GovPolicyType): string => {
   switch (p) {
     case 'MajorityPolicy':
@@ -96,7 +96,7 @@ const Flex = styled.div`
   justify-content: space-between;
 `;
 
-// Governance DSL editor (guide 02). Mirrors the agent-diagram code-snippet UX.
+// Governance DSL editor. Mirrors the agent-diagram code-snippet UX.
 const ResizableCodeMirrorWrapper = styled.div`
   resize: both;
   overflow: auto;
@@ -174,9 +174,9 @@ class BPMNGatewayUpdateComponent extends Component<Props, State> {
             </Dropdown.Item>
           </Dropdown>
         </section>
-        {/* Agentic BPMN (04D1): only Parallel + Inclusive gateways are eligible
-            (paper §4.3 — Exclusive excluded; Complex / Event-Based not in the
-            paper). Toggle reveals the role / mode / strategy / trust fields. */}
+        {/* Agentic BPMN (SEAA'25 § 4.3): only Parallel + Inclusive gateways are
+            eligible (Exclusive excluded; Complex / Event-Based not in the
+            paper). Toggle reveals the role / trust fields. */}
         {AGENTIC_ELIGIBLE_GATEWAY_TYPES.has(element.gatewayType) && (
           <>
             <section>
@@ -218,8 +218,8 @@ class BPMNGatewayUpdateComponent extends Component<Props, State> {
                     <Textfield value={String(element.trustScore)} onChange={this.changeTrustScore(element.id)} />
                   </Flex>
                 </section>
-                {/* Governance DSL (guide 02 / level 3): merging gateways only —
-                    the merge point is the governed moment (paper §4.3). */}
+                {/* Governance DSL: merging gateways only —
+                    the merge point is the governed moment (SEAA'25 § 4.3). */}
                 {element.gatewayRole === 'merging' && (
                   <section>
                     <Divider />
@@ -235,7 +235,7 @@ class BPMNGatewayUpdateComponent extends Component<Props, State> {
                         </Button>
                       )}
                     </GovHeaderRow>
-                    {/* T1c — pick the governance policy to seed; Generate writes the skeleton. */}
+                    {/* Pick the governance policy to seed; Generate writes the skeleton. */}
                     <Flex>
                       <span>{this.props.translate('packages.BPMNDiagram.BPMNGovernancePolicyTypeLabel')}</span>
                       <Dropdown value={this.state.govPolicyType} onChange={this.changeGovPolicyType}>
@@ -293,13 +293,12 @@ class BPMNGatewayUpdateComponent extends Component<Props, State> {
    * Change the type of the gateway. If the new type cannot carry a default
    * flow (Parallel / Event-Based per BPMN 2.0.2 § 8.3.13), clear `isDefault`
    * on every outgoing sequence flow first. If the new type is not agentic-
-   * eligible (Exclusive / Complex / Event-Based per 04D1), clear `isAgentic`.
+   * eligible (Exclusive / Complex / Event-Based), clear `isAgentic`.
    *
-   * 04D2-followup O1 refinement: when this is an agentic diverging gateway
-   * and the new type stays agentic-eligible (parallel ↔ inclusive), forward-
-   * propagate the type to every downstream agentic merging gateway in the
-   * same collaboration block — the diverging and merging halves must agree
-   * per paper §4.3.
+   * When this is an agentic diverging gateway and the new type stays
+   * agentic-eligible (parallel ↔ inclusive), forward-propagate the type to
+   * every downstream agentic merging gateway in the same collaboration block —
+   * the diverging and merging halves must agree per SEAA'25 § 4.3.
    * @param id The ID of the gateway whose type should be changed
    */
   private changeGatewayType = (id: string) => (value: string) => {
@@ -327,7 +326,7 @@ class BPMNGatewayUpdateComponent extends Component<Props, State> {
   };
 
   /**
-   * Toggle whether the gateway is agentic (04D1).
+   * Toggle whether the gateway is agentic.
    */
   private toggleAgentic = (id: string) => (_value: string) => {
     this.props.update<BPMNGateway>(id, { isAgentic: !this.props.element.isAgentic });
@@ -349,7 +348,7 @@ class BPMNGatewayUpdateComponent extends Component<Props, State> {
   };
 
   /**
-   * Persist a manual edit to the governance DSL (free-text — guide 02 / spec Q6).
+   * Persist a manual edit to the governance DSL (free-text).
    * CodeMirror's onBeforeChange passes (editor, data, value).
    */
   private changeGovernanceDsl = (id: string) => (_editor: unknown, _data: unknown, value: string) => {

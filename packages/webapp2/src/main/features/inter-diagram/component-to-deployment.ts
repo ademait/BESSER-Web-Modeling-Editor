@@ -4,14 +4,12 @@ import type { ElementLineageMap } from '../../shared/types/project';
 import type { DeploymentDerivationResult, DeploymentDerivationWarning } from './types';
 
 /**
- * Component → Deployment derivation (see
- * `.claude/inter-diagram/03-component-to-deployment-derivation-plan.md`
- * and the FU-series guides under the same folder).
+ * Component → Deployment derivation.
  *
  * - One DeploymentNode per *unique* Subsystem in the source, sibling
- *   under the diagram root (OQ-1 — nested Subsystems flatten).
+ *   under the diagram root (nested Subsystems flatten).
  * - One synthetic `Default Host` Node iff any orphan Component exists.
- * - For each source Component (04-FU3 — UML 2.5 deployment notation):
+ * - For each source Component (UML 2.5 deployment notation):
  *     • a DeploymentComponent *above* the Node (owner=null)
  *     • a DeploymentArtifact *inside* the Node (owner=nodeId)
  *     • a DeploymentDependency from Artifact → Component
@@ -19,13 +17,13 @@ import type { DeploymentDerivationResult, DeploymentDerivationWarning } from './
  *       no `«manifest»` label because the renderer doesn't paint one
  *       on DeploymentDependency and it isn't serialized anyway).
  * - One DeploymentAssociation per unique cross-Subsystem
- *   ComponentDependency, deduplicated direction-preserving (OQ-5).
- * - Edge stereotypes (`delegates`/`supervises`/etc.) dropped silently
- *   (OQ-2). No `dropped-*` warnings.
+ *   ComponentDependency, deduplicated direction-preserving.
+ * - Edge stereotypes (`delegates`/`supervises`/etc.) dropped silently.
+ *   No `dropped-*` warnings.
  */
 export function componentModelToDeploymentModel(
   component: UMLModel,
-  // 27 — sourceComponentElementId → swarm size (N). Resolved by the caller from
+  // sourceComponentElementId → swarm size (N). Resolved by the caller from
   // the lineage chain (Component → BPMN lane → multiplicity). Optional + defaulted
   // so every model-only caller/test is unaffected; a missing or ≤1 entry yields a
   // single ExecutionEnvironment with no `_i` suffix.
@@ -44,17 +42,17 @@ export function componentModelToDeploymentModel(
 
   const subsystems = collectSubsystems(component);
   const out = emptyDeploymentModel(component.size);
-  // 06-v2 — derivedElementId → sourceElementId. Only the outer Subsystem node
+  // derivedElementId → sourceElementId. Only the outer Subsystem node
   // (← source Subsystem) and the logical DeploymentComponent (← source Component)
   // are mapped. Synthetic / physical emissions — the Docker Host wrapper, the
   // ExecutionEnvironment nodes, the Artifacts, and the manifest edges — leave no
-  // entry (38 D-38-6; UML 2.5 §19.4: an Artifact manifests a Component, it is not
+  // entry (UML 2.5 § 19.4: an Artifact manifests a Component, it is not
   // a projection of any source element).
   const elementMapping: ElementLineageMap = {};
 
-  // Group each agent Component under its immediate Subsystem parent (OQ-1) or the
+  // Group each agent Component under its immediate Subsystem parent or the
   // orphan bucket, and mark every ancestor Subsystem "alive" so a Subsystem whose
-  // only direct children are nested Subsystems is not skipped. (Unchanged 04-FU3.)
+  // only direct children are nested Subsystems is not skipped.
   const componentsBySubsystemId = new Map<string, UMLElement[]>();
   const orphanComponents: UMLElement[] = [];
   const aliveSubsystemIds = new Set<string>();
@@ -76,12 +74,12 @@ export function componentModelToDeploymentModel(
     }
   }
 
-  // 38 — emit one nested subtree per group, stacking groups left-to-right.
+  // Emit one nested subtree per group, stacking groups left-to-right.
   // `nodeIdBySubsystemId` / `nodeIdByCompId` map to the OUTER node (the kept
   // Subsystem node, or the orphan Docker Host) — used as the fallback for
   // Subsystem-level endpoints (external black-box pools) in Phase 3.
-  // `execEnvIdByCompId` maps each source Component to its ExecEnv node (48 —
-  // D2: preferred endpoint for agent-to-agent CommunicationPath derivation).
+  // `execEnvIdByCompId` maps each source Component to its ExecEnv node (the
+  // preferred endpoint for agent-to-agent CommunicationPath derivation).
   const nodeIdBySubsystemId = new Map<string, string>(); // subsystem.id → outer Subsystem node id
   const nodeIdByCompId = new Map<string, string>(); // sourceComponentId → outer node (fallback)
   const execEnvIdByCompId = new Map<string, string>(); // sourceComponentId → ExecEnv node id
@@ -134,13 +132,13 @@ export function componentModelToDeploymentModel(
     warnings.push({ kind: 'flat-scaffold' });
   }
 
-  // Phase 3 — ComponentDependencies → DeploymentAssociation.
-  // 48 (D2): resolve endpoints to ExecEnv nodes (per-container specificity) first;
+  // ComponentDependencies → DeploymentAssociation.
+  // Resolve endpoints to ExecEnv nodes (per-container specificity) first;
   // fall back to the outer node for Subsystem-level endpoints (external black-box
   // pools) that have no ExecEnv. This allows intra-pool agent-to-agent deps to emit
   // a DeploymentAssociation → CommunicationPath between their individual ExecEnv
   // containers, since ExecEnv ids are always distinct even within the same Subsystem.
-  // A pair is still deduped (OQ-5); only a same-ExecEnv-id pair is skipped
+  // A pair is still deduped; only a same-ExecEnv-id pair is skipped
   // (shouldn't occur for two distinct agents).
   const dedup = new Set<string>();
   for (const rel of Object.values(component.relationships)) {
@@ -159,7 +157,7 @@ export function componentModelToDeploymentModel(
     elementMapping[edgeId] = rel.id; // DeploymentAssociation ← source ComponentDependency
   }
 
-  // 16-FU8 — center the generated diagram in the user's view. Every element +
+  // Center the generated diagram in the user's view. Every element +
   // edge is translated so the content bbox midpoint lands on the origin. All
   // bounds are absolute at this point (including nested children), so a uniform
   // shift preserves every parent-relative offset after import. (Unchanged.)
@@ -219,7 +217,7 @@ function collectSubsystems(model: UMLModel): UMLElement[] {
 }
 
 /**
- * OQ-1: nested Subsystems flatten. We don't walk to the root — we
+ * Nested Subsystems flatten. We don't walk to the root — we
  * stop at the first Subsystem ancestor. If a Component has *no*
  * Subsystem ancestor, returns null (orphan → catch-all Node).
  */
@@ -235,7 +233,7 @@ function immediateSubsystemParent(model: UMLModel, el: UMLElement): UMLElement |
 }
 
 /**
- * 04-FU2 (2026-05-28): resolve a ComponentDependency endpoint to the
+ * Resolve a ComponentDependency endpoint to the
  * DeploymentNode it belongs to. Source endpoint may be:
  *   1) a tracked Component (lookup in `nodeIdByCompId` — populated in Phase 2)
  *   2) the Subsystem itself (lookup in `nodeIdBySubsystemId` — populated in Phase 1)
@@ -260,7 +258,7 @@ function resolveToNodeId(
 }
 
 /**
- * 48 (D2) — resolve a ComponentDependency endpoint to a DeploymentNode ID,
+ * Resolve a ComponentDependency endpoint to a DeploymentNode ID,
  * preferring the agent's ExecEnv node (per-container specificity) over the
  * outer Subsystem node. Falls back to `resolveToNodeId` for Subsystem-level
  * endpoints (external black-box pools) that have no corresponding ExecEnv.
@@ -277,7 +275,7 @@ function resolveToExecEnvOrNodeId(
   return resolveToNodeId(model, elementId, nodeIdByCompId, nodeIdBySubsystemId);
 }
 
-// ── Layout constants (38 — per-agent ExecutionEnvironment nesting) ──
+// ── Layout constants (per-agent ExecutionEnvironment nesting) ──
 // Bottom-up nesting: Subsystem › Docker Host › ExecutionEnvironment › Artifact,
 // with the logical DeploymentComponent in a row below the Subsystem.
 const COMPONENT_WIDTH = 160;
@@ -332,7 +330,7 @@ function emptyDeploymentModel(size: { width: number; height: number }): UMLModel
 
 const newId = (): string => 'gen-' + Math.random().toString(36).slice(2, 11);
 
-// 27 — swarm multiplicity. Stamp the deployment **Artifact** name with the
+// Swarm multiplicity. Stamp the deployment **Artifact** name with the
 // UML `[N]` multiplicity suffix when the source agent-lane's swarm size > 1.
 // N==1 (the default) emits no suffix — absence means "single instance".
 // The ExecEnv and DeploymentComponent names stay plain (the count belongs only
@@ -347,7 +345,7 @@ interface Bounds {
 }
 
 /**
- * 38 — emit one group's full nested deployment subtree and return the outer node
+ * Emit one group's full nested deployment subtree and return the outer node
  * id (the Phase-3 association anchor) plus its bounds (so the caller can advance
  * the horizontal cursor).
  *
@@ -355,10 +353,10 @@ interface Bounds {
  *   Subsystem node (owner=null) › Docker Host (owner=Subsystem) › N ExecEnvs.
  * Orphan bucket (`outerSource` null): the Docker Host IS the top-level node.
  *
- * Per replica: an ExecutionEnvironment «executionEnvironment» (D-38-1) wrapping a
+ * Per replica: an ExecutionEnvironment «executionEnvironment» wrapping a
  * DeploymentArtifact, plus a logical DeploymentComponent in a row below the outer
- * node (owner=null), joined to its Artifact by a dashed manifest edge (D-38-3,
- * UML 2.5 §19.4). All bounds are ABSOLUTE — the importer converts owned elements
+ * node (owner=null), joined to its Artifact by a dashed manifest edge
+ * (UML 2.5 § 19.4). All bounds are ABSOLUTE — the importer converts owned elements
  * to parent-relative recursively.
  */
 function emitGroupSubtree(
@@ -371,7 +369,7 @@ function emitGroupSubtree(
   originY: number,
   elementMapping: ElementLineageMap,
 ): { outerNodeId: string; bounds: Bounds; execEnvByCompId: Map<string, string> } {
-  // Nested-subsystem placeholder (OQ-1): a Subsystem kept alive only by a
+  // Nested-subsystem placeholder: a Subsystem kept alive only by a
   // descendant child Subsystem has no agents of its own — emit a bare node.
   if (agents.length === 0) {
     const bounds: Bounds = { x: originX, y: originY, width: EMPTY_NODE_WIDTH, height: EMPTY_NODE_HEIGHT };
@@ -413,7 +411,7 @@ function emitGroupSubtree(
       type: 'DeploymentNode',
       owner: null,
       bounds: outerBounds,
-      // Kept Subsystem nodes have always rendered «node» (04-FU3); unchanged.
+      // Kept Subsystem nodes always render «node».
       stereotype: 'node',
       displayStereotype: (outerSource as unknown as { displayStereotype?: boolean }).displayStereotype ?? true,
     } as unknown as UMLElement;
@@ -437,13 +435,13 @@ function emitGroupSubtree(
     type: 'DeploymentNode',
     owner: hostOwner,
     bounds: { x: hostX, y: hostY, width: hostWidth, height: hostHeight },
-    stereotype: 'docker host', // D-38-2
+    stereotype: 'docker host',
     displayStereotype: true,
   } as unknown as UMLElement;
   if (!outerSource) outerNodeId = hostId;
 
   // ── One ExecutionEnvironment (+ Artifact + Component + manifest edge) per agent ──
-  // 48 (D2) — collect the ExecEnv id per source Component so Phase 3 can
+  // Collect the ExecEnv id per source Component so Phase 3 can
   // connect agent-to-agent pairs via their individual container nodes.
   const execEnvByCompId = new Map<string, string>();
   for (let i = 0; i < agents.length; i++) {
@@ -460,7 +458,7 @@ function emitGroupSubtree(
       type: 'DeploymentNode',
       owner: hostId,
       bounds: { x: eeX, y: eeY, width: EXECENV_WIDTH, height: EXECENV_HEIGHT },
-      stereotype: 'executionEnvironment', // D-38-1
+      stereotype: 'executionEnvironment',
       displayStereotype: true,
     } as unknown as UMLElement;
     execEnvByCompId.set(comp.id, eeId); // 48 — source Component → its ExecEnv node
@@ -473,17 +471,17 @@ function emitGroupSubtree(
       width: ARTIFACT_WIDTH,
       height: ARTIFACT_HEIGHT,
     };
-    // 33 (6b-1) — carry the agent-diagram UUID onto the Artifact so BESSER's
+    // Carry the agent-diagram UUID onto the Artifact so BESSER's
     // deployment generator can resolve Artifact → Agent diagram by exact id.
     // Absent when the source Component was never linked.
     const sourceAgentModelRef = (comp as unknown as { agentModelRef?: string }).agentModelRef;
     out.elements[artifactId] = {
       id: artifactId,
-      name: appendMultiplicity(name, multiplicity), // 27 — Artifact carries [N]; ExecEnv and Component names stay plain.
+      name: appendMultiplicity(name, multiplicity), // Artifact carries [N]; ExecEnv and Component names stay plain.
       type: 'DeploymentArtifact',
       owner: eeId,
       bounds: artifactBounds,
-      // 20 — Artifact.manifests (UML 2.5 §19.4): the cross-diagram id of the
+      // Artifact.manifests (UML 2.5 § 19.4): the cross-diagram id of the
       // source Component this artifact manifests.
       manifests: [comp.id],
       ...(sourceAgentModelRef ? { agentModelRef: sourceAgentModelRef } : {}),
@@ -525,16 +523,16 @@ function emitManifestDependency(
   componentBounds: { x: number; y: number; width: number; height: number },
 ): void {
   const id = newId();
-  // D-D2 — emit as DeploymentDependency so the renderer paints it
+  // Emit as DeploymentDependency so the renderer paints it
   // dashed (strokeDasharray=7) with an arrow at the target end
   // (markerEnd). Source = Artifact, target = Component → arrow lands
   // at the Component (UML 2.5: arrow points at the manifested element).
-  // D-D3 — no `stereotype` field. The renderer gates label rendering
+  // No `stereotype` field. The renderer gates label rendering
   // on `element.type === 'ComponentDependency'`, and
   // UMLDeploymentDependency.serialize does not persist a stereotype
   // field anyway. The dashed arrow alone IS the UML 2.5 signal.
   //
-  // 04-FU4 (2026-05-28): Component is BELOW the Node now, so the edge
+  // Component is BELOW the Node, so the edge
   // runs Artifact bottom-centre → Component top-centre (was top↔bottom
   // when Component was above). Relationship direction (source =
   // Artifact, target = Component) is unchanged — only the path coords
@@ -593,7 +591,7 @@ function emitDeploymentAssociation(out: UMLModel, srcNodeId: string, tgtNodeId: 
     ],
     source: { element: srcNodeId, direction: 'Right' },
     target: { element: tgtNodeId, direction: 'Left' },
-    // D-D2 / OQ-2 — agentic edge stereotypes are NOT carried over.
+    // Agentic edge stereotypes are NOT carried over.
     // Leave `stereotype` undefined.
   } as unknown as UMLRelationship;
   return id;

@@ -12,7 +12,7 @@ import { BPMNGatewayRole, clampTrustScore } from '../common/types';
 
 export type BPMNGatewayType = 'complex' | 'event-based' | 'exclusive' | 'inclusive' | 'parallel';
 
-// Agentic BPMN (04D1 — paper §4.3): collaboration constructs only attach to
+// Agentic BPMN (SEAA'25 § 4.3): collaboration constructs only attach to
 // AgenticOR (inclusive) and AgenticAND (parallel) gateways. Exclusive is
 // excluded by the paper; complex / event-based are not in the paper.
 export const AGENTIC_ELIGIBLE_GATEWAY_TYPES: ReadonlySet<BPMNGatewayType> = new Set<BPMNGatewayType>([
@@ -35,7 +35,7 @@ export class BPMNGateway extends UMLContainer {
   isAgentic: boolean;
   gatewayRole: BPMNGatewayRole;
   trustScore: number;
-  // Governance DSL (guide 02 / level 3). Optional, free-text. Only set on
+  // Governance DSL. Optional, free-text. Only set on
   // merging gateways; undefined = "not authored". Generated from the
   // collaboration block (see common/governance-dsl.ts), then user-editable.
   governanceDsl?: string;

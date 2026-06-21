@@ -1,13 +1,11 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
 /**
- * 06-v2 — supplied by the host (webapp2) at editor-init time.
+ * Supplied by the host (webapp2) at editor-init time.
  *
  * The editor stays storage-agnostic: lineage data and navigation
  * logic live in the host; the editor only renders the link and
  * dispatches the click via the host-supplied callback.
- *
- * See `.adem/inter-diagram/06-lineage-tracking-guide.md` § 3 v2.
  */
 export interface ResolvedSource {
   sourceElementId: string;
