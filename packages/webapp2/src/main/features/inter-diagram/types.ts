@@ -90,4 +90,11 @@ export type AgentDerivationRefusalReason =
 // Cross-lane I/O boundary states. A crossing flow whose in-lane endpoint
 // can't be resolved to a specific task is still acknowledged, attached to the
 // entry state, and surfaced here (never silently dropped).
-export type AgentDerivationWarning = { kind: 'io-attached-to-entry'; flowId: string };
+export type AgentDerivationWarning =
+  | { kind: 'io-attached-to-entry'; flowId: string }
+  // 49 (W4) — a governed merging gateway owned by this lane has no in-lane
+  // producing task feeding it (resp. no in-lane successor). The merge state is
+  // STILL emitted (BESSER must bind governance to it), but it lacks a guarded
+  // inbound (resp. an outbound) — surfaced so the user can wire it manually.
+  | { kind: 'merge-no-producers'; gatewayId: string }
+  | { kind: 'merge-no-successors'; gatewayId: string };

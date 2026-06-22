@@ -982,4 +982,246 @@ describe('29 — laneToAgentModel', () => {
       expect(desc).not.toContain('kind=');
     });
   });
+
+  describe('49 — governed merge states (W3/W4, BESSER-aligned binding)', () => {
+    const govGw = (id: string, x: number) => ({
+      id,
+      name: '',
+      type: 'BPMNGateway',
+      owner: 'L',
+      gatewayRole: 'merging',
+      governanceDsl: 'Policy reviewVote { ... }', // non-empty = governed
+      bounds: { x, y: 0, width: 40, height: 40 },
+    });
+    const seqNamed = (id: string, s: string, t: string, name: string) => ({ ...seq(id, s, t), name });
+    const agProducerLane = (id: string, name: string) => ({
+      id,
+      name,
+      type: 'BPMNSwimlane',
+      owner: null,
+      isAgentic: true,
+      bounds: { x: 0, y: 300, width: 400, height: 200 },
+    });
+    const taskOwned = (id: string, name: string, owner: string, x: number) => ({
+      id,
+      name,
+      type: 'BPMNTask',
+      owner,
+      bounds: { x, y: 0, width: 100, height: 60 },
+    });
+    const nameOf = (e: unknown) => (e as { name?: string }).name ?? '';
+
+    it('M-1: cross-lane producers → a2a:in;flow=<gateway-id> edges INTO the merge state (the BESSER binding)', () => {
+      // px(PeerX) ─┐
+      // py(PeerY) ─┴► gM(governed merge, owner L) ─► Publish
+      const m = bpmn();
+      Object.assign(m.elements, {
+        L: lane('L'), // owner 'Coder', agentic
+        X: agProducerLane('X', 'PeerX'),
+        Y: agProducerLane('Y', 'PeerY'),
+        gM: govGw('gM', 200),
+        t3: task('t3', 'Publish', 320),
+        px: taskOwned('px', 'Draft X', 'X', 10),
+        py: taskOwned('py', 'Draft Y', 'Y', 10),
+      });
+      Object.assign(m.relationships, {
+        f1: seq('f1', 'px', 'gM'), // cross-lane producer → governed merge
+        f2: seq('f2', 'py', 'gM'),
+        f3: seq('f3', 'gM', 't3'),
+      });
+      const r = laneToAgentModel(m, 'L');
+      if (!r.ok) throw new Error('expected ok');
+
+      const merge = Object.values(r.model.elements).find(
+        (e) => e.type === 'AgentState' && e.name === 'Address_merge_decision',
+      )!;
+      expect(merge).toBeDefined();
+      expect(r.elementMapping[merge.id]).toBe('gM'); // lineage: merge state ← gateway
+
+      // Two a2a:in binding edges into the merge state, each carrying flow=<gateway-id>.
+      const inbound = Object.values(r.model.relationships).filter((e) => e.target.element === merge.id);
+      expect(inbound).toHaveLength(2);
+      for (const e of inbound) expect(nameOf(e)).toContain('flow=gM'); // the binding BESSER reads
+      const peers = inbound.map((e) => (nameOf(e).match(/peer=([^;]+)/) || [])[1]).sort();
+      expect(peers).toEqual(['PeerX', 'PeerY']);
+
+      // The producer flow is NOT routed to the successor task (appendCrossLaneIO skipped it).
+      const publish = Object.values(r.model.elements).find((e) => e.name === 'Publish')!;
+      const a2aIntoPublish = Object.values(r.model.relationships).filter(
+        (e) => e.target.element === publish.id && nameOf(e).includes('a2a:in'),
+      );
+      expect(a2aIntoPublish).toHaveLength(0);
+
+      // An AgentIntent is scaffolded for each inbound binding.
+      const intents = Object.values(r.model.elements)
+        .filter((e) => e.type === 'AgentIntent')
+        .map(nameOf);
+      expect(intents).toContain('recv_PeerX_Address_merge_decision');
+      expect(intents).toContain('recv_PeerY_Address_merge_decision');
+    });
+
+    it('M-2: in-lane producers → guards + a SYNTHETIC self-peer flow=<gateway-id> binding', () => {
+      const m = bpmn();
+      Object.assign(m.elements, {
+        L: lane('L'),
+        p1: task('p1', 'Draft A', 10),
+        p2: task('p2', 'Draft B', 10),
+        gM: govGw('gM', 200),
+        t3: task('t3', 'Publish', 320),
+      });
+      Object.assign(m.relationships, {
+        f1: seqNamed('f1', 'p1', 'gM', 'score >= 0.8'),
+        f2: seqNamed('f2', 'p2', 'gM', 'needs_review'),
+        f3: seq('f3', 'gM', 't3'),
+      });
+      const r = laneToAgentModel(m, 'L');
+      if (!r.ok) throw new Error('expected ok');
+      const merge = Object.values(r.model.elements).find((e) => e.name === 'Address_merge_decision')!;
+      const greet = Object.values(r.model.elements).find((e) => e.name === 'Coder_greet')!;
+
+      const inbound = Object.values(r.model.relationships).filter((e) => e.target.element === merge.id);
+      // 2 in-lane guards + 1 synthetic self-peer binding
+      expect(inbound).toHaveLength(3);
+
+      const varOp = inbound.find(
+        (e) =>
+          (e as unknown as { predefined?: { predefinedType?: string } }).predefined?.predefinedType ===
+          'when_variable_operation_matched',
+      )!;
+      expect((varOp as unknown as { predefined: { conditionValue: unknown } }).predefined.conditionValue).toEqual({
+        variable: 'score',
+        operator: '>=',
+        targetValue: '0.8',
+      });
+      expect((varOp as unknown as { variable?: string }).variable).toBe('score'); // 45-FU top-level mirror
+
+      const custom = inbound.find((e) => (e as unknown as { transitionType?: string }).transitionType === 'custom')!;
+      expect((custom as unknown as { custom: { condition: string[] } }).custom.condition).toEqual(['needs_review']);
+
+      // synthetic binding: greeting → merge, a2a:in flow=gM, peer=self lane, no kind
+      const binding = inbound.find((e) => e.source.element === greet.id)!;
+      expect(nameOf(binding)).toBe('a2a:in;peer=Coder;ref=;flow=gM');
+
+      const outbound = Object.values(r.model.relationships).filter((e) => e.source.element === merge.id);
+      expect(outbound).toHaveLength(1);
+      expect((outbound[0] as unknown as { predefined?: { predefinedType?: string } }).predefined?.predefinedType).toBe(
+        'when_no_intent_matched',
+      );
+    });
+
+    it('M-3: empty condition label → when_no_intent_matched guard (+ synthetic binding)', () => {
+      const m = bpmn();
+      Object.assign(m.elements, {
+        L: lane('L'),
+        p1: task('p1', 'Draft', 10),
+        gM: govGw('gM', 200),
+        t3: task('t3', 'Publish', 320),
+      });
+      Object.assign(m.relationships, { f1: seq('f1', 'p1', 'gM'), f3: seq('f3', 'gM', 't3') });
+      const r = laneToAgentModel(m, 'L');
+      if (!r.ok) throw new Error('expected ok');
+      const merge = Object.values(r.model.elements).find((e) => e.name === 'Address_merge_decision')!;
+      const greet = Object.values(r.model.elements).find((e) => e.name === 'Coder_greet')!;
+      const inbound = Object.values(r.model.relationships).filter((e) => e.target.element === merge.id);
+      expect(inbound).toHaveLength(2); // 1 guard + 1 synthetic binding
+
+      const guard = inbound.find((e) => e.source.element !== greet.id)!;
+      expect((guard as unknown as { predefined?: { predefinedType?: string } }).predefined?.predefinedType).toBe(
+        'when_no_intent_matched',
+      );
+      const binding = inbound.find((e) => e.source.element === greet.id)!;
+      expect(nameOf(binding)).toContain('flow=gM');
+    });
+
+    it('M-4: two governed merges → distinct states, each bound to its OWN gateway id', () => {
+      const m = bpmn();
+      Object.assign(m.elements, {
+        L: lane('L'),
+        p1: task('p1', 'A', 10),
+        gM1: govGw('gM1', 120),
+        t2: task('t2', 'B', 240),
+        p3: task('p3', 'C', 360),
+        gM2: govGw('gM2', 480),
+        t4: task('t4', 'D', 600),
+      });
+      Object.assign(m.relationships, {
+        f1: seq('f1', 'p1', 'gM1'),
+        f2: seq('f2', 'gM1', 't2'),
+        f3: seq('f3', 'p3', 'gM2'),
+        f4: seq('f4', 'gM2', 't4'),
+      });
+      const r = laneToAgentModel(m, 'L');
+      if (!r.ok) throw new Error('expected ok');
+      const mergeNames = Object.values(r.model.elements)
+        .filter((e) => e.type === 'AgentState' && e.name.startsWith('Address_merge_decision'))
+        .map(nameOf);
+      expect(mergeNames).toHaveLength(2);
+      expect(new Set(mergeNames).size).toBe(2); // distinct
+
+      // each gateway has at least one a2a:in binding edge carrying its own flow=<id>
+      const flows = Object.values(r.model.relationships)
+        .map((e) => (nameOf(e).match(/flow=(\w+)/) || [])[1])
+        .filter(Boolean);
+      expect(flows).toContain('gM1');
+      expect(flows).toContain('gM2');
+    });
+
+    it('M-5: legacy — a NON-governed merging gateway is still collapsed (no merge state)', () => {
+      // diverge-merge fixture: gw-merge is merging but has NO governanceDsl.
+      const r = laneToAgentModel(divergeMerge as unknown as UMLModel, 'lane-mgr');
+      if (!r.ok) throw new Error('expected ok');
+      expect(
+        Object.values(r.model.elements).find(
+          (e) => e.type === 'AgentState' && e.name.startsWith('Address_merge_decision'),
+        ),
+      ).toBeUndefined();
+    });
+
+    it('M-6: round-trip — the a2a:in;flow=<gateway-id> binding + guard fields are deep-clone stable', () => {
+      const m = bpmn();
+      Object.assign(m.elements, {
+        L: lane('L'),
+        p1: task('p1', 'Draft A', 10),
+        p2: task('p2', 'Draft B', 10),
+        gM: govGw('gM', 200),
+        t3: task('t3', 'Publish', 320),
+      });
+      Object.assign(m.relationships, {
+        f1: seqNamed('f1', 'p1', 'gM', 'score >= 0.8'),
+        f2: seqNamed('f2', 'p2', 'gM', 'needs_review'),
+        f3: seq('f3', 'gM', 't3'),
+      });
+      const r = laneToAgentModel(m, 'L');
+      if (!r.ok) throw new Error('expected ok');
+
+      // Project export/import is JSON serialization; the emitted shape must survive a
+      // JSON clone with exactly the keys the AgentStateTransition deserializer reads
+      // (Appendix A in guide 49). The model classes aren't exported from @besser/wme,
+      // so we assert the deserialize-input contract directly.
+      const clone = JSON.parse(JSON.stringify(r.model)) as typeof r.model;
+      const merge = Object.values(clone.elements).find((e) => e.name === 'Address_merge_decision')!;
+      const inbound = Object.values(clone.relationships).filter((e) => e.target.element === merge.id);
+
+      // the binding (a2a:in;flow=gM) survives
+      const binding = inbound.find((e) => nameOf(e).includes('a2a:in'))!;
+      expect(nameOf(binding)).toContain('flow=gM');
+
+      // the guard payloads survive
+      const varOp = inbound.find(
+        (e) =>
+          (e as unknown as { predefined?: { predefinedType?: string } }).predefined?.predefinedType ===
+          'when_variable_operation_matched',
+      )!;
+      expect((varOp as unknown as { predefined: { conditionValue: unknown } }).predefined.conditionValue).toEqual({
+        variable: 'score',
+        operator: '>=',
+        targetValue: '0.8',
+      });
+      const custom = inbound.find((e) => (e as unknown as { transitionType?: string }).transitionType === 'custom')!;
+      expect((custom as unknown as { custom: { event: string; condition: string[] } }).custom).toEqual({
+        event: 'None',
+        condition: ['needs_review'],
+      });
+    });
+  });
 });

@@ -28,6 +28,11 @@ const INTENT_COL_X = -340;
 // human-approval) sit between the task column (x 0..140) and the right, so they
 // don't overlap the task column.
 const REFLECT_COL_X = 160;
+// 49 (W3) — governed merge-decision states sit in a column to the RIGHT of the
+// reflection column so producer→merge edges run rightward and don't overlap the
+// task (x 0..140) or reflection (x 160) columns. recenterAgentModel re-centres at
+// the end, so the absolute x only matters for relative layout.
+const MERGE_COL_X = 360;
 
 const newId = (): string => 'gen-' + Math.random().toString(36).slice(2, 11);
 
@@ -62,6 +67,11 @@ type AnyEl = UMLElement & {
   reflectionMode?: 'none' | 'self' | 'cross' | 'human';
   // 47 — reviewer lane UUID for cross-reflection (absent = placeholder).
   reflectionReviewerLaneId?: string;
+  // 49 (W3/W4) — read on BPMN gateways to detect a governed merge.
+  gatewayRole?: 'diverging' | 'merging';
+  governanceDsl?: string;
+  // 08 / 49 — the lane's linked Agent diagram UUID (a2a `ref=`).
+  agentDiagramRef?: string;
   bounds: Bounds;
 };
 
@@ -100,9 +110,26 @@ export function laneToAgentModel(bpmn: UMLModel, laneId: string): AgentDerivatio
     elementMapping[id] = t.id; // lineage: AgentState ← source task
   });
 
-  // 2) intra-lane sequence flows → transitions (collapsing in-lane gateways).
+  // 49 (W3/W4) — governed merging gateways OWNED by this lane: a BPMNGateway with
+  // gatewayRole 'merging' carrying a non-empty governanceDsl. Each becomes a
+  // dedicated "Address merge decision" AgentState (the bound merge state, W3) with
+  // GUARDED inbound transitions (the flags, W4). They must NOT be collapsed by
+  // collapseGatewayEdges, so collect their ids first and exclude them from the
+  // gateway-collapse walk below.
   const taskIds = new Set(tasks.map((t) => t.id));
-  const edges = collapseGatewayEdges(bpmn, laneId, taskIds);
+  const governedMerges = (Object.values(bpmn.elements) as AnyEl[]).filter(
+    (e) =>
+      e.type === 'BPMNGateway' &&
+      e.owner === laneId &&
+      e.gatewayRole === 'merging' &&
+      typeof e.governanceDsl === 'string' &&
+      e.governanceDsl.trim().length > 0,
+  );
+  const governedMergeIds = new Set(governedMerges.map((g) => g.id));
+
+  // 2) intra-lane sequence flows → transitions (collapsing in-lane gateways,
+  // EXCEPT governed merges which are materialized as merge states below).
+  const edges = collapseGatewayEdges(bpmn, laneId, taskIds, governedMergeIds);
   const seen = new Set<string>();
   for (const { from, to } of edges) {
     const s = stateIdByTask.get(from);
@@ -156,7 +183,36 @@ export function laneToAgentModel(bpmn: UMLModel, laneId: string): AgentDerivatio
   // tag on the producing state + a greeting→next when_intent_matched edge
   // (intentName recv_reviewer_<task>) + an AgentIntent scaffold. Returns the
   // states it wired an intent edge into (unioned into the cold-start guard).
-  const reflectIntentTargets = appendReflectionScaffolds(out, tasks, stateIdByTask, greetId, elementMapping, bpmn.elements);
+  const reflectIntentTargets = appendReflectionScaffolds(
+    out,
+    tasks,
+    stateIdByTask,
+    greetId,
+    elementMapping,
+    bpmn.elements,
+  );
+
+  // 49 (W3/W4) — materialize a dedicated "Address merge decision" AgentState per
+  // governed merging gateway owned by this lane. The BINDING BESSER reads
+  // (`_merge_state_for_gateway`) is an `a2a:in;…;flow=<gateway-id>` edge whose
+  // target_state is the merge state — so each CROSS-lane producer flow feeding the
+  // gateway becomes a greeting→S_G `when_intent_matched` edge with `flow=<G.id>`
+  // (the binding + the flag). In-lane producers become intra-lane GUARDED
+  // transitions (when_variable_operation_matched / custom). Runs BEFORE
+  // appendCrossLaneIO (which must skip flows feeding a governed merge) and needs
+  // greetId for the a2a:in edges.
+  appendGovernedMergeStates(
+    out,
+    bpmn,
+    lane,
+    laneId,
+    taskIds,
+    governedMerges,
+    stateIdByTask,
+    greetId,
+    elementMapping,
+    warnings,
+  );
 
   // 45 (memo 44) — cross-lane I/O. Inbound from an AGENTIC peer → a
   // when_intent_matched edge greeting → consuming task (intentName recv_<peer>,
@@ -165,6 +221,8 @@ export function laneToAgentModel(bpmn: UMLModel, laneId: string): AgentDerivatio
   // tag on the producing state's description. Runs BEFORE the cold-start so
   // we can suppress the cold-start when the entry task already has an intent
   // transition (prevents two visually-identical arrows from greeting → entry).
+  // 49 — `governedMergeIds`: a cross-lane producer flow whose target is a governed
+  // merge is owned by the merge wiring above, NOT routed to a consuming task here.
   const ioIntentTargets = appendCrossLaneIO(
     out,
     bpmn,
@@ -175,6 +233,7 @@ export function laneToAgentModel(bpmn: UMLModel, laneId: string): AgentDerivatio
     greetId,
     elementMapping,
     warnings,
+    governedMergeIds,
   );
 
   // 45-FU / 46 — cold-start suppressed when the entry state already received an
@@ -217,6 +276,7 @@ function collapseGatewayEdges(
   bpmn: UMLModel,
   laneId: string,
   taskIds: Set<string>,
+  governedMergeIds: Set<string>, // 49 — stop the walk here (materialized as merge states)
 ): Array<{ from: string; to: string }> {
   const seqFlows = (Object.values(bpmn.relationships) as Array<UMLRelationship & { flowType?: string }>).filter(
     (r) => r.type === 'BPMNFlow' && r.flowType === 'sequence',
@@ -246,7 +306,10 @@ function collapseGatewayEdges(
         found.add(n);
         continue;
       }
-      if (isLaneGateway(n)) for (const nxt of outAdj.get(n) ?? []) stack.push(nxt);
+      // 49 — a governed merge is a hard stop: do not expand through it, so the
+      // producer→(through G)→downstream collapsed edge is NOT created (the merge
+      // state owns that wiring). A non-governed gateway collapses as before.
+      if (isLaneGateway(n) && !governedMergeIds.has(n)) for (const nxt of outAdj.get(n) ?? []) stack.push(nxt);
       // anything else (cross-lane node, event) is a dead end for v1 core.
     }
     return [...found];
@@ -267,7 +330,15 @@ function emitTransition(
   type: 'AgentStateTransition' | 'AgentStateTransitionInit',
   orientation: 'vertical' | 'horizontal',
   predefinedType?: string,
-  opts?: { intentName?: string; name?: string }, // 45 — A2A intent + hidden tag
+  opts?: {
+    intentName?: string;
+    name?: string; // 45 — A2A intent + hidden tag
+    // 49 (W4) — guard payloads for a merge-decision inbound transition.
+    variable?: string;
+    operator?: string;
+    targetValue?: string;
+    customConditions?: string[];
+  },
 ): string {
   const id = newId();
   const sb = (out.elements[srcId] as unknown as { bounds: Bounds }).bounds;
@@ -277,6 +348,53 @@ function emitTransition(
       ? { x: sb.x + sb.width / 2, y: sb.y + sb.height }
       : { x: sb.x + sb.width, y: sb.y + sb.height / 2 };
   const p1 = orientation === 'vertical' ? { x: tb.x + tb.width / 2, y: tb.y } : { x: tb.x, y: tb.y + tb.height / 2 };
+
+  // 49 — a custom-condition guard takes precedence: it serializes as a `custom`
+  // transition (transitionType 'custom' + custom.condition), not a predefined one.
+  // A when_variable_operation_matched guard rides predefined.conditionValue (an
+  // object) AND the top-level variable/operator/targetValue mirror (the
+  // AgentStateTransition constructor reads the top-level fields on first load,
+  // deserialize reads predefined.conditionValue — set both, like 45-FU did for
+  // intentName).
+  const isCustom = !!opts?.customConditions && opts.customConditions.length > 0;
+  let typeFields: Record<string, unknown> = {};
+  if (isCustom) {
+    typeFields = {
+      transitionType: 'custom' as const,
+      predefined: { predefinedType: '' },
+      custom: { event: 'None', condition: opts!.customConditions as string[] },
+    };
+  } else if (predefinedType !== undefined) {
+    let predefined: Record<string, unknown>;
+    if (opts?.intentName !== undefined) {
+      predefined = { predefinedType, intentName: opts.intentName };
+    } else if (predefinedType === 'when_variable_operation_matched') {
+      predefined = {
+        predefinedType,
+        conditionValue: {
+          variable: opts?.variable ?? '',
+          operator: opts?.operator ?? '',
+          targetValue: opts?.targetValue ?? '',
+        },
+      };
+    } else {
+      predefined = { predefinedType, conditionValue: '' };
+    }
+    // 36 — when_no_intent_matched (and other predefined types) need these fields
+    // so the BESSER backend's AgentStateTransition deserializer reads the correct
+    // predefinedType instead of falling back to 'when_intent_matched'.
+    // 45-FU: intentName must also be at top-level for the constructor path.
+    typeFields = {
+      transitionType: 'predefined' as const,
+      predefined,
+      ...(opts?.intentName !== undefined ? { intentName: opts.intentName } : {}),
+      ...(predefinedType === 'when_variable_operation_matched'
+        ? { variable: opts?.variable ?? '', operator: opts?.operator ?? '', targetValue: opts?.targetValue ?? '' }
+        : {}),
+      custom: { condition: [] as string[] },
+    };
+  }
+
   out.relationships[id] = {
     id,
     name: opts?.name ?? '',
@@ -292,23 +410,7 @@ function emitTransition(
     source: { element: srcId, direction: orientation === 'vertical' ? 'Down' : 'Right' },
     target: { element: tgtId, direction: orientation === 'vertical' ? 'Up' : 'Left' },
     isManuallyLayouted: false,
-    // 36 — when_no_intent_matched (and other predefined types) need these three
-    // fields so the BESSER backend's AgentStateTransition deserializer reads the
-    // correct predefinedType instead of falling back to 'when_intent_matched'.
-    // 45-FU: intentName must also be at top-level so AgentStateTransition
-    // constructor (which reads values.intentName, not values.predefined.intentName)
-    // populates this.intentName correctly on first load.
-    ...(predefinedType !== undefined
-      ? {
-          transitionType: 'predefined' as const,
-          predefined:
-            opts?.intentName !== undefined
-              ? { predefinedType, intentName: opts.intentName }
-              : { predefinedType, conditionValue: '' },
-          ...(opts?.intentName !== undefined ? { intentName: opts.intentName } : {}),
-          custom: { condition: [] as string[] },
-        }
-      : {}),
+    ...typeFields,
   } as unknown as UMLRelationship;
   return id;
 }
@@ -338,6 +440,7 @@ function appendCrossLaneIO(
   greetId: string,
   elementMapping: ElementLineageMap,
   warnings: AgentDerivationWarning[],
+  governedMergeIds: Set<string>, // 49 — flows feeding these are owned by the merge wiring
 ): Set<string> {
   const flows = (Object.values(bpmn.relationships) as Array<UMLRelationship & { flowType?: string }>).filter(
     (r) => r.type === 'BPMNFlow' && (r.flowType === 'sequence' || r.flowType === 'message'),
@@ -355,6 +458,10 @@ function appendCrossLaneIO(
 
     // INPUT: target in lane, source external.
     if (targetIsInLane && !sourceIsInLane) {
+      // 49 — a cross-lane producer flow whose target IS a governed merge gateway
+      // is wired into the merge state (with flow=<gateway-id>) by
+      // appendGovernedMergeStates, not routed to a consuming task here.
+      if (governedMergeIds.has(f.target.element)) continue;
       const peerLane = externalLaneElement(bpmn, f.source.element);
       // DQ-3: only an AGENTIC peer lane becomes an A2A intent; everything else
       // (pool, start event, human/external lane) folds into the cold-start.
@@ -409,6 +516,190 @@ function appendCrossLaneIO(
     }
   }
   return intentTargetStates;
+}
+
+// ── 49: governed merge-decision states + guarded derivation (W3/W4) ──
+
+/**
+ * 49 (W4) — derive a guard for a producer→merge transition from a BPMN
+ * sequence-flow condition label (`BPMNFlow.name`):
+ *   "X <op> Y"  → when_variable_operation_matched {variable, operator, targetValue}
+ *   other non-empty → a custom transition with that label as its single condition
+ *   empty       → when_no_intent_matched (unconditional arrival at the merge)
+ * Operators recognised: == != <= >= < >. (Intent-triggered branches are already
+ * covered by the cross-lane A2A inbound path, guide 45 — not re-derived here.)
+ */
+function deriveGuard(label: string | undefined): {
+  predefinedType: string;
+  variable?: string;
+  operator?: string;
+  targetValue?: string;
+  customConditions?: string[];
+} {
+  const t = (label || '').trim();
+  if (!t) return { predefinedType: 'when_no_intent_matched' };
+  const m = t.match(/^(.+?)\s*(==|!=|<=|>=|<|>)\s*(.+)$/);
+  if (m) {
+    return {
+      predefinedType: 'when_variable_operation_matched',
+      variable: m[1].trim(),
+      operator: m[2],
+      targetValue: m[3].trim(),
+    };
+  }
+  return { predefinedType: 'custom', customConditions: [t] };
+}
+
+/**
+ * 49 (W3/W4) — for each governed merging gateway G owned by the lane, insert a
+ * dedicated merge-decision AgentState S_G and wire it so BESSER can bind
+ * governance to it.
+ *
+ * Name: "Address_merge_decision" (sanitized — BAF rejects spaces; the BESSER
+ * design's literal "Address merge decision" maps to this token). When the lane
+ * owns >1 governed merge, suffix `__<gateway label|short id>` so names stay
+ * DISTINCT (BAF state names are the identity key).
+ *
+ * BINDING (the contract BESSER's `_merge_state_for_gateway` reads): an
+ * `a2a:in;peer=<producer>;ref=<…|>;flow=<G.id>;[kind=…]` transition whose
+ * target_state is S_G. The `flow` is the GATEWAY id (NOT a sequence-flow id), so
+ * BESSER resolves gateway → state by marker. These edges are produced from the
+ * gateway's incoming flows:
+ *  - CROSS-lane producer (source resolves to another agentic lane) → a
+ *    greeting→S_G `when_intent_matched` edge carrying the `a2a:in;flow=<G.id>`
+ *    tag + a deduped AgentIntent. This is simultaneously the binding AND a
+ *    when_intent_matched guard (the flag).
+ *  - IN-lane producer → an intra-lane GUARDED transition producer-state→S_G
+ *    (when_variable_operation_matched / custom / when_no_intent_matched, from the
+ *    flow's condition label). These are flags but NOT the binding.
+ * If no cross-lane producer emitted an `a2a:in;flow=<G.id>` edge (in-lane-only or
+ * producerless merge), synthesize ONE self-peer `a2a:in;…;flow=<G.id>` marker
+ * edge so the binding still resolves.
+ *
+ * Outbound: for each flow OUT of G, S_G → in-lane successor(s) (when_no_intent_matched).
+ * Lineage: S_G ← G; each inbound ← its inducing flow (the self-peer marker ← G).
+ * No-op when the lane owns no governed merge (legacy diagrams unchanged).
+ */
+function appendGovernedMergeStates(
+  out: UMLModel,
+  bpmn: UMLModel,
+  lane: AnyEl,
+  laneId: string,
+  taskIds: Set<string>,
+  governedMerges: AnyEl[],
+  stateIdByTask: Map<string, string>,
+  greetId: string,
+  elementMapping: ElementLineageMap,
+  warnings: AgentDerivationWarning[],
+): void {
+  if (governedMerges.length === 0) return;
+  const multiple = governedMerges.length > 1;
+  const usedNames = new Set<string>(
+    (Object.values(out.elements) as AnyEl[]).filter((e) => e.type === 'AgentState').map((e) => e.name),
+  );
+  const seqFlows = (Object.values(bpmn.relationships) as Array<UMLRelationship & { flowType?: string }>).filter(
+    (r) => r.type === 'BPMNFlow' && r.flowType === 'sequence',
+  );
+  const intentIdByName = new Map<string, string>(); // dedup scaffolded AgentIntents
+  let intentRow = Object.values(out.elements).filter((e) => e.type === 'AgentIntent').length;
+
+  governedMerges.forEach((g, idx) => {
+    // distinct, sanitized name
+    let name = 'Address_merge_decision';
+    if (multiple) name = `${name}__${sanitizeStateName(g.name || g.id.slice(-6))}`;
+    let bump = 0;
+    while (usedNames.has(name)) name = `Address_merge_decision__${sanitizeStateName(g.id.slice(-6))}_${bump++}`;
+    usedNames.add(name);
+
+    const mergeId = newId();
+    out.elements[mergeId] = {
+      id: mergeId,
+      name,
+      type: 'AgentState',
+      owner: null,
+      bounds: { x: MERGE_COL_X, y: idx * (STATE_H + V_GAP), width: STATE_W, height: STATE_H },
+      bodies: [],
+      fallbackBodies: [],
+    } as unknown as UMLElement;
+    elementMapping[mergeId] = g.id; // lineage: merge state ← gateway
+
+    // helper: scaffold (deduped) an AgentIntent for an a2a:in edge into S_G.
+    const ensureIntent = (intent: string, peerName: string): string => {
+      if (!intentIdByName.has(intent)) {
+        intentIdByName.set(intent, createIntentScaffold(out, intent, peerName, intentRow++));
+      }
+      return intent;
+    };
+
+    // Inbound: producers feeding the gateway. Cross-lane → a2a:in;flow=<G.id>
+    // (the binding + flag); in-lane → intra-lane guarded transition.
+    let producerCount = 0;
+    let boundViaA2aIn = false;
+    for (const f of seqFlows.filter((r) => r.target.element === g.id)) {
+      const inLaneProducers = inLaneTasks(bpmn, laneId, taskIds, f.source.element, 'backward');
+      if (inLaneProducers.length > 0) {
+        // IN-lane producer(s) → intra-lane GUARDED transition (flag, not binding).
+        const guard = deriveGuard((f as UMLRelationship & { name?: string }).name);
+        for (const producerTask of inLaneProducers) {
+          const pState = stateIdByTask.get(producerTask);
+          if (!pState) continue;
+          const tId = emitTransition(out, pState, mergeId, 'AgentStateTransition', 'horizontal', guard.predefinedType, {
+            variable: guard.variable,
+            operator: guard.operator,
+            targetValue: guard.targetValue,
+            customConditions: guard.customConditions,
+          });
+          elementMapping[tId] = f.id; // lineage: guard ← inducing flow
+          producerCount++;
+        }
+        continue;
+      }
+      // CROSS-lane producer → a2a:in greeting→S_G with flow=<G.id> (the BINDING).
+      const peerLane = externalLaneElement(bpmn, f.source.element);
+      const peerName = externalName(bpmn, f.source.element);
+      const kind =
+        peerLane && peerLane.isAgentic === true
+          ? resolveEdgeKind(peerLane as UMLElement, lane as UMLElement, undefined)
+          : undefined; // non-agentic producer → plain channel, no kind
+      const ref = peerLane?.agentDiagramRef;
+      const tag = a2aTag({ dir: 'in', peer: peerName, ref, flow: g.id, kind });
+      const intent = ensureIntent(recvIntentName(peerName, name), peerName);
+      const tId = emitTransition(out, greetId, mergeId, 'AgentStateTransition', 'vertical', 'when_intent_matched', {
+        intentName: intent,
+        name: tag,
+      });
+      elementMapping[tId] = f.id; // lineage: inbound binding ← inducing flow
+      producerCount++;
+      boundViaA2aIn = true;
+    }
+    if (producerCount === 0) warnings.push({ kind: 'merge-no-producers', gatewayId: g.id });
+
+    // Binding guarantee: if no cross-lane a2a:in edge carries flow=<G.id> (in-lane
+    // -only or producerless merge), synthesize one self-peer marker so BESSER's
+    // _merge_state_for_gateway still resolves gateway → S_G.
+    if (!boundViaA2aIn) {
+      const selfPeer = lane.name || 'self';
+      const tag = a2aTag({ dir: 'in', peer: selfPeer, ref: lane.agentDiagramRef, flow: g.id });
+      const intent = ensureIntent(recvIntentName(selfPeer, name), selfPeer);
+      const tId = emitTransition(out, greetId, mergeId, 'AgentStateTransition', 'vertical', 'when_intent_matched', {
+        intentName: intent,
+        name: tag,
+      });
+      elementMapping[tId] = g.id; // lineage: synthetic binding ← gateway
+    }
+
+    // unguarded outbound — successors of the gateway.
+    let successorCount = 0;
+    for (const f of seqFlows.filter((r) => r.source.element === g.id)) {
+      for (const succTask of inLaneTasks(bpmn, laneId, taskIds, f.target.element, 'forward')) {
+        const sState = stateIdByTask.get(succTask);
+        if (!sState) continue;
+        emitTransition(out, mergeId, sState, 'AgentStateTransition', 'vertical', 'when_no_intent_matched');
+        successorCount++;
+      }
+    }
+    if (successorCount === 0) warnings.push({ kind: 'merge-no-successors', gatewayId: g.id });
+  });
 }
 
 /**
