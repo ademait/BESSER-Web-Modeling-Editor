@@ -97,9 +97,13 @@ const Flex = styled.div`
 `;
 
 // Governance DSL editor. Mirrors the agent-diagram code-snippet UX.
+// Applied few changes for better UX: max-width, scroll: 
 const ResizableCodeMirrorWrapper = styled.div`
   resize: both;
   overflow: auto;
+  width: 100%;
+  max-width: 100%;
+  min-width: 200px;
   min-height: 120px;
   border: 1px solid ${(props) => props.theme.color.gray};
   border-radius: 4px;
@@ -109,6 +113,12 @@ const ResizableCodeMirrorWrapper = styled.div`
   .CodeMirror {
     height: 100% !important;
     width: 100%;
+    max-width: 100%;
+    min-height: 120px;
+  }
+
+  .CodeMirror-scroll {
+    max-width: 100%;
   }
 `;
 
