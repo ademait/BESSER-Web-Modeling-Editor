@@ -64,6 +64,8 @@ export const AgentStateComponent: FunctionComponent<Props> = ({ element, childre
           y={2}
           width="35"
           height="35"
+          pointerEvents="none"
+          draggable={false}
         />
         </>
       )}
