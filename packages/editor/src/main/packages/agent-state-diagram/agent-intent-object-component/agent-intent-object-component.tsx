@@ -15,7 +15,7 @@ interface Props {
 
 export const AgentIntentComponent: FunctionComponent<Props> = ({ element, children, fillColor }) => {
   const cornerRadius = 0;
-  element.name = "Intent: " + element.name;
+  element.name = 'Intent: ' + element.name.replace(/^Intent: /, '');
   const hasIntentDescription = element.intent_description.trim().length > 0;
   return (
     <g>
@@ -77,30 +77,26 @@ export const AgentIntentComponent: FunctionComponent<Props> = ({ element, childr
           ) : (
             <svg height={40}>
               <Text
-                fill='black'
+                fill="black"
                 fontStyle={element.italic ? 'italic' : undefined}
                 textDecoration={element.underline ? 'underline' : undefined}
               >
                 {element.name}
-
               </Text>
-
             </svg>
-  
           )}
-            
+
           {hasIntentDescription && (
             <g transform={`translate(0, ${element.headerHeight})`}>
               <AgentIntentDescriptionComponent
                 description={element.intent_description}
                 width={element.bounds.width}
                 textColor={element.textColor || '#000'}
-            
               />
             </g>
           )}
 
-           {children}
+          {children}
           <ThemedRect
             width="100%"
             height="100%"
@@ -118,10 +114,8 @@ export const AgentIntentComponent: FunctionComponent<Props> = ({ element, childr
               strokeColor={element.strokeColor}
             />
           )}
-
-
         </g>
       </svg>
     </g>
   );
-}; 
+};
