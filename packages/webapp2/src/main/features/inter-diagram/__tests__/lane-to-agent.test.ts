@@ -516,6 +516,60 @@ describe('29 — laneToAgentModel', () => {
       expect(ts.some((e) => e.source.element === reflect!.id && e.target.element === code.id)).toBe(true);
     });
 
+    it("'self' re-homes downstream outbound A2A onto <task>_reflect (runtime carrier, not just icon position)", () => {
+      const m = bpmn();
+      Object.assign(m.elements, {
+        L: {
+          id: 'L',
+          name: 'Coder',
+          type: 'BPMNSwimlane',
+          owner: null,
+          isAgentic: true,
+          role: 'solution',
+          bounds: { x: 0, y: 0, width: 400, height: 200 },
+        },
+        P: {
+          id: 'P',
+          name: 'Reviewer',
+          type: 'BPMNSwimlane',
+          owner: null,
+          isAgentic: true,
+          role: 'supervision',
+          agentDiagramRef: 'agent-reviewer',
+          bounds: { x: 0, y: 250, width: 400, height: 200 },
+        },
+        t1: { ...task('t1', 'Plan', 10), reflectionMode: 'self' },
+        g: gw('g', 180),
+        p1: {
+          id: 'p1',
+          name: 'Review',
+          type: 'BPMNTask',
+          owner: 'P',
+          bounds: { x: 10, y: 0, width: 100, height: 60 },
+        },
+      });
+      Object.assign(m.relationships, {
+        f1: seq('f1', 't1', 'g'),
+        f2: seq('f2', 'g', 'p1'),
+      });
+      const r = laneToAgentModel(m, 'L');
+      if (!r.ok) throw new Error('expected ok');
+
+      const plan = findState(r.model, 'Plan')!;
+      const reflect = findState(r.model, 'Plan_reflect')!;
+      const ts = transitions(r.model);
+
+      const planDesc = (plan as unknown as { description?: string }).description ?? '';
+      const reflectDesc = (reflect as unknown as { description?: string }).description ?? '';
+
+      // 54 — outbound A2A now executes from the post-reflection state.
+      expect(planDesc).not.toContain('a2a:out;');
+      expect(reflectDesc).toMatch(/a2a:out;peer=Reviewer;ref=agent-reviewer;flow=f2;order=1;kind=revises/);
+
+      // Existing self-reflection topology is preserved in this pass.
+      expect(ts.some((e) => e.source.element === plan.id && e.target.element === reflect.id)).toBe(true);
+      expect(ts.some((e) => e.source.element === reflect.id && e.target.element === reflect.id)).toBe(true);
+    });
     it("'cross' emits A2A (no wait state): a2a:out tag + greeting→next intent edge + AgentIntent", () => {
       // 46 — cross-reflection is inter-agent, so it is modelled as A2A metadata,
       // NOT a fabricated state. The old Plan_await_review wait state is gone.

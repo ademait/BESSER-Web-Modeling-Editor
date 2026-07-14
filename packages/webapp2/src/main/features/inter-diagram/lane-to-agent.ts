@@ -109,6 +109,10 @@ export function laneToAgentModel(bpmn: UMLModel, laneId: string): AgentDerivatio
     stateIdByTask.set(t.id, id);
     elementMapping[id] = t.id; // lineage: AgentState ← source task
   });
+  // 54 — execution carrier for outbound A2A. Defaults to the base task-state and
+  // may be overridden by reflection scaffolds (self → <task>_reflect). Inbound
+  // A2A still targets the base task-state via stateIdByTask.
+  const outboundCarrierStateIdByTask = new Map(stateIdByTask);
 
   // 49 (W3/W4) — governed merging gateways OWNED by this lane: a BPMNGateway with
   // gatewayRole 'merging' carrying a non-empty governanceDsl. Each becomes a
@@ -190,6 +194,7 @@ export function laneToAgentModel(bpmn: UMLModel, laneId: string): AgentDerivatio
     greetId,
     elementMapping,
     bpmn.elements,
+    outboundCarrierStateIdByTask,
   );
 
   // 49 (W3/W4) — materialize a dedicated "Address merge decision" AgentState per
@@ -217,8 +222,10 @@ export function laneToAgentModel(bpmn: UMLModel, laneId: string): AgentDerivatio
   // 45 (memo 44) — cross-lane I/O. Inbound from an AGENTIC peer → a
   // when_intent_matched edge greeting → consuming task (intentName recv_<peer>,
   // hidden a2a:in tag in `name`) + a scaffolded AgentIntent. Inbound from a
-  // non-agentic lane / start event → nothing (DQ-3). Outbound → an a2a:out
-  // tag on the producing state's description. Runs BEFORE the cold-start so
+  // non-agentic lane / start event → nothing (DQ-3).
+  // 54 — outbound now follows outboundCarrierStateIdByTask, so self-reflective
+  // tasks send from <task>_reflect while preserving the existing a2a:out grammar.
+  // Runs BEFORE the cold-start so
   // we can suppress the cold-start when the entry task already has an intent
   // transition (prevents two visually-identical arrows from greeting → entry).
   // 49 — `governedMergeIds`: a cross-lane producer flow whose target is a governed
@@ -230,6 +237,7 @@ export function laneToAgentModel(bpmn: UMLModel, laneId: string): AgentDerivatio
     laneId,
     taskIds,
     stateIdByTask,
+    outboundCarrierStateIdByTask,
     greetId,
     elementMapping,
     warnings,
@@ -425,7 +433,8 @@ function emitTransition(
  *    deduped `AgentIntent` scaffold. Non-agentic / start-event source → skip
  *    (the greeting cold-start is the channel, DQ-3).
  *  - OUTPUT (source in lane, target external) → append an `a2a:out` line to the
- *    producing task-state's `description` (kind omitted for non-agentic peers).
+ *    producing outbound-carrier state's `description` (kind omitted for
+ *    non-agentic peers).
  * Pure model mutation; lineage stamped for inbound transitions.
  * Returns the set of task-state IDs that received a when_intent_matched
  * transition from greetId (used to suppress the cold-start for those states).
@@ -437,6 +446,7 @@ function appendCrossLaneIO(
   laneId: string,
   taskIds: Set<string>,
   stateIdByTask: Map<string, string>,
+  outboundCarrierStateIdByTask: Map<string, string>,
   greetId: string,
   elementMapping: ElementLineageMap,
   warnings: AgentDerivationWarning[],
@@ -496,7 +506,13 @@ function appendCrossLaneIO(
     // OUTPUT: source in lane, target external.
     if (sourceIsInLane && !targetIsInLane) {
       const producing = inLaneTasks(bpmn, laneId, taskIds, f.source.element, 'backward');
-      const states = producing.length > 0 ? producing.map((t) => stateIdByTask.get(t)!) : [];
+      // 54 — outbound execution ownership is not always the base task-state.
+      // Self-reflection upgrades the producing carrier to <task>_reflect; all
+      // other tasks fall back to the base state.
+      const states =
+        producing.length > 0
+          ? producing.map((t) => outboundCarrierStateIdByTask.get(t) || stateIdByTask.get(t)!)
+          : [];
       if (states.length === 0) {
         warnings.push({ kind: 'io-attached-to-entry', flowId: f.id });
         continue;
@@ -984,6 +1000,7 @@ function appendReflectionScaffolds(
   greetId: string,
   elementMapping: ElementLineageMap,
   bpmnElements: UMLModel['elements'],
+  outboundCarrierStateIdByTask: Map<string, string>,
 ): Set<string> {
   const taskStateIds = new Set(stateIdByTask.values());
   // 46 — states that received a greeting→next when_intent_matched edge from a
@@ -1024,6 +1041,10 @@ function appendReflectionScaffolds(
         bodies: [],
         fallbackBodies: [],
       } as unknown as UMLElement;
+      // 54 — self-reflection is the post-task approval/revision gate. Downstream
+      // outbound A2A must execute from <task>_reflect, not from the base
+      // task-state, so hand off the outbound carrier here.
+      outboundCarrierStateIdByTask.set(t.id, reflectId);
       emitTransition(out, sT, reflectId, 'AgentStateTransition', 'horizontal', 'when_no_intent_matched');
       emitSelfLoop(out, reflectId); // generic intent — user names it "revise"
       for (const n of nexts) emitTransition(out, reflectId, n, 'AgentStateTransition', 'vertical'); // generic — "approve"
