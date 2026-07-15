@@ -70,7 +70,11 @@ export const A2ABadge = ({ dir, x, y, count, title }: A2ABadgeProps) => {
       ? { fill: '#eff6ff', stroke: '#2563eb', text: '#1d4ed8', panelFill: '#f8fbff' }
       : { fill: '#dbeafe', stroke: '#1d4ed8', text: '#1e40af', panelFill: '#f1f7ff' };
   const detailLines = useMemo(() => (title ? title.split('\n').map((line) => line.trim()).filter(Boolean) : []), [title]);
-  const panelWidth = Math.max(140, ...detailLines.map((line) => line.length * 6 + 16));
+  const getTextWidth = (text: string, fontSize = 9) => text.length * fontSize * 0.62;
+  const panelWidth = Math.max(
+    140,
+    ...detailLines.map((line) => getTextWidth(line) + 75)
+  );
   const panelHeight = detailLines.length * 14 + 10;
 
   return (

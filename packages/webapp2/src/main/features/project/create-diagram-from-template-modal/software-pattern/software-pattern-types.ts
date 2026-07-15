@@ -30,7 +30,7 @@ export enum SoftwarePatternType {
   BPMN_CAR_WASH = 'Car Wash',
   BPMN_PARALLEL_REVIEW = 'Parallel Review',
   BPMN_PIZZA_STORE = 'Pizza Store',
-  BPMN_AGENTIC_STARTER = 'Agentic Process',
+  BPMN_AGENTIC_STARTER = 'Agentic Bug-fixing Process',
   // Quantum Circuit patterns
   QUANTUM_EMPTY = 'Empty Circuit',
   QUANTUM_SINGLE_GATES = 'Single Qubit Gates',

@@ -140,8 +140,8 @@ export const AgentStateTransitionComponent: FunctionComponent<Props> = ({ elemen
       {showA2AReceive && (
         <A2ABadge
           dir="in"
-          x={position.x + (direction === 'v' ? -36 : -72)}
-          y={position.y + (direction === 'v' ? -28 : -44)}
+          x={position.x + (direction === 'v' ? -56 : -122)}
+          y={position.y + (direction === 'v' ? -8 : -44)}
           title={a2aTitle([a2aTag], 'BPMN-derived A2A receive')}
         />
       )}
