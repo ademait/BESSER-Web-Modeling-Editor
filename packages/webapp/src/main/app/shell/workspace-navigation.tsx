@@ -7,6 +7,7 @@ import {
   Brain,
   Layers3,
   Network,
+  PackageOpen,
   PanelsTopLeft,
   PanelLeftClose,
   PanelLeftOpen,

@@ -9,8 +9,7 @@ import * as Apollon from '../../../typings';
 import { BPMNMarkerType, BPMNReflectionMode, clampTrustScore } from '../common/types';
 
 // Agentic-task layout reserves (px). Shared with bpmn-task-component.tsx so the
-// model's height floor and the component's text layout agree. See guide
-// 06-followup1.
+// model's height floor and the component's text layout agree.
 //
 // The name stays horizontally centred; it wraps within an inset width
 // (SIDE_INSET on each side) so a *long* name can't slide under the top-left bot
@@ -18,10 +17,6 @@ import { BPMNMarkerType, BPMNReflectionMode, clampTrustScore } from '../common/t
 export const AGENTIC_TASK_LINE_HEIGHT = 16;
 export const AGENTIC_TASK_CAP_HEIGHT = 11;
 export const AGENTIC_TASK_SIDE_INSET = 26;
-// Non-agentic tasks with a top-left type icon (user, service, etc.) also need
-// to wrap the name. Same inset value; kept separate so each condition is
-// self-documenting. (Guide 14.)
-export const TASK_ICON_SIDE_INSET = 26;
 // Vertical: the name centres in [0, height - REFLECTION_RESERVE]. TOP_MARGIN +
 // CAP_HEIGHT + (reflection ? REFLECTION_RESERVE : 0) is a fixed minimum height
 // (not width-driven) so the bot and reflection markers always have room and
@@ -34,8 +29,7 @@ export const AGENTIC_TASK_REFLECTION_RESERVE = 28;
 // centred name within an inset width (TASK_ICON_SIDE_INSET on each side) so a
 // long name can't slide under the icon at (10,10). Plain default tasks stay
 // full-width so short names don't needlessly break. Ported (agentic bits
-// stripped) from dev/agentic-swarm-connection's AGENTIC_TASK_SIDE_INSET. See
-// guide 14.
+// stripped) from dev/agentic-swarm-connection's AGENTIC_TASK_SIDE_INSET. 
 export const TASK_ICON_SIDE_INSET = 26;
 
 export type BPMNTaskType = 'default' | 'user' | 'service' | 'send' | 'receive' | 'manual' | 'business-rule' | 'script';
@@ -123,7 +117,7 @@ export class BPMNTask extends UMLContainer {
     // NOT width-driven, so agentic tasks otherwise resize like normal tasks (no
     // height jump when narrowing); the name is centred and clears the bot
     // horizontally by wrapping (see bpmn-task-component). Never widens, never
-    // shrinks below the floor. (Guide 06-followup1.)
+    // shrinks below the floor.
     if (this.isAgentic) {
       const bottom = this.reflectionMode !== 'none' ? AGENTIC_TASK_REFLECTION_RESERVE : 0;
       const minHeight = AGENTIC_TASK_TOP_MARGIN + AGENTIC_TASK_CAP_HEIGHT + bottom;

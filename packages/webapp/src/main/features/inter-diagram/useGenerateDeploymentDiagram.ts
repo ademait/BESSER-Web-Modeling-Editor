@@ -44,7 +44,7 @@ export function useGenerateDeploymentDiagram(): () => Promise<DeploymentDerivati
 
     const title = `${activeDiagram.title || 'Components'} — Deployment`;
 
-    // 06-v1 — record lineage so the UI can show "← Derived from ..."
+    // record lineage so the UI can show "← Derived from ..."
     // and detect staleness when the source Component model changes.
     const derivedFrom: DiagramLineage = {
       sourceDiagramId: activeDiagram.id,
@@ -57,11 +57,11 @@ export function useGenerateDeploymentDiagram(): () => Promise<DeploymentDerivati
     const added = await dispatch(addDiagramThunk({ diagramType: 'DeploymentDiagram', title, derivedFrom })).unwrap();
     await dispatch(switchDiagramTypeThunk({ diagramType: 'DeploymentDiagram' })).unwrap();
     await dispatch(updateDiagramModelThunk({ model: result.model })).unwrap();
-    // 06-v2 — element-level lineage sidecar.
+    // element-level lineage sidecar.
     await dispatch(
       setElementLineageThunk({ derivedDiagramId: added.diagram.id, mapping: result.elementMapping }),
     ).unwrap();
-    // F-D2 (carry-over from 02-FU3): bump revision so the editor picks
+    // bump revision so the editor picks
     // up the populated model immediately. updateDiagramModelThunk is
     // intentionally silent on editorRevision for normal edits.
     dispatch(bumpEditorRevision());
@@ -71,7 +71,7 @@ export function useGenerateDeploymentDiagram(): () => Promise<DeploymentDerivati
 }
 
 /**
- * 27 — Build `{ [componentElementId]: swarmSize }` for the Component→Deployment
+ *  Build `{ [componentElementId]: swarmSize }` for the Component→Deployment
  * derivation by walking the lineage chain Component → BPMN lane → `multiplicity`.
  *
  * - `elementLineage[componentDiagram.id]` maps each derived element id back to its

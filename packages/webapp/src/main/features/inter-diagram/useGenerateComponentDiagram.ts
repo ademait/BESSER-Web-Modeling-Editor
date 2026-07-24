@@ -21,7 +21,7 @@ import type { DerivationResult } from './types';
  * index, the second activates it (and bumps `editorRevision`), the
  * third stamps the derived model onto the now-active diagram.
  *
- * Generate-once (OQ-3) — each call produces a new diagram; no overwrite.
+ * Generate-once — each call produces a new diagram; no overwrite.
  */
 export function useGenerateComponentDiagram(): () => Promise<DerivationResult> {
   const dispatch = useAppDispatch();
@@ -43,7 +43,7 @@ export function useGenerateComponentDiagram(): () => Promise<DerivationResult> {
 
     const result = bpmnModelToComponentModel(activeDiagram.model as UMLModel, {
       agentDiagramsById,
-      // Meeting 2026-06-08 §2 (item 2a): always derive capabilities
+      // always derive capabilities
       // (tools + skills today; point 5 adds LLM/DB/RAG). The opt-in
       // `includeTools` toggle is retired — the derivation function keeps
       // its `includeCapabilities` param for tests/back-compat, but the
@@ -55,7 +55,7 @@ export function useGenerateComponentDiagram(): () => Promise<DerivationResult> {
 
     const title = `${activeDiagram.title || 'BPMN'} — Components`;
 
-    // 06-v1 — record lineage on the new diagram so the UI can show
+    // record lineage on the new diagram so the UI can show
     // "← Derived from <source title>" and detect staleness when the
     // source model changes.
     const derivedFrom: DiagramLineage = {
@@ -69,11 +69,11 @@ export function useGenerateComponentDiagram(): () => Promise<DerivationResult> {
     const added = await dispatch(addDiagramThunk({ diagramType: 'ComponentDiagram', title, derivedFrom })).unwrap();
     await dispatch(switchDiagramTypeThunk({ diagramType: 'ComponentDiagram' })).unwrap();
     await dispatch(updateDiagramModelThunk({ model: result.model })).unwrap();
-    // 06-v2 — write the element-level lineage sidecar for the new diagram.
+    // write the element-level lineage sidecar for the new diagram.
     await dispatch(
       setElementLineageThunk({ derivedDiagramId: added.diagram.id, mapping: result.elementMapping }),
     ).unwrap();
-    // F-D2 (2026-05-27): updateDiagramModelThunk is intentionally
+    // updateDiagramModelThunk is intentionally
     // silent on editorRevision (so normal editing doesn't reinit the
     // editor on every keystroke). For a derivation we DO want the
     // editor to pick up the populated model immediately.

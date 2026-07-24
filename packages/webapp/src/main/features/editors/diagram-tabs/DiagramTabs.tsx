@@ -22,6 +22,7 @@ import {
   removeDiagramThunk,
   renameDiagramThunk,
   switchDiagramIndexThunk,
+  switchDiagramTypeThunk,
   updateDiagramModelThunk,
   updateDiagramReferencesThunk,
   bumpEditorRevision,
@@ -31,7 +32,10 @@ import {
   selectProject,
 } from '../../../app/store/workspaceSlice';
 import { ApollonEditorContext } from '../uml/apollon-editor-context';
+import { ProjectStorageRepository } from '../../../shared/services/storage/ProjectStorageRepository';
+import { hashUmlModel } from '../../inter-diagram/lineage-hash';
 import { scaffoldObjectsFromClasses } from './scaffoldObjectsFromClasses';
+
 
 interface DiagramTabsProps {
   onRequestTabSwitch?: (index: number) => Promise<boolean> | boolean;
