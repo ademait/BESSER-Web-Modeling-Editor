@@ -17,8 +17,8 @@ export class UMLDeploymentArtifact extends UMLElement {
   ];
   type: UMLElementType = DeploymentElementType.DeploymentArtifact;
   bounds: IBoundary = { ...this.bounds, height: 40 };
-  // 20 — cross-diagram ids of the Components this artifact manifests
-  // (memo 17 § 5; BESSER `Artifact.manifests: List[str]`, UML 2.5 § 19.4).
+  // Cross-diagram ids of the Components this artifact manifests
+  // (BESSER `Artifact.manifests: List[str]`, UML 2.5 § 19.4).
   // Auto-populated by the Component→Deployment derivation; persisted here
   // so it survives the editor load/save round-trip.
   manifests: string[] = [];

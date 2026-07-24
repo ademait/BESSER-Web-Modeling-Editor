@@ -58,7 +58,7 @@ class DefaultPopupComponent extends Component<Props, State> {
           textColor
           fillColor
         />
-        {/* 06-v2 — self-gating: only renders for derived elements. */}
+        {/* Self-gating: only renders for derived elements. */}
         <LineageSourceLink elementId={element.id} />
       </div>
     );

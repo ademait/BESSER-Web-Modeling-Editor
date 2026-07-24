@@ -86,7 +86,7 @@ export function componentModelToDeploymentModel(
   let cursorX = -320;
   const originY = -200;
 
-  // Phase 1+2 — per-Subsystem subtree.
+  // Per-Subsystem subtree.
   for (const sub of subsystems) {
     const subComps = componentsBySubsystemId.get(sub.id) ?? [];
     // Skip Subsystems whose entire subtree held only capability Components.
@@ -108,7 +108,7 @@ export function componentModelToDeploymentModel(
     cursorX = bounds.x + bounds.width + GROUP_GAP;
   }
 
-  // Phase 1+2 — orphan bucket (no Subsystem to keep → top-level Docker Host).
+  // Orphan bucket (no Subsystem to keep → top-level Docker Host).
   if (orphanComponents.length > 0) {
     const { outerNodeId, bounds, execEnvByCompId } = emitGroupSubtree(
       out,
@@ -461,7 +461,7 @@ function emitGroupSubtree(
       stereotype: 'executionEnvironment',
       displayStereotype: true,
     } as unknown as UMLElement;
-    execEnvByCompId.set(comp.id, eeId); // 48 — source Component → its ExecEnv node
+    execEnvByCompId.set(comp.id, eeId); // Source Component → its ExecEnv node
 
     // Artifact INSIDE the ExecutionEnvironment (owner = ExecEnv).
     const artifactId = newId();
@@ -505,7 +505,7 @@ function emitGroupSubtree(
       stereotype: (comp as unknown as { stereotype?: string }).stereotype ?? 'component',
       displayStereotype: (comp as unknown as { displayStereotype?: boolean }).displayStereotype ?? true,
     } as unknown as UMLElement;
-    elementMapping[componentId] = comp.id; // 06-v2 — logical projection ← source Component
+    elementMapping[componentId] = comp.id; // logical projection ← source Component
 
     // Dashed manifest edge: Artifact (source) → Component (target). (Reuses the
     // existing helper unchanged.)

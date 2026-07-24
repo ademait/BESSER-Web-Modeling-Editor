@@ -43,7 +43,7 @@ export class BPMNSwimlane extends UMLContainer {
   isAgentic: boolean;
   role: BPMNAgentRole;
   trustScore: number;
-  // Meeting 2026-06-08 §3: swarm size — N identical copies of this agent.
+  // Swarm size: N identical copies of this agent.
   // Only meaningful when isAgentic; default 1. [[swarm-multiplicity-semantics]]
   multiplicity: number;
   // Forward link to the BESSER Agent diagram that defines this lane's

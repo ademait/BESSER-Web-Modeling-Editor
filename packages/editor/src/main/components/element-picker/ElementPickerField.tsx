@@ -46,7 +46,7 @@ const ChipRemove = styled.button`
 `;
 
 /**
- * 19 — multi-select cross-diagram element picker. Renders nothing when no
+ * Multi-select cross-diagram element picker. Renders nothing when no
  * host provider is registered (e.g. the editor running standalone), so it
  * is safe to mount unconditionally inside any popup.
  */

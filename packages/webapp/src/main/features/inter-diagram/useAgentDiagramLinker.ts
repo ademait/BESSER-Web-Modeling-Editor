@@ -21,7 +21,7 @@ import { laneToAgentModel } from './lane-to-agent';
 import { hashUmlModel } from './lineage-hash';
 
 /**
- * webapp2-side linker passed to `editor.setAgentDiagramLinker(...)`.
+ * Host-side linker passed to `editor.setAgentDiagramLinker(...)`.
  *
  * Contract: see `AgentDiagramLinker` in @besser/wme. The lifecycle is:
  *
@@ -188,7 +188,7 @@ export function useAgentDiagramLinker(editorRef: MutableRefObject<ApollonEditor 
         console.error('[08] switchDiagramType failed:', err);
       }
 
-      // 29 — populate the now-active Agent diagram from the lane derivation.
+      // Populate the now-active Agent diagram from the lane derivation.
       // MUST run after the switch so updateDiagramModelThunk targets the Agent
       // diagram (it writes to the active diagram type/index), not the BPMN.
       if (isLaneSource && derivation?.ok) {

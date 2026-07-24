@@ -97,7 +97,7 @@ export class BPMNDiagramConverter implements DiagramConverter {
   convertSingleElement(spec: any) {
     // Single-element generation funnels into a one-node process so the
     // DiagramConverter contract still holds (the agent funnels these the
-    // same way — see the agent guide's generate_single_element).
+    // same way as the single-element generation path).
     return this.convertCompleteSystem({ nodes: [spec], flows: [] });
   }
 

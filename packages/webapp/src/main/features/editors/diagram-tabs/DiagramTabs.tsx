@@ -322,7 +322,7 @@ export const DiagramTabs: React.FC<DiagramTabsProps> = ({
   const selectClasses =
     'h-6 min-w-[120px] rounded-md border border-brand/15 bg-card px-2 text-[11px] font-medium text-foreground shadow-sm transition-colors hover:border-brand/30 focus:border-brand/40 focus:outline-none focus:ring-1 focus:ring-brand/20';
 
-  // 37-fix: compute lane back-link once so the "Derived from" badge can be
+  // Compute the lane back-link once so the "Derived from" badge can be
   // suppressed when "Implementation of" will show (they reference the same source).
   const agentLaneRef = (() => {
     if (currentDiagramType !== 'AgentDiagram' || !activeDiagram) return null;
@@ -453,7 +453,7 @@ export const DiagramTabs: React.FC<DiagramTabsProps> = ({
         )}
       </div>
 
-      {/* 06-v1 — Lineage badge: where this diagram was derived from.
+      {/* Lineage badge: where this diagram was derived from.
           Renders only when the active diagram has `derivedFrom`. Clicking
           navigates to the source diagram. Amber when source has changed
           since derivation (hash mismatch). */}
@@ -484,7 +484,7 @@ export const DiagramTabs: React.FC<DiagramTabsProps> = ({
             if (location.pathname !== '/') {
               navigate('/');
             }
-            // 06-v1 fix (post-LT-4): switchDiagramTypeThunk's internal conversion
+            // switchDiagramTypeThunk's internal conversion
             // treats non-GUI/Quantum inputs as UMLDiagramType wire values. Since 04E
             // renamed UMLDiagramType.BPMN to 'BPMNDiagram', passing the
             // SupportedDiagramType string 'BPMN' falls through to the 'ClassDiagram'
@@ -524,7 +524,7 @@ export const DiagramTabs: React.FC<DiagramTabsProps> = ({
           );
         })()}
 
-      {/* 12 (37-fix): back-link from an Agent diagram to the BPMN lane that
+      {/* Back-link from an Agent diagram to the BPMN lane that
           defines it. `agentLaneRef` is computed pre-return; it also suppresses
           the "Derived from" badge above so only this banner shows. */}
       {agentLaneRef && (

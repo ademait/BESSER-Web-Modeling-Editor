@@ -265,7 +265,7 @@ class CreatePaneComponent extends Component<Props, State> {
       }
 
       // Collect the pool's non-lane children before create() mutates the store,
-      // so they can be re-parented into the new lane. (Guide 16.)
+      // so they can be re-parented into the new lane.
       const poolState = this.props.elements[resolvedOwner];
       const ownedIds =
         poolState && 'ownedElements' in poolState ? (poolState as { ownedElements: string[] }).ownedElements : [];

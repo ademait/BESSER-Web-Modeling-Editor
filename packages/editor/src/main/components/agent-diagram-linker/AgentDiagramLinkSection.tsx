@@ -14,11 +14,11 @@ interface OwnProps {
 type Props = OwnProps & I18nContext;
 
 /**
- * 08 — popup section for the agentic-lane → Agent-diagram link.
+ * Popup section for the agentic-lane → Agent-diagram link.
  *
  * Mount unconditionally inside the lane's `{isAgentic && ...}` block.
  * Renders nothing if no linker is registered (e.g. editor used standalone
- * outside webapp2). Otherwise renders one of two affordances:
+ * outside the host app). Otherwise renders one of two affordances:
  *
  *   - **alive ref** → "Open Agent diagram" button
  *   - **no ref / dead ref** → "Define BESSER agent" button — click

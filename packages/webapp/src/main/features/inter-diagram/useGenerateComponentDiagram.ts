@@ -34,7 +34,7 @@ export function useGenerateComponentDiagram(): () => Promise<DerivationResult> {
       return { ok: false, reason: 'not-a-bpmn-diagram', warnings: [] };
     }
 
-    // DQ4 — id → model for every Agent diagram in the project, so the
+    // id → model for every Agent diagram in the project, so the
     // derivation can resolve task.agentDiagramRef → its tools/skills.
     const agentDiagramsById = new Map<string, UMLModel>();
     for (const d of project?.diagrams.AgentDiagram ?? []) {

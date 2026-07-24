@@ -448,7 +448,7 @@ export const addDiagramThunk = createAsyncThunk(
     }: {
       diagramType: SupportedDiagramType;
       title?: string;
-      /** 06-v1: lineage metadata set by inter-diagram derivation hooks. */
+      /** Lineage metadata set by inter-diagram derivation hooks. */
       derivedFrom?: import('../../shared/types/project').DiagramLineage;
     },
     { getState },
@@ -480,8 +480,8 @@ export const addDiagramThunk = createAsyncThunk(
 );
 
 /**
- * 06-v2 — write an `ElementLineageMap` sidecar for a derived diagram.
- * Called by the inter-diagram derivation hooks after the derived
+ * Write an `ElementLineageMap` sidecar for a derived diagram.
+ * Called by inter-diagram derivation hooks after the derived
  * diagram is added and its model is stamped.
  */
 export const setElementLineageThunk = createAsyncThunk(
@@ -748,7 +748,7 @@ const workspaceSlice = createSlice({
         state.error = action.error.message || 'Failed to add diagram';
       })
 
-      // ── 06-v2 — Element lineage sidecar ───────────────────────
+      // ── Element lineage sidecar ────────────────────────────────
       .addCase(setElementLineageThunk.fulfilled, (state, action) => {
         if (!state.project) return;
         state.project.elementLineage = {

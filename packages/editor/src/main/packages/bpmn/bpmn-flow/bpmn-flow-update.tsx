@@ -195,7 +195,7 @@ class BPMNFlowUpdateComponent extends Component<Props, State> {
   // `isDefault` is set and the post-flip source (= current target) is not a
   // valid default source, clear `isDefault` before the flip so the data
   // reflects the spec. Endpoint-drag is not intercepted here — see §11 of the
-  // 04A1 guide for the deferred saga-based fix.
+  // Deferred until the saga-based connection fix is implemented.
   private handleFlip = () => {
     const { element, targetElement } = this.props;
     if (element.isDefault && !canBeDefault(element.flowType, targetElement)) {

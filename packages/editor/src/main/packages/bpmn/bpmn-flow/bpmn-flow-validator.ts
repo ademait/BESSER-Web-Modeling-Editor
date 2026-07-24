@@ -16,7 +16,7 @@ const DEFAULT_ELIGIBLE_GATEWAY_TYPES: ReadonlySet<string> = new Set<string>(['ex
 
 /**
  * Duck-typed source element: works for both editor `UMLElement` instances and
- * the serialized `AnyBPMNElement` plain objects used in webapp2's exporter /
+ * the serialized `AnyBPMNElement` plain objects used in the host exporter /
  * importer. `gatewayType` is only present on BPMNGateway.
  */
 export interface DefaultFlowSource {
@@ -254,7 +254,7 @@ export function resolveUpstreamDivergingGateway(
  *
  * Used by the diverging-gateway popup to propagate `collaborationMode` and
  * `gatewayType` changes to constructs that genuinely inherit from this
- * gateway (04D2-followup F-D5 + O1 refinement).
+ * gateway.
  */
 export function findDownstreamAgenticConstructs(
   divergingGatewayId: string,

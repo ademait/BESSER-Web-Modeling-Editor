@@ -127,18 +127,18 @@ export class ApollonEditor {
   private errorSubscribers: { [key: number]: (error: Error) => void } = {};
   private nextRenderPromise: Promise<void>;
 
-  // 06-v2 — lineage provider supplied by the host (webapp2). The
+  // Lineage provider supplied by the host. The
   // `_lineageProviderUpdater` is captured by the `LineageProviderRoot`
   // component on mount so subsequent setLineageProvider calls update
   // React state without rebuilding the editor tree.
   private _lineageProvider: LineageProvider | null = null;
   private _lineageProviderUpdater: ((v: LineageProvider | null) => void) | null = null;
 
-  // 19 — element-picker provider, same lifecycle as `_lineageProvider`.
+  // Element-picker provider, same lifecycle as `_lineageProvider`.
   private _elementPickerProvider: ElementPickerProvider | null = null;
   private _elementPickerProviderUpdater: ((v: ElementPickerProvider | null) => void) | null = null;
 
-  // 08 — agent-diagram linker provider supplied by the host (webapp2).
+  // Agent-diagram linker provider supplied by the host.
   // Same pattern as `_lineageProvider`: the React provider root captures
   // an updater on mount so subsequent setAgentDiagramLinker calls flow
   // through it without tearing down the editor tree.
@@ -197,15 +197,15 @@ export class ApollonEditor {
       styles: options.theme,
       locale: options.locale,
     });
-    // 06-v2 — wrap so the editor's popup tree can read the host-supplied lineage provider.
-    // 08 — also wrap with the agent-diagram linker provider for the BPMN lane popup.
+    // Wrap so the editor's popup tree can read the host-supplied lineage provider.
+    // Also wrap with the agent-diagram linker provider for the BPMN lane popup.
     const linkedElement = createElement(
       AgentDiagramLinkerProviderRoot,
       {
         initialValue: this._agentDiagramLinker,
         register: (listener: (v: AgentDiagramLinker | null) => void) => {
           this._agentDiagramLinkerUpdater = listener;
-          // 08 — flush: if setAgentDiagramLinker was called between
+          // Flush: if setAgentDiagramLinker was called between
           // ApollonEditor construction and the provider root's useEffect
           // firing, the value is stored on the instance but never reached
           // React state (the updater was null). Apply it now.
@@ -300,7 +300,7 @@ export class ApollonEditor {
   }
 
   /**
-   * 06-v2 — register a lineage provider so derived-element popups can
+   * Register a lineage provider so derived-element popups can
    * render a "← Derived from X" link and dispatch click-through.
    * Pass `null` to clear. Safe to call before or after mount; the
    * editor captures the latest value on its next render.
@@ -311,7 +311,7 @@ export class ApollonEditor {
   }
 
   /**
-   * 19 — register an element-picker provider so cross-diagram pickers
+   * Register an element-picker provider so cross-diagram pickers
    * (`realizes`, `manifests`) can list elements from other diagrams.
    * Pass `null` to clear. Safe before or after mount.
    */
@@ -321,7 +321,7 @@ export class ApollonEditor {
   }
 
   /**
-   * 08 — register an agent-diagram linker so the agentic-lane popup can
+   * Register an agent-diagram linker so the agentic-lane popup can
    * render the Define / Open affordance and dispatch the project-mutating
    * callbacks. Pass `null` to clear. Safe to call before or after mount;
    * the editor captures the latest value on its next render.
@@ -623,8 +623,8 @@ export class ApollonEditor {
       styles: this.options.theme,
       locale: this.options.locale,
     } as any);
-    // 06-v2 — re-wrap on every editor rebuild; the updater is captured fresh.
-    // 08 — same re-wrap for the agent-diagram linker provider, including
+    // Re-wrap on every editor rebuild; the updater is captured fresh.
+    // Same re-wrap for the agent-diagram linker provider, including
     // the post-mount flush to handle restoreEditor's re-mount timing too.
     const linkedElement = createElement(
       AgentDiagramLinkerProviderRoot,

@@ -13,8 +13,8 @@ import {
   findOrphanedMergingGateways,
 } from '@besser/wme';
 
-// Inverse of bpmn-xml-exporter.ts. See .claude/bpmn/04B-bpmn-xml-import-guide.md.
-// BPMN 2.0.2 spec citations follow the convention in 04A1.
+// Inverse of bpmn-xml-exporter.ts.
+
 
 export const BPMN_NS = 'http://www.omg.org/spec/BPMN/20100524/MODEL';
 export const BPMNDI_NS = 'http://www.omg.org/spec/BPMN/20100524/DI';
@@ -135,7 +135,7 @@ function findFirstEventDefinitionChild(node: Element): Element | null {
   return null;
 }
 
-// 04D2 — find the agentic extension block on a BPMN element. Looks for a
+// Find the agentic extension block on a BPMN element. Looks for a
 // `*:extensionElements` child (any namespace prefix) and, inside it, a child
 // whose localName is 'agentic' (any prefix). Returns the agentic element or
 // null. Namespace-agnostic, matching the rest of this importer.
@@ -148,7 +148,7 @@ function findAgenticExtension(parent: Element): Element | null {
   return null;
 }
 
-// 02 — read the governance DSL CDATA child from a construct's extensionElements.
+// Read the governance DSL CDATA child from a construct's extensionElements.
 // Returns the trimmed text, or null if absent. Adjacent CDATA sections produced
 // by the exporter's `]]>` split are concatenated by the DOM parser, so the
 // original text comes back intact.
@@ -164,7 +164,7 @@ function findGovernanceText(parent: Element): string | null {
   return null;
 }
 
-// 04D2 — parse the agentic extension into a partial-fields object. Unknown
+// Parse the agentic extension into a partial-fields object. Unknown
 // enum values and bad numerics emit a warning and the field is left unset
 // (the model class's default kicks in). Returns null if no agentic extension
 // is present.
@@ -179,20 +179,20 @@ function parseAgenticExtension(
   gatewayRole?: BPMNGatewayRole;
   trustScore?: number;
   multiplicity?: number;
-  // 08 — lane-only ref. Free-form UUID; never validated here (the
-  // target project may not even contain the diagram). C4 webapp2
-  // post-validator handles the dead-ref toast per plan OQ-F.
+  // Lane/task Agent diagram ref. Free-form UUID; never validated here because the
+  // target project may not even contain the diagram.
+
   agentDiagramRef?: string;
-  // 47 — reviewer lane UUID for cross-reflection.
+  // Reviewer lane UUID for cross-reflection.
   reflectionReviewerLaneId?: string;
-  // 02 — governance DSL CDATA child (merging gateways only). Opaque string.
+  // Governance DSL CDATA child (merging gateways only). Opaque string.
   governanceDsl?: string;
 } {
   const a = findAgenticExtension(parent);
   if (!a) return null;
   const out: Record<string, unknown> = { isAgentic: true };
-  // Toast wording is kept short — hash IDs aren't user-meaningful and the
-  // file is short enough to grep. Adem's N5 feedback during 04D2 testing.
+  // Toast wording is kept short because hash IDs are not user-meaningful and the
+  // file is short enough to inspect directly.
   const oneOf = <T extends string>(name: string, allowed: readonly T[]): T | undefined => {
     const v = a.getAttribute(name);
     if (v === null) return undefined;
@@ -203,8 +203,8 @@ function parseAgenticExtension(
     });
     return undefined;
   };
-  // guide 48: accept the four AgentCategory tokens AND legacy worker/manager
-  // (migrated), so pre-48 .bpmn files still import their lane role. Only emit
+  // Accept the four AgentCategory tokens and legacy worker/manager
+  // values (migrated), so older .bpmn files still import their lane role. Only emit
   // when the attribute was actually present — absence keeps the model default.
   const rawRole = a.getAttribute('role');
   if (rawRole !== null) out.role = migrateLegacyRole(rawRole);
@@ -236,7 +236,7 @@ function parseAgenticExtension(
       });
     }
   }
-  // 08 — opaque pass-through. Empty string ("") is treated as absent so
+  // Opaque pass-through. Empty string ("") is treated as absent so
   // a malformed export doesn't create an unresolvable dead ref.
   const ref = a.getAttribute('agentDiagramRef');
   if (ref !== null && ref !== '') {
@@ -246,7 +246,7 @@ function parseAgenticExtension(
   if (reviewerRef !== null && reviewerRef !== '') {
     out.reflectionReviewerLaneId = reviewerRef;
   }
-  // 02 — governance DSL is a sibling CDATA child of <agentic:agentic>, not an
+  // Governance DSL is a sibling CDATA child of <agentic:agentic>, not an
   // attribute. Read it off the same extensionElements parent.
   const gov = findGovernanceText(parent);
   if (gov !== null && gov !== '') out.governanceDsl = gov;
@@ -548,7 +548,7 @@ function parseDiagramInterchange(root: Element): DiMaps {
   return out;
 }
 
-// ─── Coordinate transform (§4 of the guide) ─────────────────────────────────
+// ─── Coordinate transform ─────────────────────────────────
 
 // Apollon's BPMN package stores bounds in ABSOLUTE canvas coordinates for every
 // element regardless of the `owner` chain (pool, lane, flow node, data, artifact).

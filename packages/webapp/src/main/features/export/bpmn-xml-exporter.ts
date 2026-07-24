@@ -7,7 +7,7 @@ import {
   canSourceCarryDefault,
 } from '@besser/wme';
 
-// BPMN 2.0 XML exporter. See .claude/bpmn/bpmn-xml-export-guide.md for design decisions.
+// BPMN 2.0 XML exporter.
 //
 // Produces a BPMN 2.0 Collaboration + Process XML with BPMN DI (layout round-trip).
 // Elements not mapped to standard BPMN 2.0 are skipped and reported in `skipped`.
@@ -403,10 +403,10 @@ export function apollonBpmnToXml(model: UMLModel, opts: ExportOptions = {}): Exp
 
 // ─── Emit helpers ────────────────────────────────────────────────────────────
 
-// 04D2 — every agentic-able construct exposes these optional fields. Sourced
+// Every agentic-able construct exposes these optional fields. Sourced
 // from BPMNSwimlane / BPMNTask / BPMNGateway / BPMNFlow on the editor side.
-// 08/11 — `agentDiagramRef` links an agentic construct to a BESSER Agent
-// diagram. As of guide 11 it is carried by the agentic TASK (08 originally
+// `agentDiagramRef` links an agentic construct to a BESSER Agent
+// diagram. New links are carried by the agentic task; older diagrams originally
 // put it on the lane; the lane carrier is retained but no longer UI-set).
 // The shared interface lets emitAgenticExtension stay one fn for all types.
 interface AnyAgentic {
@@ -417,13 +417,13 @@ interface AnyAgentic {
   trustScore?: number;
   multiplicity?: number;
   agentDiagramRef?: string;
-  // 47 — reviewer lane UUID for cross-reflection.
+  // Reviewer lane UUID for cross-reflection.
   reflectionReviewerLaneId?: string;
   governanceDsl?: string;
 }
 
-// 04D2 — paper §5 / BPMN 2.0.2 § 8.2.3. Emit the agentic extensionElements
-// block (flat-attribute shape, D-D1). `indent` is the leading whitespace each
+// Emit the agentic extensionElements
+// block as flat attributes. `indent` is the leading whitespace each
 // caller wants on the opening <extensionElements> line; inner lines inherit
 // that indent + 2 spaces.
 function emitAgenticExtension(lines: string[], el: AnyAgentic, indent: string): void {
@@ -433,13 +433,13 @@ function emitAgenticExtension(lines: string[], el: AnyAgentic, indent: string): 
   if (el.reflectionMode !== undefined) attrs.push(`reflectionMode="${escapeAttr(el.reflectionMode)}"`);
   if (el.gatewayRole !== undefined) attrs.push(`gatewayRole="${escapeAttr(el.gatewayRole)}"`);
   if (el.trustScore !== undefined) attrs.push(`trustScore="${el.trustScore}"`);
-  // Meeting 2026-06-08 §3: emit multiplicity only when > 1 — absence means the
+  // Emit multiplicity only when > 1; absence means the
   // default 1, keeping the XML clean for the common single-agent lane.
   if (el.multiplicity !== undefined && el.multiplicity > 1) {
     attrs.push(`multiplicity="${el.multiplicity}"`);
   }
-  // 08/11 — agentDiagramRef rides the agentic extension block of whatever
-  // construct carries it (guide 11: the agentic task; legacy: the lane).
+  // agentDiagramRef rides the agentic extension block of whatever
+  // construct carries it: the agentic task for new links, or a lane for older diagrams.
   // Emitted only when set, so non-linked constructs add nothing.
   if (el.agentDiagramRef !== undefined) {
     attrs.push(`agentDiagramRef="${escapeAttr(el.agentDiagramRef)}"`);
@@ -449,7 +449,7 @@ function emitAgenticExtension(lines: string[], el: AnyAgentic, indent: string): 
   }
   lines.push(`${indent}<bpmn:extensionElements>`);
   lines.push(`${indent}  <agentic:agentic ${attrs.join(' ')}/>`);
-  // Governance DSL (guide 02). Multi-line free text → CDATA child, not an
+  // Governance DSL is multi-line free text, so export it as a CDATA child instead of an
   // attribute. Split any literal `]]>` so the CDATA stays well-formed (the
   // parser re-joins adjacent CDATA sections on import, so no un-escape needed).
   if (el.governanceDsl !== undefined && el.governanceDsl.trim() !== '') {

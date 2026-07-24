@@ -17,15 +17,15 @@ import type { DeploymentDerivationResult } from './types';
 /**
  * Generate a Deployment diagram from the active Component diagram.
  *
- * Mirrors `useGenerateComponentDiagram` (02-): addDiagramThunk →
+ * Mirrors `useGenerateComponentDiagram`: addDiagramThunk →
  * switchDiagramTypeThunk → updateDiagramModelThunk → bumpEditorRevision.
- * Generate-once (OQ-3 of 03-) — each call produces a new diagram.
+ * Generate-once: each call produces a new diagram.
  */
 export function useGenerateDeploymentDiagram(): () => Promise<DeploymentDerivationResult> {
   const dispatch = useAppDispatch();
   const activeDiagram = useAppSelector((s) => s.workspace.activeDiagram);
   const activeDiagramType = useAppSelector((s) => s.workspace.activeDiagramType);
-  // 27 — the project carries the lineage sidecar (`elementLineage`) + the BPMN
+  // The project carries the lineage sidecar (`elementLineage`) + the BPMN
   // diagrams, both needed to trace artifact→Component→lane for swarm multiplicity.
   const project = useAppSelector((s) => s.workspace.project);
 
@@ -34,7 +34,7 @@ export function useGenerateDeploymentDiagram(): () => Promise<DeploymentDerivati
       return { ok: false, reason: 'not-a-component-diagram', warnings: [] };
     }
 
-    // 27 — trace each source Component back to its BPMN agentic lane via the
+    // Trace each source Component back to its BPMN agentic lane via the
     // lineage sidecars and read the lane's swarm size, so the derived Artifact
     // can carry `[N]`. Empty when the Component diagram wasn't derived from BPMN.
     const multiplicityByComponentId = resolveLaneMultiplicities(project, activeDiagram);
@@ -75,9 +75,9 @@ export function useGenerateDeploymentDiagram(): () => Promise<DeploymentDerivati
  * derivation by walking the lineage chain Component → BPMN lane → `multiplicity`.
  *
  * - `elementLineage[componentDiagram.id]` maps each derived element id back to its
- *   BPMN source id (`bpmn-to-component.ts` `06-v2`); agent-Components map to their
+ *   BPMN source id; agent-Components map to their
  *   **lane** id directly (line 102).
- * - `derivedFrom.sourceDiagramId` names the BPMN diagram the lanes live in (`06-v1`).
+ * - `derivedFrom.sourceDiagramId` names the BPMN diagram the lanes live in.
  *
  * Returns `{}` (every artifact keeps its plain name) when the Component diagram is
  * hand-built (no `derivedFrom`), has no lineage entry, the BPMN diagram is gone, or

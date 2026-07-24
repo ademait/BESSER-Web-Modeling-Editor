@@ -118,7 +118,7 @@ export const Popups: { [key in UMLElementType | UMLRelationshipType]: ComponentT
   // management) have custom popups; the rest fall back to DefaultPopup
   // (generic name + style). When a deferred construct gains attributes
   // (e.g. Subprocess.isExpanded, CallActivity.calledElement — see
-  // 04-bpmn-construct-gaps-guide.md §A.3), give it a custom popup then.
+  // BPMN-specific validation later needs a dedicated editor, give it a custom popup then.
   [UMLElementType.BPMNTask]: BPMNTaskUpdate,
   [UMLElementType.BPMNSubprocess]: BPMNSubprocessUpdate,
   [UMLElementType.BPMNTransaction]: BPMNTransactionUpdate,

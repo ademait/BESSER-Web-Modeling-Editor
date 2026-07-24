@@ -112,7 +112,7 @@ class ComponentAssociationUpdate extends Component<Props, State> {
             </section>
           </>
         )}
-        {/* 06-v2 — self-gating: only renders for derived ComponentDependencies. */}
+        {/* Self-gating: only renders for derived ComponentDependencies. */}
         <LineageSourceLink elementId={element.id} />
       </div>
     );

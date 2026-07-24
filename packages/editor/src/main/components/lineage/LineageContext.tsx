@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
 /**
- * Supplied by the host (webapp2) at editor-init time.
+ * Supplied by the host at editor-init time.
  *
  * The editor stays storage-agnostic: lineage data and navigation
  * logic live in the host; the editor only renders the link and
@@ -14,7 +14,7 @@ export interface ResolvedSource {
   /** Optional — set by the host when the source element can be resolved
    *  in the source diagram's model. Used by LineageSourceLink to render
    *  the link as `← Source: <name> (<type>)` instead of duplicating the
-   *  topbar badge's diagram-level label. (06-v2 LT-5 follow-up.) */
+   *  topbar badge's diagram-level label. */
   sourceElementName?: string;
   sourceElementType?: string;
 }

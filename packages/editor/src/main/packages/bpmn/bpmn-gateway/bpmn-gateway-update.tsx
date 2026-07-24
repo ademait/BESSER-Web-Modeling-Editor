@@ -203,7 +203,7 @@ class BPMNGatewayUpdateComponent extends Component<Props, State> {
               <>
                 <section>
                   <Divider />
-                  {/* 04D2-followup F-D2: hide the `merging` role option when no
+                  {/* Hide the `merging` role option when no
                       upstream agentic diverging gateway exists. Prevents users
                       from creating an orphaned merging gateway. */}
                   <Dropdown value={element.gatewayRole} onChange={this.changeGatewayRole(element.id)}>
@@ -343,7 +343,7 @@ class BPMNGatewayUpdateComponent extends Component<Props, State> {
   };
 
   /**
-   * Change the gateway role (diverging / merging — D-D2).
+   * Change the gateway role (diverging / merging).
    */
   private changeGatewayRole = (id: string) => (value: string) => {
     this.props.update<BPMNGateway>(id, { gatewayRole: value as BPMNGatewayRole });

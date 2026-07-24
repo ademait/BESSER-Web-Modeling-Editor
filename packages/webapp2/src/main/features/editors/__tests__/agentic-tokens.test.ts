@@ -41,7 +41,7 @@ describe('Phase C — agentic token vocabulary', () => {
   it('isAgentStereotype is true only for an AgentCategory token (human removed)', () => {
     expect(isAgentStereotype('solution')).toBe(true);
     expect(isAgentStereotype('supervision, external')).toBe(true);
-    expect(isAgentStereotype('human')).toBe(false); // removed (meeting 2026-06-08 §1)
+    expect(isAgentStereotype('human')).toBe(false); // removed agent token
     expect(isAgentStereotype('actor')).toBe(false); // alias of the removed token
     expect(isAgentStereotype('skill, human')).toBe(false); // neither token is an agent
     expect(isAgentStereotype('skill')).toBe(false); // a capability, not an agent

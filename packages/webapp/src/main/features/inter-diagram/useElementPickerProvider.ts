@@ -5,9 +5,9 @@ import { selectProject, selectActiveDiagram } from '../../app/store/workspaceSli
 import { BesserProject, isUMLModel } from '../../shared/types/project';
 
 /**
- * 19 — pure enumerator: every element of the given `typeTokens` across all
+ * Pure enumerator: every element of the given `typeTokens` across all
  * diagrams of `project` except `excludeDiagramId`. Exported for unit tests
- * (editor popups can't be unit-tested in this repo; webapp2 vitest can).
+ * (editor popups cannot be unit-tested in this repo; host-side vitest can).
  */
 export function collectPickableElements(
   project: BesserProject | null,

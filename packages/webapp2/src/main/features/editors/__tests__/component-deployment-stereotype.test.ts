@@ -4,7 +4,7 @@ import { UMLDeploymentComponent } from '../../../../../../editor/src/main/packag
 import { UMLDeploymentArtifact } from '../../../../../../editor/src/main/packages/uml-deployment-diagram/uml-deployment-artifact/uml-deployment-artifact';
 
 /**
- * Regression guard for 02-construct-gaps-phase-a-guide.md § 2.2 / § 2.3.
+ * Regression guard for Component and Deployment stereotype serialization.
  *
  * Before Phase A, UMLComponentComponent.serialize() and
  * UMLDeploymentComponent.serialize() emitted only `displayStereotype`
@@ -99,7 +99,7 @@ describe('20 — Deployment Artifact manifests survives serialize round-trip', (
 
   it('UMLDeploymentArtifact.deserialize() defaults manifests to [] when the key is absent (legacy back-compat)', () => {
     const artifact = new UMLDeploymentArtifact();
-    // Simulate a pre-20 serialized Artifact with no manifests key.
+    // Simulate a serialized Artifact from before manifests were stored.
     artifact.deserialize({ id: 'a1', name: 'X', type: 'DeploymentArtifact' } as never);
 
     expect(artifact.manifests).toEqual([]);
@@ -128,7 +128,7 @@ describe('21 — Component processModelRefs survives serialize round-trip', () =
 
   it('UMLComponentComponent.deserialize() defaults processModelRefs to [] when the key is absent (legacy back-compat)', () => {
     const component = new UMLComponentComponent();
-    // Simulate a pre-21 serialized Component with no processModelRefs key.
+    // Simulate a serialized Component from before processModelRefs were stored.
     component.deserialize({ id: 'c1', name: 'X', type: 'Component', stereotype: 'component' } as never);
 
     expect(component.processModelRefs).toEqual([]);

@@ -66,7 +66,7 @@ class DeploymentNodeUpdate extends Component<Props, State> {
             />
           </Flex>
         </section>
-        {/* 06-v2 — self-gating: only renders for derived DeploymentNodes. */}
+        {/* Self-gating: only renders for derived DeploymentNodes. */}
         <LineageSourceLink elementId={element.id} />
       </div>
     );

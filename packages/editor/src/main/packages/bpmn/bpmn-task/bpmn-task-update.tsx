@@ -25,7 +25,7 @@ interface OwnProps {
   element: BPMNTask;
 }
 
-// 47 — agentic lanes available as cross-reflection reviewer candidates.
+// Agentic lanes available as cross-reflection reviewer candidates.
 interface StateProps {
   agenticLanes: Array<{ id: string; name: string }>;
 }
@@ -187,7 +187,7 @@ class BPMNTaskUpdateComponent extends Component<Props, State> {
                 <Textfield value={String(element.trustScore)} onChange={this.changeTrustScore(element.id)} />
               </Flex>
             </section>
-            {/* 11 — agentic-task → Agent-diagram link. Reuses the generic
+            {/* Agentic-task → Agent-diagram link. Reuses the generic
                 section 08 built for the lane (props named laneId/laneName
                 are carry-over misnomers — they hold the task id/name). */}
             <AgentDiagramLinkSection
@@ -246,7 +246,7 @@ class BPMNTaskUpdateComponent extends Component<Props, State> {
     this.props.update<BPMNTask>(id, { reflectionMode: value as BPMNReflectionMode });
   };
 
-  // 47 — set or clear the reviewer lane for cross-reflection.
+  // Set or clear the reviewer lane for cross-reflection.
   private changeReviewerLane = (id: string) => (value: string) => {
     this.props.update<BPMNTask>(id, { reflectionReviewerLaneId: value === '' ? undefined : value });
   };

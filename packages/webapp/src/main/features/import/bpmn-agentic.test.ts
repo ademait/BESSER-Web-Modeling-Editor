@@ -114,7 +114,7 @@ describe('agentic round-trip (04D2)', () => {
     expect(xml).not.toContain('<bpmn:extensionElements>');
   });
 
-  // 08 — lane carries agentDiagramRef → survives round-trip on the lane only.
+  // lane carries agentDiagramRef → survives round-trip on the lane only.
   it('preserves agentDiagramRef on the agentic lane through round-trip', () => {
     const REF = '3f0a1c2d-4e5b-4f6a-9012-3456789abcde';
     const model = buildFixtureAgenticModel();
@@ -134,8 +134,8 @@ describe('agentic round-trip (04D2)', () => {
     expect((task as { agentDiagramRef?: string }).agentDiagramRef).toBeUndefined();
   });
 
-  // 08 — non-agentic lane with a stale ref must NOT emit the extension
-  // (matches 04D2 D-D3: extension presence implies isAgentic).
+  // non-agentic lane with a stale ref must NOT emit the extension
+  // (matches extension presence implies isAgentic).
   it('does not emit agentDiagramRef on a non-agentic lane', () => {
     const model = buildFixtureNonAgenticModel();
     // Find any swimlane in the non-agentic fixture and plant a stale ref.
@@ -148,7 +148,7 @@ describe('agentic round-trip (04D2)', () => {
     expect(xml).not.toContain('<agentic:agentic');
   });
 
-  // 08 — extension block present but no agentDiagramRef attribute → field
+  // extension block present but no agentDiagramRef attribute → field
   // stays undefined; no warning.
   it('leaves agentDiagramRef undefined when the attribute is absent', () => {
     const model = buildFixtureAgenticModel();
@@ -161,7 +161,7 @@ describe('agentic round-trip (04D2)', () => {
     expect(warnings.some((w) => w.message.toLowerCase().includes('agentdiagramref'))).toBe(false);
   });
 
-  // 11 — agentic task carries agentDiagramRef → survives round-trip.
+  // agentic task carries agentDiagramRef → survives round-trip.
   it('preserves agentDiagramRef on the agentic task through round-trip', () => {
     const REF = '7c1e9a40-2b3c-4d5e-8f90-1a2b3c4d5e6f';
     const model = buildFixtureAgenticModel();
@@ -179,7 +179,7 @@ describe('agentic round-trip (04D2)', () => {
     expect((task as { agentDiagramRef?: string }).agentDiagramRef).toBe(REF);
   });
 
-  // 11 — non-agentic task with a stale ref must NOT emit the extension.
+  // non-agentic task with a stale ref must NOT emit the extension.
   it('does not emit agentDiagramRef on a non-agentic task', () => {
     const model = buildFixtureNonAgenticModel();
     const task = Object.values(model.elements ?? {}).find((e) => (e as { type?: string }).type === 'BPMNTask') as

@@ -112,7 +112,7 @@ class DeploymentAssociationUpdate extends Component<Props, State> {
             </section>
           </>
         )}
-        {/* 06-v2 — self-gating: only renders for derived edges. */}
+        {/* Self-gating: only renders for derived edges. */}
         <LineageSourceLink elementId={element.id} />
       </div>
     );

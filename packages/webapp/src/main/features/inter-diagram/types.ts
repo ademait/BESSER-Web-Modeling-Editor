@@ -92,7 +92,7 @@ export type AgentDerivationRefusalReason =
 // entry state, and surfaced here (never silently dropped).
 export type AgentDerivationWarning =
   | { kind: 'io-attached-to-entry'; flowId: string }
-  // 49 (W4) — a governed merging gateway owned by this lane has no in-lane
+  // A governed merging gateway owned by this lane has no in-lane
   // producing task feeding it (resp. no in-lane successor). The merge state is
   // STILL emitted (BESSER must bind governance to it), but it lacks a guarded
   // inbound (resp. an outbound) — surfaced so the user can wire it manually.

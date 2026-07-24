@@ -88,7 +88,7 @@ class ComponentUpdate extends Component<Props, State> {
             </PresetField>
           </Flex>
         </section>
-        {/* 19 — `realizes` picker: Component-diagram Component only (not the
+        {/* `realizes` picker: Component-diagram Component only (not the
             Deployment diagram's Component). Self-gates to render nothing when
             the host registers no element-picker provider. */}
         {element.type === 'Component' && (
@@ -113,7 +113,7 @@ class ComponentUpdate extends Component<Props, State> {
           textColor
           fillColor
         />
-        {/* 06-v2 — self-gating: renders nothing for non-derived elements. */}
+        {/* Self-gating: renders nothing for non-derived elements. */}
         <LineageSourceLink elementId={element.id} />
       </div>
     );

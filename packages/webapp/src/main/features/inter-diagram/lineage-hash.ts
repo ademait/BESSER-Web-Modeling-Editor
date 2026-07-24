@@ -1,9 +1,9 @@
 import type { UMLModel } from '@besser/wme';
 
 /**
- * 06-v1 — deterministic djb2 hash over a canonical JSON view of the
+ * Deterministic djb2 hash over a canonical JSON view of the
  * model. NOT cryptographic; just stable equality for staleness
- * detection (plan 05- D-D2). Two identical models hash equal; any
+ * detection. Two identical models hash equal; any
  * structural change flips the hash.
  *
  * Canonicalisation strategy:

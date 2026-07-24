@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
 /**
- * 08 — supplied by the host (webapp2) at editor-init time.
+ * Supplied by the host at editor-init time.
  *
  * The editor stays storage-agnostic: project mutation (creating the
  * Agent diagram, switching the active diagram) lives in the host; the
@@ -17,7 +17,7 @@ export interface AgentDiagramLinker {
   /** Atomic for the Define click. The host:
    *   1. Flushes the editor's in-memory BPMN model to storage
    *      (captures any pending isAgentic/role/trust edits within the
-   *      300ms debounce window — §9 of 08-guide).
+   *      300ms debounce window).
    *   2. Creates a fresh empty Agent diagram, returns its UUID.
    *   3. Mutates the source BPMN lane in storage to add
    *      `agentDiagramRef = newUuid` (bypasses the editor model

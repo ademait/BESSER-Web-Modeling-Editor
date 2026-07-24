@@ -78,9 +78,9 @@ export interface QuantumCircuitData {
 }
 
 /**
- * 06-v1 — diagram-level lineage recorded by the inter-diagram
+ * Diagram-level lineage recorded by the inter-diagram
  * derivations (BPMN→Component, Component→Deployment). Sidecar shape
- * (no editor-package change) per plan 05- OQ-1.
+ * without requiring editor-package storage changes.
  */
 export interface DiagramLineage {
   /** id of the source ProjectDiagram (same project). */
@@ -91,7 +91,7 @@ export interface DiagramLineage {
   derivationKind: 'bpmn-to-component' | 'component-to-deployment' | 'bpmn-to-agent';
   /** ISO timestamp at derivation time. */
   derivedAt: string;
-  /** djb2 hash of the source UMLModel at derivation time (D-D2). */
+  /** djb2 hash of the source UMLModel at derivation time. */
   sourceModelHash: string;
 }
 
@@ -109,16 +109,16 @@ export interface ProjectDiagram {
   /** Per-diagram cross-references: maps a diagram type to the ID of the diagram this depends on.
    *  E.g. a GUINoCodeDiagram may reference a specific ClassDiagram and AgentDiagram by their UUID. */
   references?: Partial<Record<SupportedDiagramType, string>>;
-  /** 06-v1 — set by inter-diagram derivation hooks. Undefined on
+  /** Set by inter-diagram derivation hooks. Undefined on
    *  user-imported diagrams and on the source side of any derivation. */
   derivedFrom?: DiagramLineage;
 }
 
 /**
- * 06-v2 — per-derived-diagram element mapping: derived element id →
+ * Per-derived-diagram element mapping: derived element id →
  * source element id. The source diagram is implied by the containing
  * `ProjectDiagram.derivedFrom.sourceDiagramId`. Sidecar on
- * `BesserProject` (no editor-package storage diff per plan 05- OQ-1).
+ * `BesserProject` without requiring editor-package storage changes.
  */
 export type ElementLineageMap = Record<string, string>;
 
@@ -154,7 +154,7 @@ export interface BesserProject {
     collaborationEnabled: boolean;
     perspectives: PerspectiveSettings;
   };
-  /** 06-v2 — derivedDiagramId → ElementLineageMap. Sidecar; populated
+  /** derivedDiagramId → ElementLineageMap. Sidecar; populated
    *  by the inter-diagram derivation hooks after the derived diagram
    *  is added. Survives import/export. */
   elementLineage?: Record<string, ElementLineageMap>;

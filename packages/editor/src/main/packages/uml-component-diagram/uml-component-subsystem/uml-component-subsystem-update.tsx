@@ -66,7 +66,7 @@ class ComponentSubsystemUpdate extends Component<Props, State> {
           textColor
           fillColor
         />
-        {/* 06-v2 — self-gating: only renders for derived Subsystems. */}
+        {/* Self-gating: only renders for derived Subsystems. */}
         <LineageSourceLink elementId={element.id} />
       </div>
     );

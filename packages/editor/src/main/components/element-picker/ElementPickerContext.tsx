@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
 /**
- * Cross-diagram element picker, supplied by the host (webapp2) at
+ * Cross-diagram element picker, supplied by the host at
  * editor-init time. Same shape as the lineage provider: the
  * editor stays storage-agnostic; the host owns project data and answers
  * "what elements of these types exist in other diagrams?".

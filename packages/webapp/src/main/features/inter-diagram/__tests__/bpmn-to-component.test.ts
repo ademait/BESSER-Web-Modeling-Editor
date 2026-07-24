@@ -52,7 +52,7 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
       expect(els.filter((e) => e.type === 'Subsystem')).toHaveLength(1);
       const components = els.filter((e) => e.type === 'Component');
       expect(components).toHaveLength(2);
-      // guide 48: lane role flows to Component stereotype
+      // the lane-role mapping: lane role flows to Component stereotype
       const solutions = components.filter((c) => (c as unknown as { stereotype?: string }).stereotype === 'solution');
       const supervisions = components.filter(
         (c) => (c as unknown as { stereotype?: string }).stereotype === 'supervision',
@@ -82,7 +82,7 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
     const r = bpmnModelToComponentModel(multiPoolMessage as unknown as UMLModel);
     it('drops the non-agentic Pool B entirely (no Subsystem, no external Component)', () => {
       if (!r.ok) throw new Error('expected ok');
-      // Meeting 2026-06-08 §1 (refined): a Subsystem is emitted ONLY for a pool
+      // A Subsystem is emitted only for a pool
       // with an agentic lane — never via a message flow. Pool B's only lane is
       // non-agentic, so it disappears; only SwarmA + its Coordinator remain.
       const subsystems = Object.values(r.model.elements).filter((e) => e.type === 'Subsystem');
@@ -158,7 +158,7 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
         .filter((e) => e.type === 'Component')
         .map((c) => (c as unknown as { stereotype?: string }).stereotype)
         .sort();
-      // lane-mgr → supervision, lane-wkr → solution (guide 48)
+      // lane-mgr → supervision, lane-wkr → solution (the lane-role mapping)
       expect(comps).toEqual(['solution', 'supervision']);
     });
 
@@ -202,8 +202,8 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
       });
       if (!r.ok) throw new Error('expected ok');
       const components = Object.values(r.model.elements).filter((e) => e.type === 'Component');
-      // Meeting 2026-06-08 §1: only agentic lanes become Components.
-      // guide 48: supervision/collaboration/consensus are also valid agentic stereotypes.
+      // Only agentic lanes become Components.
+      // the lane-role mapping: supervision/collaboration/consensus are also valid agentic stereotypes.
       const AGENTIC_STEREOS = new Set(['solution', 'supervision', 'collaboration', 'consensus']);
       const nonAgentic = components.filter(
         (e) => !AGENTIC_STEREOS.has((e as unknown as { stereotype?: string }).stereotype ?? ''),
@@ -359,7 +359,7 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
       const skills = Object.values(r.model.elements).filter(
         (e) => (e as unknown as { stereotype?: string }).stereotype === 'skill',
       );
-      expect(tools).toHaveLength(1); // WebSearch deduped (DQ5)
+      expect(tools).toHaveLength(1); // WebSearch deduped (tool deduplication)
       expect(tools[0].name).toBe('WebSearch');
       expect(skills).toHaveLength(1);
       expect(skills[0].name).toBe('Summarise');
@@ -367,7 +367,7 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
         .map((rel) => (rel as unknown as { stereotype?: string }).stereotype)
         .filter((s) => s === 'uses' || s === 'has')
         .sort();
-      expect(edgeStereos).toEqual(['has', 'uses']); // DQ3
+      expect(edgeStereos).toEqual(['has', 'uses']); // relationship direction
     });
 
     it('T-U3 — dangling agentDiagramRef: no capabilities, no throw', () => {
@@ -961,12 +961,12 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
       elements: {
         st: { id: 'st', type: 'AgentState', name: 'Answer', owner: null, bounds: { x: 0, y: 0, width: 1, height: 1 } },
         b1: b('b1', 'llm'),
-        b2: b('b2', 'llm'), // dup → one shared LLM (DQ-2)
+        b2: b('b2', 'llm'), // dup → one shared LLM (peer-name resolution)
         b3: b('b3', 'rag', { ragDatabaseName: 'kb' }),
         b4: b('b4', 'db_reply', { dbCustomName: 'orders' }),
         b5: b('b5', 'text'), // plain reply → ignored
         b6: b('b6', 'code'), // Python → ignored (deferred)
-        fb: b('fb', 'rag', { ragDatabaseName: 'kb' }, 'AgentStateFallbackBody'), // DQ-6 fallback, dup kb → deduped
+        fb: b('fb', 'rag', { ragDatabaseName: 'kb' }, 'AgentStateFallbackBody'), // fallback body, duplicate kb resource deduped
       },
       relationships: {},
       interactive: { elements: {}, relationships: {} },
@@ -1031,7 +1031,7 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
       expect(byStereo(r.model, 'db')).toHaveLength(0);
     });
 
-    // 32-FU1 — the agent can be linked at the LANE level (popup "Define agent
+    // FU1 — the agent can be linked at the LANE level (popup "Define agent
     // behavior" on the lane), not only per-task. A lane-level link must still
     // surface the agent's resources, with lineage to the LANE.
     const makeLaneLinkedBpmn = () => {

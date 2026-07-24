@@ -307,8 +307,8 @@ export class ProjectStorageRepository {
       }
     }
 
-    // 06-v1 — lineage set by inter-diagram derivation hooks (sidecar
-    // on ProjectDiagram per plan 05- OQ-1).
+    // Lineage set by inter-diagram derivation hooks (sidecar
+    // on ProjectDiagram).
     if (derivedFrom) {
       diagram.derivedFrom = derivedFrom;
     }
@@ -356,16 +356,16 @@ export class ProjectStorageRepository {
       }
     }
 
-    // 06-v1 D-D3 — DON'T clear derivedFrom on source-deletion. The
+    // Do not clear derivedFrom on source deletion. The
     // dangling pointer is what lets the UI render the "← Source
     // diagram deleted" badge (DiagramTabs.tsx checks
     // !sourceDiagram at render time). Eager cleanup would leave the
     // user with no visual cue that the diagram had a lineage at all
-    // — manual testing on LT-3 confirmed this. The lineage object is
+    // The lineage object is
     // tiny so leaving it dangling has no storage cost worth
     // optimising against.
 
-    // 06-v2 — drop the element-lineage sidecar for the deleted diagram
+    // Drop the element-lineage sidecar for the deleted diagram
     // itself (it's the *derived* side that the sidecar is keyed on,
     // not the source). If the deleted diagram was a derived one, its
     // sidecar is now garbage and should be cleared.

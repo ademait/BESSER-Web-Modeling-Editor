@@ -40,7 +40,7 @@ export const useImportBpmnXml = () => {
       );
     }
 
-    // 08 (07-plan OQ-F): dead-ref scan for agentDiagramRef. Walks
+    // Dead-ref scan for agentDiagramRef. Walks
     // imported lanes; for each ref that doesn't resolve to a current
     // Agent diagram in the active project, push a warning into the
     // existing toast. The lane keeps the dead ref; the lane popup will
@@ -51,7 +51,7 @@ export const useImportBpmnXml = () => {
       const liveAgentIds = new Set(currentProject.diagrams.AgentDiagram.map((d) => d.id));
       for (const el of Object.values(result.model.elements ?? {})) {
         const node = el as { type?: string; name?: string; agentDiagramRef?: string };
-        // 11 — scan agentic TASKS (primary) + lanes (tolerant of legacy
+        // Scan agentic TASKS (primary) + lanes (tolerant of legacy
         // files; the lane UI is gone but old refs may still be present).
         if (
           (node.type === 'BPMNTask' || node.type === 'BPMNSwimlane') &&

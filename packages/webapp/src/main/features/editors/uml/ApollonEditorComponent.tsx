@@ -34,7 +34,7 @@ export const ApollonEditorComponent: React.FC = () => {
   const quantumCircuitDiagrams = useAppSelector(selectQuantumCircuitDiagrams);
   const project = useAppSelector(selectProject);
   const { setEditor } = useContext(ApollonEditorContext);
-  // 06-v2 — element id to select after the next editor rebuild (set by
+  // Element id to select after the next editor rebuild (set by
   // the lineage provider's onShowSource; consumed by the setup effect).
   const pendingSelectionRef = useRef<string | null>(null);
 
@@ -44,7 +44,7 @@ export const ApollonEditorComponent: React.FC = () => {
   reduxDiagramRef.current = reduxDiagram;
   const optionsRef = useRef(options);
   optionsRef.current = options;
-  // 08 — agent-diagram linker held in a ref so the setup effect can
+  // Agent-diagram linker held in a ref so the setup effect can
   // register it on the freshly-created editor without taking it as a
   // dependency (which would force editor recreation on every linker
   // identity change). Pass editorRef so the linker can read the editor's
@@ -54,7 +54,7 @@ export const ApollonEditorComponent: React.FC = () => {
   const linkerRef = useRef(linker);
   linkerRef.current = linker;
 
-  // 19 — host-side element-picker provider (cross-diagram `realizes`).
+  // Host-side element-picker provider (cross-diagram `realizes`).
   const elementPicker = useElementPickerProvider();
 
   const destroyEditorDeferred = useCallback((editor: ApollonEditor) => {
@@ -150,7 +150,7 @@ export const ApollonEditorComponent: React.FC = () => {
         nextEditor.model = currentDiagram.model;
       }
 
-      // 06-v2 — if a lineage click-through requested a source-element
+      // If a lineage click-through requested a source-element
       // selection, apply it now that the new editor is mounted and the
       // model is loaded.
       if (pendingSelectionRef.current) {
@@ -175,7 +175,7 @@ export const ApollonEditorComponent: React.FC = () => {
         }, 300);
       });
 
-      // 08 — register the agent-diagram linker as soon as the editor is
+      // Register the agent-diagram linker as soon as the editor is
       // mounted. Imperative call (not a dep-list effect) because
       // editorRevision-keyed effects all run in the same render before
       // this async setup completes — by the time setEditor fires,
@@ -191,7 +191,7 @@ export const ApollonEditorComponent: React.FC = () => {
     setupEditor().catch(notifyError('Editor setup'));
   }, [editorRevision, cleanupEditor, destroyEditorDeferred, dispatch, setEditor]);
 
-  // 06-v2 — register the lineage provider on the current editor whenever
+  // Register the lineage provider on the current editor whenever
   // the active diagram (or its lineage data) changes. Re-runs on
   // editorRevision too so each newly-mounted editor gets the provider.
   useEffect(() => {
@@ -211,7 +211,7 @@ export const ApollonEditorComponent: React.FC = () => {
     const sourceDiagram = sourceDiagrams[sourceIndex];
     const elementMapping = project.elementLineage?.[reduxDiagram.id] ?? {};
 
-    // 06-v2 LT-5 follow-up — look up source element name + type so the
+    // Look up source element name + type so the
     // popup link can read "← Source: <name> (<type>)". Only UML diagrams
     // have an elements/relationships shape; for non-UML source models we
     // omit the fields and the link falls back to diagram-level wording.
@@ -235,7 +235,7 @@ export const ApollonEditorComponent: React.FC = () => {
         pendingSelectionRef.current = resolved.sourceElementId;
         // Convert SupportedDiagramType to UMLDiagramType wire value to
         // avoid the same coercion bug the DiagramTabs badge ran into
-        // for BPMN (06-v1 post-LT4).
+        // for BPMN.
         const wireType = toUMLDiagramType(lineage.sourceDiagramType);
         try {
           await dispatch(switchDiagramTypeThunk({ diagramType: wireType ?? lineage.sourceDiagramType })).unwrap();
@@ -250,7 +250,7 @@ export const ApollonEditorComponent: React.FC = () => {
     });
   }, [dispatch, project, reduxDiagram, editorRevision]);
 
-  // 19 — register the element-picker provider on the current editor.
+  // Register the element-picker provider on the current editor.
   // Re-runs on editorRevision so each newly-mounted editor gets it, and on
   // `elementPicker` identity (which changes when project/active diagram
   // change). Mirror of the lineage registration effect above.
@@ -260,7 +260,7 @@ export const ApollonEditorComponent: React.FC = () => {
     editor.setElementPickerProvider(elementPicker);
   }, [elementPicker, editorRevision]);
 
-  // 08 — re-register the agent-diagram linker when its identity changes
+  // Re-register the agent-diagram linker when its identity changes
   // (e.g. an Agent diagram was added/removed → `isRefAlive` changes →
   // `linker` identity changes). Initial registration happens inside the
   // setup effect itself (see above) — relying on this effect alone misses

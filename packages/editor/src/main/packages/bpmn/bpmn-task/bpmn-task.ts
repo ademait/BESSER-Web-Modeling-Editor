@@ -57,7 +57,7 @@ export class BPMNTask extends UMLContainer {
   // behavior" on the popup. UUID-only; survives an isAgentic toggle off
   // (the popup hides the section but keeps the ref).
   agentDiagramRef?: string;
-  // 47 — reviewer lane UUID for cross-reflection (reflectionMode === 'cross').
+  // Reviewer lane UUID for cross-reflection (reflectionMode === 'cross').
   // Absent means the reviewer is unspecified (peer="reviewer" placeholder).
   reflectionReviewerLaneId?: string;
 

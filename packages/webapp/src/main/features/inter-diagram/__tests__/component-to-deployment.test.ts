@@ -485,7 +485,7 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
       if (!r.ok) throw new Error('expected ok');
 
       // Only the kept Subsystem nodes map back to their source Subsystem;
-      // the Docker Host + ExecutionEnvironment nodes are synthetic (38 D-38-6).
+      // the Docker Host + ExecutionEnvironment nodes are synthetic (synthetic deployment nodes).
       for (const node of subsystemNodes(r)) {
         const sourceId = r.elementMapping[node.id];
         expect(sourceId).toBe(node.name === 'Order' ? 's1' : 's2');
@@ -495,7 +495,7 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
       }
 
       // Only the DeploymentComponent maps to the source Component
-      // (06-v2 FU, 2026-05-29). The paired Artifact has no source
+      // (the lineage sidecar derivation). The paired Artifact has no source
       // counterpart — it is the physical manifestation, not a
       // projection of any source element.
       const dcs = Object.values(r.model.elements).filter((e) => e.type === 'DeploymentComponent');
@@ -578,7 +578,7 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
     it('T-M2 — an Artifact manifests the same source Component its paired DeploymentComponent projects', () => {
       if (!r.ok) throw new Error('expected ok');
       // Pair Artifact↔Component via the manifest DeploymentDependency
-      // (source = artifactId, target = componentId — see the 04-FU3 block).
+      // (source = artifactId, target = componentId — see the reverse manifest edge).
       const manifestEdges = Object.values(r.model.relationships).filter((rel) => rel.type === 'DeploymentDependency');
       const elementById = r.model.elements as Record<string, { manifests?: string[] }>;
       expect(manifestEdges.length).toBeGreaterThan(0);
@@ -588,7 +588,7 @@ describe('Inter-diagram — componentModelToDeploymentModel', () => {
         const artifactManifests = elementById[artifactId].manifests;
         expect(artifactManifests).toHaveLength(1);
         // elementMapping lineages each DeploymentComponent to its source
-        // Component (06-v2). The Artifact must manifest that same source id.
+        // Component (the lineage sidecar). The Artifact must manifest that same source id.
         expect(artifactManifests![0]).toBe(r.elementMapping[componentId]);
       }
     });

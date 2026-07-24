@@ -60,11 +60,11 @@ export { normalizeAgentModel } from './packages/agent-state-diagram/normalize-ag
 export type { Patch } from './services/patcher';
 
 // Public type for the agent-diagram linker callback object; the host
-// (webapp2) implements this and passes it to `editor.setAgentDiagramLinker`.
+// The host implements this and passes it to `editor.setAgentDiagramLinker`.
 export type { AgentDiagramLinker } from './components/agent-diagram-linker/AgentDiagramLinkerContext';
 
 // Public types for the cross-diagram element-picker provider; the host
-// (webapp2) implements `ElementPickerProvider` and passes it to
+// The host implements `ElementPickerProvider` and passes it to
 // `editor.setElementPickerProvider` (see `useElementPickerProvider`).
 export type { ElementPickerProvider, PickableElement } from './components/element-picker/ElementPickerContext';
 
