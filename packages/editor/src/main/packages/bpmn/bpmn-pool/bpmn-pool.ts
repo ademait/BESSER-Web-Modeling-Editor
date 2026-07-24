@@ -32,6 +32,9 @@ export class BPMNPool extends UMLPackage {
   hasSwimlanes = (children: ILayoutable[]): boolean =>
     children.some((child: ILayoutable & { type?: UMLElementType }) => child.type === BPMNElementType.BPMNSwimlane);
 
+  // Swimlanes must paint before non-lane children so their background rect sits
+  // behind tasks/events. SVG renders later elements on top; putting lanes first
+  // in ownedElements ensures tasks always appear above lane backgrounds.
   reorderChildren(children: IUMLElement[]): string[] {
     const lanes = children.filter((c) => c.type === BPMNElementType.BPMNSwimlane);
     const rest = children.filter((c) => c.type !== BPMNElementType.BPMNSwimlane);
@@ -52,8 +55,9 @@ export class BPMNPool extends UMLPackage {
     }
     const swimlanes = children.filter((child): child is BPMNSwimlane => child.type === BPMNElementType.BPMNSwimlane);
     if (swimlanes.length === 0) {
-      // No lanes: the pool itself is the vertically resizable element.
-      // Enforce a sensible floor only. (Guide 15.)
+      // No lanes: nothing drives the pool's height, so the pool itself is the
+      // vertically resizable element (features.resizable === true). Respect the
+      // user's dragged height; only enforce a sensible floor.
       if (this.bounds.height < BPMNPool.MIN_HEIGHT) {
         this.bounds.height = BPMNPool.MIN_HEIGHT;
       }
@@ -108,13 +112,10 @@ export class BPMNPool extends UMLPackage {
       // Override layouter logic that offsets coordinates during active dragging
       lane.resizeFrom = ResizeFrom.BOTTOMRIGHT;
     }
-    console.log('[pool.render] after-stack', orderedSwimlanes.map((s) => ({
-      id: s.id, x: s.bounds.x, y: s.bounds.y, w: s.bounds.width, h: s.bounds.height,
-    })));
 
-    // 4a. If stacked lanes are shorter than the pool's current height
-    // (e.g. first lane dropped on a tall empty pool), expand the last lane
-    // to fill instead of snapping the pool down. (Guide 16.)
+    // 4a. If the stacked lane total is shorter than the pool's current height
+    // (e.g. first lane dropped on a tall empty pool), expand the last lane to
+    // fill instead of snapping the pool down.
     if (currentY < this.bounds.height && orderedSwimlanes.length > 0) {
       const lastLane = orderedSwimlanes[orderedSwimlanes.length - 1];
       lastLane.bounds.height += this.bounds.height - currentY;
@@ -123,8 +124,11 @@ export class BPMNPool extends UMLPackage {
 
     // 4. Force pool height to exactly fit lanes. With features.resizable === true
     // the pool also accepts vertical drags, but a laned pool's height is fully
-    // lane-driven. A top-edge drag (TOPLEFT/TOPRIGHT) additionally shifts y;
-    // undo that shift so rejecting the height change doesn't drift the pool. (Guide 15.)
+    // lane-driven, so any height delta is spurious. A top-edge drag (TOPLEFT /
+    // TOPRIGHT) additionally shifted the pool's y by the same delta (see
+    // ResizingReducer.getUpdatedPosition); undo that shift so rejecting the
+    // height change doesn't drift the pool upward. Bottom-edge drags change
+    // height only — y is untouched, so no correction there.
     const totalHeight = currentY;
     const desiredHeight = Math.max(totalHeight, BPMNPool.MIN_HEIGHT);
     if (this.resizeFrom === ResizeFrom.TOPLEFT || this.resizeFrom === ResizeFrom.TOPRIGHT) {

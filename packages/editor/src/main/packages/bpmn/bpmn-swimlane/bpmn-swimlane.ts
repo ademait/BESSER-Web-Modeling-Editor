@@ -104,19 +104,16 @@ export class BPMNSwimlane extends UMLContainer {
     if (this.bounds.height < BPMNSwimlane.MIN_HEIGHT) {
       this.bounds.height = BPMNSwimlane.MIN_HEIGHT;
     }
-
-    // Keep child elements out of the header strip so the lane name + agentic
-    // markers stay readable. Children whose left edge would land inside the
-    // header are snapped to the body's left edge on next layout pass.
-    const headerWidth = this.isAgentic ? BPMNSwimlane.AGENTIC_LANE_HEADER_WIDTH : BPMNSwimlane.LANE_HEADER_WIDTH;
-    const minChildX = this.bounds.x + headerWidth;
+    // Keep child elements out of the header strip so the lane name stays
+    // readable. Children whose left edge would land inside the header are
+    // snapped to the body's left edge on the next layout pass.
+    const minChildX = this.bounds.x + BPMNSwimlane.LANE_HEADER_WIDTH;
     for (const child of children) {
       if (child === this) continue;
       if (child.bounds.x < minChildX) {
         child.bounds.x = minChildX;
       }
     }
-
     return [this, ...children];
   }
 }

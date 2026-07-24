@@ -10,6 +10,8 @@ import { UMLElementComponent } from '../uml-element/uml-element-component';
 import { CanvasContainer } from './canvas-styles';
 import { UMLElementState } from '../../services/uml-element/uml-element-types';
 import { UMLRelationship } from '../../services/uml-relationship/uml-relationship';
+import { NNAssociationMonitor } from '../../packages/nn-diagram/nn-association/nn-association-monitor';
+import { isCollapsibleBpmnContainer } from '../../packages/bpmn';
 
 type OwnProps = {};
 
@@ -39,10 +41,7 @@ function isInsideCollapsedSubprocess(elementId: string, elements: UMLElementStat
   if (!el || !el.owner) return false;
   const owner = elements[el.owner];
   if (!owner) return false;
-  return (
-    (owner.type === 'BPMNSubprocess' || owner.type === 'BPMNTransaction') &&
-    !(owner as any).isExpanded
-  );
+  return isCollapsibleBpmnContainer(owner.type) && !(owner as any).isExpanded;
 }
 
 export class CanvasComponent extends Component<Props> implements Omit<ILayer, 'layer'> {
@@ -88,6 +87,7 @@ export class CanvasComponent extends Component<Props> implements Omit<ILayer, 'l
 
     return (
       <Droppable>
+        <NNAssociationMonitor />
         <CanvasContainer
           id="modeling-editor-canvas"
           width={diagram.bounds.width + minX}

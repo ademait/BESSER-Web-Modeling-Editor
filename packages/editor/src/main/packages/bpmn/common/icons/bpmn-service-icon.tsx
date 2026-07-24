@@ -1,8 +1,10 @@
 import React, { FunctionComponent } from 'react';
 import { ThemedCircle, ThemedPath } from '../../../../components/theme/themedComponents';
 
-// BPMN 2.0.2 § 10.2.3.1 (Figure 10.11, p. 158): Service-Task marker is a
-// gear/cog. 8-tooth gear outline + hub hole, theme-aware via ThemedPath/ThemedCircle.
+// BPMN 2.0.2 § 10.2.3.1 (Figure 10.11, p. 158): the Service-Task marker is a
+// gear/cog. 8-tooth gear outline + hub hole, centred in the 20x20 box. Stroke
+// from theme (ThemedPath / ThemedCircle), transparent fill — matches the
+// outline style of the other task-type icons.
 export const BPMNServiceIcon: FunctionComponent<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg {...props} height={20} width={20}>
     <ThemedPath

@@ -34,7 +34,7 @@ import { Separator } from './create-pane-styles';
 import { composeBPMNPreview } from '../../packages/bpmn/bpmn-diagram-preview';
 import { BPMNPool } from '../../packages/bpmn/bpmn-pool/bpmn-pool';
 import { composeStatePreview } from '../../packages/uml-state-diagram/state-preview';
-
+import { composeNNPreview } from '../../packages/nn-diagram/nn-preview';
 import { composeBotPreview } from '../../packages/agent-state-diagram/agent-state-preview';
 
 import { setPalette } from '../../services/palette/palette-types';
@@ -68,6 +68,9 @@ const getInitialState = ({ type, canvas, translate, colorEnabled }: Props) => {
   switch (type) {
     case UMLDiagramType.ClassDiagram:
       previews.push(...composeClassPreview(canvas, translate));
+      break;
+    case UMLDiagramType.NNDiagram:
+      previews.push(...composeNNPreview(canvas, translate));
       break;
     case UMLDiagramType.ObjectDiagram:
       // Use the same object preview for both normal and icon mode
@@ -267,11 +270,19 @@ class CreatePaneComponent extends Component<Props, State> {
       const ownedIds =
         poolState && 'ownedElements' in poolState ? (poolState as { ownedElements: string[] }).ownedElements : [];
       const nonLaneChildIds = ownedIds.filter((id) => this.props.elements[id]?.type !== BPMNElementType.BPMNSwimlane);
+      // Only re-parent when no lanes existed yet. For multi-lane pools the
+      // new lane's y is hard to compute here, but tasks are already in the
+      // existing lanes so nonLaneChildIds would be empty anyway.
       const poolHadNoLanes = ownedIds.every((id) => this.props.elements[id]?.type !== BPMNElementType.BPMNSwimlane);
 
       const elements = clone(preview, this.state.previews);
       this.props.create(elements, resolvedOwner);
       if (nonLaneChildIds.length > 0 && poolHadNoLanes) {
+        // The layout saga is async; lane.bounds still has the raw drop-position
+        // origin. Pre-position the lane to its layout-correct values so the
+        // append reducer converts task coordinates from the right origin.
+        // Pool bounds are unchanged at this point (pool hasn't been re-rendered
+        // yet).
         const poolBounds = this.props.elements[resolvedOwner].bounds;
         this.props.update(elements[0].id, {
           bounds: {
@@ -281,7 +292,13 @@ class CreatePaneComponent extends Component<Props, State> {
             height: poolBounds.height,
           },
         });
+        // Remove tasks from the pool's ownedElements before appending to the
+        // lane. APPEND only adds to the new container — it never removes from
+        // the old one — so without this step both pool and lane list the same
+        // element IDs and each element is rendered twice. 
         this.props.remove(nonLaneChildIds);
+        // Move pool-level tasks/events into the new lane. The append reducer
+        // re-positions them relative to the pre-positioned lane.
         this.props.append(nonLaneChildIds, elements[0].id);
       }
       return;
@@ -293,10 +310,9 @@ class CreatePaneComponent extends Component<Props, State> {
     // the event and set owner to the existing pool's id, nesting the new pool inside it.
     const effectiveOwner = preview.type === BPMNElementType.BPMNPool ? undefined : owner;
 
-    // Elements in Redux are stored in parent-local coordinates (UMLContainerReducer.APPEND
-    // translates canvas-absolute → container-local on creation). The drop position from
-    // DraggableLayer is canvas-absolute, so we subtract the accumulated owner chain offsets
-    // to get a localBounds that is comparable to sibling.bounds in the same space.
+    // Elements are stored in parent-local coordinates. The drop position from
+    // DraggableLayer is canvas-absolute, so we subtract the accumulated owner chain
+    // offsets to get a localBounds comparable to sibling.bounds in the same space.
     const localBounds = { ...dropped.bounds };
     if (effectiveOwner) {
       let curId: string | null = effectiveOwner;
@@ -322,8 +338,8 @@ class CreatePaneComponent extends Component<Props, State> {
       iter++;
     }
 
-    // If the nudged position overflows the BPMN container, widen it to fit rather than
-    // letting the element escape the pool/lane boundary.
+    // If the nudged position overflows the BPMN container, widen it to fit rather
+    // than letting the element escape the pool/lane boundary.
     if (effectiveOwner) {
       const ownerEl = this.props.elements[effectiveOwner];
       if (ownerEl) {

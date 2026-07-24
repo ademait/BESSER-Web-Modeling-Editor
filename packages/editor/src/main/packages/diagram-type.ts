@@ -18,6 +18,7 @@ export const UMLDiagramType = {
   BPMN: 'BPMNDiagram',
   StateMachineDiagram: 'StateMachineDiagram',
   AgentDiagram: 'AgentDiagram',
-  UserDiagram: 'UserDiagram'
+  UserDiagram: 'UserDiagram',
+  NNDiagram: 'NNDiagram',
 } as const;
 export type UMLDiagramType = (typeof UMLDiagramType)[keyof typeof UMLDiagramType];

@@ -30,6 +30,14 @@ export const TASK_ICON_SIDE_INSET = 26;
 export const AGENTIC_TASK_TOP_MARGIN = 28;
 export const AGENTIC_TASK_REFLECTION_RESERVE = 28;
 
+// A task that renders a top-left type icon (taskType !== 'default') wraps its
+// centred name within an inset width (TASK_ICON_SIDE_INSET on each side) so a
+// long name can't slide under the icon at (10,10). Plain default tasks stay
+// full-width so short names don't needlessly break. Ported (agentic bits
+// stripped) from dev/agentic-swarm-connection's AGENTIC_TASK_SIDE_INSET. See
+// guide 14.
+export const TASK_ICON_SIDE_INSET = 26;
+
 export type BPMNTaskType = 'default' | 'user' | 'service' | 'send' | 'receive' | 'manual' | 'business-rule' | 'script';
 
 export class BPMNTask extends UMLContainer {

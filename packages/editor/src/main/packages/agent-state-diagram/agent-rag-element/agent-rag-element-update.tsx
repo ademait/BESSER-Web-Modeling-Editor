@@ -1,16 +1,22 @@
 import React from 'react';
 import { connect } from 'react-redux';
+import styled from 'styled-components';
 import { Textfield } from '../../../components/controls/textfield/textfield';
 import { Header } from '../../../components/controls/typography/typography';
 import { ModelState } from '../../../components/store/model-state';
 import { UMLElementRepository } from '../../../services/uml-element/uml-element-repository';
 import { AgentRagElement } from './agent-rag-element';
+import { AgentElementType } from '..';
+
+const AGENT_LLM_TYPE = (AgentElementType as Record<string, string>).AgentLLM ?? 'AgentLLM';
 
 type OwnProps = {
   element: AgentRagElement;
 };
 
-type StateProps = {};
+type StateProps = {
+  elements: ModelState['elements'];
+};
 
 type DispatchProps = {
   update: typeof UMLElementRepository.update;
@@ -18,15 +24,118 @@ type DispatchProps = {
 
 type Props = OwnProps & StateProps & DispatchProps;
 
-const AgentRagElementUpdateComponent: React.FC<Props> = ({ element, update }) => (
-  <div>
-    <Header>Name of RAG DB</Header>
-    <Textfield value={element.name} onChange={(name) => update(element.id, { name })} autoFocus />
-  </div>
-);
+const Section = styled.section`
+  padding: 8px 0;
+`;
 
-const enhance = connect<StateProps, DispatchProps, OwnProps, ModelState>(null, {
-  update: UMLElementRepository.update,
-});
+const Select = styled.select`
+  width: 100%;
+  height: 30px;
+  padding: 0 6px;
+  border: 1px solid ${(props) => props.theme.color.gray};
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+`;
+
+const AgentRagElementUpdateComponent: React.FC<Props> = ({ element, update, elements }) => {
+  const llmNames = Array.from(
+    new Set(
+      Object.values(elements)
+        .filter((el: any) => el.type === AGENT_LLM_TYPE && typeof el.name === 'string')
+        .map((el: any) => el.name.trim())
+        .filter((name: string) => name.length > 0),
+    ),
+  );
+
+  return (
+    <div>
+      <Section>
+        <Header>Name of RAG DB</Header>
+        <Textfield value={element.name} onChange={(name) => update(element.id, { name })} autoFocus />
+      </Section>
+      <Section>
+        <Header>LLM</Header>
+        <Select
+          value={element.llm_name || ''}
+          onChange={(event) => update<AgentRagElement>(element.id, { llm_name: event.target.value })}
+        >
+          <option value="">(use default)</option>
+          {llmNames.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </Select>
+      </Section>
+      <Section>
+        <Header>LLM Prompt Prefix</Header>
+        <Textfield
+          value={element.llm_prompt || ''}
+          onChange={(llm_prompt) => update<AgentRagElement>(element.id, { llm_prompt })}
+          multiline
+          enterToSubmit={false}
+        />
+      </Section>
+      <Section>
+        <Header>K (retrieved chunks)</Header>
+        <Textfield value={element.k ?? 4} onChange={(k) => update<AgentRagElement>(element.id, { k: Math.max(1, k) })} />
+      </Section>
+      <Section>
+        <Header>Num Previous Messages</Header>
+        <Textfield
+          value={element.num_previous_messages ?? 0}
+          onChange={(num_previous_messages) =>
+            update<AgentRagElement>(element.id, {
+              num_previous_messages: Math.max(0, num_previous_messages),
+            })
+          }
+        />
+      </Section>
+      <Section>
+        <Header>Embedding Provider</Header>
+        <Select
+          value={element.embedding_provider || 'openai'}
+          onChange={(event) => {
+            const provider = event.target.value as 'openai' | 'ollama';
+            const updates: Partial<AgentRagElement> = { embedding_provider: provider };
+            if (provider === 'ollama' && !element.embedding_base_url) {
+              updates.embedding_base_url = 'http://localhost:11434';
+            }
+            update<AgentRagElement>(element.id, updates);
+          }}
+        >
+          <option value="openai">OpenAI</option>
+          <option value="ollama">Ollama (local)</option>
+        </Select>
+      </Section>
+      {(element.embedding_provider === 'ollama') && (
+        <>
+          <Section>
+            <Header>Embedding Base URL</Header>
+            <Textfield
+              value={element.embedding_base_url || 'http://localhost:11434'}
+              onChange={(embedding_base_url) => update<AgentRagElement>(element.id, { embedding_base_url })}
+            />
+          </Section>
+          <Section>
+            <Header>Embedding Model</Header>
+            <Textfield
+              value={element.embedding_model || ''}
+              onChange={(embedding_model) => update<AgentRagElement>(element.id, { embedding_model })}
+            />
+          </Section>
+        </>
+      )}
+    </div>
+  );
+};
+
+const enhance = connect<StateProps, DispatchProps, OwnProps, ModelState>(
+  (state) => ({ elements: state.elements }),
+  {
+    update: UMLElementRepository.update,
+  },
+);
 
 export const AgentRagElementUpdate = enhance(AgentRagElementUpdateComponent);

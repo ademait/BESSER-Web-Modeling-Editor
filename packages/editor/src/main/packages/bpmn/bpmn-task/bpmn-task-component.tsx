@@ -88,7 +88,7 @@ export const BPMNTaskComponent: FunctionComponent<Props> = ({ element, fillColor
   // bot marker — short names are unaffected and the task never widens. When a
   // reflection mode is set, a bottom band is reserved so the name shifts up and
   // clears the reflection marker. The height floor lives in BPMNTask.render().
-  // Non-agentic tasks keep the plain full-width centre. (Guide 06-followup1.)
+  // Non-agentic tasks keep the plain full-width centre.
   const hasTypeIcon = element.taskType !== 'default';
   const sideInset = element.isAgentic ? AGENTIC_TASK_SIDE_INSET : hasTypeIcon ? TASK_ICON_SIDE_INSET : 0;
   const bottomReserve = element.isAgentic && reflectionLetter ? AGENTIC_TASK_REFLECTION_RESERVE : 0;

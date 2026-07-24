@@ -19,6 +19,9 @@ export * from './typings';
 // This is the primary entry point for users who want to embed the UML editor
 export * from './apollon-editor';
 
+// Export the headless ELK auto-layout helper (pure model -> laid-out model)
+export { layoutModel } from './services/layouter/model-layout';
+
 // Export compatibility helper functions
 // These utilities help with backward compatibility and cross-version support
 export * from './compat/helpers';
@@ -31,8 +34,8 @@ export * from './services/diagram-bridge';
 // Provides configuration management for standalone applications
 export * from './services/settings/settings-service';
 
-// Export BPMN flow semantics + validation (consumed by webapp2's BPMN
-// import / export + the validation vitest coverage).
+// Export BPMN flow semantics + validation (consumed by the webapp's BPMN
+// import / export + the Phase C vitest coverage).
 export * from './packages/bpmn/bpmn-flow/bpmn-flow-semantics';
 export * from './packages/bpmn/bpmn-flow/bpmn-flow-validator';
 
@@ -41,6 +44,16 @@ export * from './packages/bpmn/bpmn-flow/bpmn-flow-validator';
 // agentic vitest coverage and the extension serializer.
 export * from './packages/bpmn/common/types';
 export * from './packages/bpmn/common/governance-dsl';
+
+// Export the multiplicity helpers used by the ER-notation rendering
+// (parseMultiplicity / toERCardinality). Pure functions, safe to import
+// from tests and from consumer webapps.
+export * from './packages/common/uml-association/multiplicity';
+
+// Export the agent-model normalizer (flat → canonical nested transition shape).
+// Pure function, used by the webapp to normalize models that bypass the editor
+// (e.g. agentBaseModels snapshots written straight to localStorage).
+export { normalizeAgentModel } from './packages/agent-state-diagram/normalize-agent-model';
 
 // Export only the Patch type (not the implementation) for type safety
 // Used when working with patching operations in TypeScript
