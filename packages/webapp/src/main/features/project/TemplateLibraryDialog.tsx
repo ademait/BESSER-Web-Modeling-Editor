@@ -98,7 +98,6 @@ const diagramTypeToCategory: Partial<Record<SupportedDiagramType, SoftwarePatter
   StateMachineDiagram: SoftwarePatternCategory.STATE_MACHINE,
   BPMN: SoftwarePatternCategory.BPMN,
   AgentDiagram: SoftwarePatternCategory.AGENT,
-  BPMN: SoftwarePatternCategory.BPMN,
   QuantumCircuitDiagram: SoftwarePatternCategory.QUANTUM_CIRCUIT,
   NNDiagram: SoftwarePatternCategory.NN,
 };
