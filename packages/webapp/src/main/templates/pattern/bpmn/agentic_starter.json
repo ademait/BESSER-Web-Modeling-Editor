@@ -36,8 +36,7 @@
       "isAgentic": true,
       "role": "solution",
       "trustScore": 82,
-      "multiplicity": 2,
-      "agentDiagramRef": "799cbc45-88b4-40b9-a69b-ad529ab92aeb"
+      "multiplicity": 2
     },
     "task-coder-fix": {
       "id": "task-coder-fix",
@@ -70,8 +69,7 @@
       "isAgentic": true,
       "role": "supervision",
       "trustScore": 93,
-      "multiplicity": 1,
-      "agentDiagramRef": "e84e101d-8920-4bc5-bd54-e4c2b879e1b1"
+      "multiplicity": 1
     },
     "task-label": {
       "id": "task-label",
@@ -105,8 +103,7 @@
       "marker": "none",
       "isAgentic": true,
       "reflectionMode": "self",
-      "trustScore": 0,
-      "agentDiagramRef": "seaa-checkvalidity-agent"
+      "trustScore": 0
     },
     "gw-diverge": {
       "id": "gw-diverge",
