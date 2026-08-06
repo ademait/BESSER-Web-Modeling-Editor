@@ -173,7 +173,7 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
     it('derives no Component from the non-agentic Maintainer lane', () => {
       if (!r.ok) throw new Error('expected ok');
       const comps = Object.values(r.model.elements).filter((e) => e.type === 'Component');
-      const AGENTIC_STEREOS = new Set(['solution', 'supervision', 'collaboration', 'consensus']);
+      const AGENTIC_STEREOS = new Set(['solution', 'supervision']);
       expect(comps.every((c) => AGENTIC_STEREOS.has((c as unknown as { stereotype?: string }).stereotype ?? ''))).toBe(
         true,
       );
@@ -203,8 +203,8 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
       if (!r.ok) throw new Error('expected ok');
       const components = Object.values(r.model.elements).filter((e) => e.type === 'Component');
       // Only agentic lanes become Components.
-      // the lane-role mapping: supervision/collaboration/consensus are also valid agentic stereotypes.
-      const AGENTIC_STEREOS = new Set(['solution', 'supervision', 'collaboration', 'consensus']);
+      // The lane-role mapping uses the two agentic profile stereotypes.
+      const AGENTIC_STEREOS = new Set(['solution', 'supervision']);
       const nonAgentic = components.filter(
         (e) => !AGENTIC_STEREOS.has((e as unknown as { stereotype?: string }).stereotype ?? ''),
       );
@@ -1129,7 +1129,7 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
     });
   });
 
-  describe('resolveEdgeKind — role vocabulary (guide 48)', () => {
+  describe('resolveEdgeKind — profile vocabulary and compatibility', () => {
     const lane = (role: string): UMLElement =>
       ({ id: role, type: 'BPMNSwimlane', isAgentic: true, role }) as unknown as UMLElement;
 
@@ -1139,12 +1139,32 @@ describe('Inter-diagram — bpmnModelToComponentModel', () => {
     it('solution → supervision ⟹ revises (old worker → manager)', () => {
       expect(resolveEdgeKind(lane('solution'), lane('supervision'), undefined)).toBe('revises');
     });
-    it('collaboration → collaboration ⟹ collaborates (peer)', () => {
-      expect(resolveEdgeKind(lane('collaboration'), lane('collaboration'), undefined)).toBe('collaborates');
-    });
     it('non-agentic endpoint ⟹ delegates (fallback)', () => {
       const plain = { id: 'x', type: 'BPMNSwimlane', isAgentic: false, role: 'solution' } as unknown as UMLElement;
       expect(resolveEdgeKind(plain, lane('supervision'), undefined)).toBe('delegates');
+    });
+  });
+  describe('two-profile lane roles', () => {
+    const lane = (role: string) => ({ id: role, type: 'BPMNSwimlane', isAgentic: true, role }) as unknown as UMLElement;
+
+    it('maps supervision and solution pairs to the intended Component relationships', () => {
+      expect(resolveEdgeKind(lane('supervision'), lane('solution'), undefined)).toBe('supervises');
+      expect(resolveEdgeKind(lane('solution'), lane('supervision'), undefined)).toBe('revises');
+      expect(resolveEdgeKind(lane('solution'), lane('solution'), undefined)).toBe('collaborates');
+    });
+
+    it('derives supervision to the Component supervision stereotype', () => {
+      const model = JSON.parse(JSON.stringify(minimalAgentic));
+      const lane = Object.values(model.elements).find(
+        (element: unknown) => (element as { type?: string }).type === 'BPMNSwimlane',
+      ) as { role?: string };
+      lane.role = 'supervision';
+      const result = bpmnModelToComponentModel(model as UMLModel);
+      if (!result.ok) throw new Error('expected component derivation');
+      const stereotypes = Object.values(result.model.elements)
+        .filter((element) => element.type === 'Component')
+        .map((element) => (element as unknown as { stereotype?: string }).stereotype);
+      expect(stereotypes).toContain('supervision');
     });
   });
 });

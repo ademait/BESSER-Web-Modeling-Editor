@@ -15,7 +15,7 @@ import {
  */
 describe('Phase C — agentic token vocabulary', () => {
   it('AgentCategory tokens match the metamodel enum values', () => {
-    expect([...AGENT_CATEGORY_TOKENS]).toEqual(['solution', 'supervision', 'consensus', 'collaboration']);
+    expect([...AGENT_CATEGORY_TOKENS]).toEqual(['solution', 'supervision']);
   });
 
   it('AgenticEdgeKind has the 8 metamodel tokens', () => {

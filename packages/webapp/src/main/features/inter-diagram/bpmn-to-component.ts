@@ -1,5 +1,5 @@
 import type { UMLModel, UMLElement, UMLRelationship } from '@besser/wme';
-import { UMLDiagramType } from '@besser/wme';
+import { UMLDiagramType, componentStereotypeForLaneRole, isSupervisorRole } from '@besser/wme';
 import type { ElementLineageMap } from '../../shared/types/project';
 import type { DerivationResult, DerivationWarning } from './types';
 
@@ -309,25 +309,18 @@ function poolFor(bpmn: UMLModel, el: UMLElement): string | null {
   return null;
 }
 
-// ── Edge-kind heuristic (role-keyed) ──
+// ── Edge-kind heuristic (profile-keyed) ──
 //
-// The edge kind is decided purely by the lane ROLE PAIR. The lane role is one
-// of the four AgentCategory tokens (solution / supervision / collaboration /
-// consensus), aligning the BPMN process view with the Component vocabulary. The
-// supervision role plays the "manager" part; every other role plays the
-// "worker" part (supervision→other = supervises, other→supervision = revises,
-// other→other = collaborates).
-//
-// `delegates` is the fallback for an unclassifiable / non-agentic edge (and,
-// by the rules below, a supervision→supervision handoff).
-type LaneRole = 'solution' | 'supervision' | 'collaboration' | 'consensus';
+// The two preset profiles have explicit relationship semantics. Custom role text
+// remains a valid Component stereotype, but uses the generic edge fallback.
+type LaneRole = 'solution' | 'supervision' | 'supervisor';
 
-const LANE_ROLES: ReadonlySet<string> = new Set<LaneRole>(['solution', 'supervision', 'collaboration', 'consensus']);
+const LANE_ROLES: ReadonlySet<string> = new Set<LaneRole>(['solution', 'supervisor', 'supervision']);
 
 const isLaneRole = (r: unknown): r is LaneRole => typeof r === 'string' && LANE_ROLES.has(r);
 
 // `_gateway` is retained in the signature for call-site stability and a possible
-// future gateway-aware heuristic; the role-keyed rule reads nothing off it.
+// future gateway-aware heuristic; the profile-keyed rule reads nothing off it.
 export function resolveEdgeKind(
   srcLane: UMLElement,
   tgtLane: UMLElement,
@@ -336,15 +329,14 @@ export function resolveEdgeKind(
   const srcAgentic = (srcLane as unknown as { isAgentic?: boolean }).isAgentic === true;
   const tgtAgentic = (tgtLane as unknown as { isAgentic?: boolean }).isAgentic === true;
 
-  // Role pair is meaningless on a human / external lane → generic delegation.
   if (!srcAgentic || !tgtAgentic) return 'delegates';
 
   const srcRole = (srcLane as unknown as { role?: unknown }).role;
   const tgtRole = (tgtLane as unknown as { role?: unknown }).role;
   if (!isLaneRole(srcRole) || !isLaneRole(tgtRole)) return 'delegates';
 
-  const srcSupervises = srcRole === 'supervision';
-  const tgtSupervises = tgtRole === 'supervision';
+  const srcSupervises = isSupervisorRole(srcRole);
+  const tgtSupervises = isSupervisorRole(tgtRole);
   if (srcSupervises && !tgtSupervises) return 'supervises';
   if (!srcSupervises && tgtSupervises) return 'revises';
   if (!srcSupervises && !tgtSupervises) return 'collaborates';
@@ -694,7 +686,7 @@ function emitLaneComponent(
   sourceDiagramId?: string,
 ): string {
   // Only ever called for agentic lanes. The lane's role
-  // (solution/supervision/collaboration/consensus) maps directly to the
+  // (solution/supervision or a custom role) maps directly to the
   // Component stereotype, aligning the BPMN process view with the Component
   // vocabulary.
   const id = newId();
@@ -717,7 +709,7 @@ function emitLaneComponent(
     type: 'Component',
     owner: subsystemId,
     bounds,
-    stereotype: laneRole ?? 'solution',
+    stereotype: componentStereotypeForLaneRole(laneRole),
     displayStereotype: true,
     // BESSER `AgenticComponent.process_model_refs` (diagram-grained):
     // the source BPMN diagram this agent participates in.

@@ -3,31 +3,45 @@ export type BPMNMarkerType = 'none' | 'parallel multi instance' | 'sequential mu
 // Agentic BPMN attributes (SEAA'25 extension — paper §4.1–§4.2).
 // Folded into the base BPMNSwimlane / BPMNTask as an `isAgentic` flag rather
 // than separate element types.
-// - BPMNAgentRole: the lane's agent category. Aligned with the Component-diagram
-//   AgentCategory vocabulary (AGENT_CATEGORY_TOKENS in
-//   common/agentic/agentic-tokens.ts) so the BPMN→Component derivation maps a
-//   lane role straight onto an AgentCategory stereotype with no translation.
-//   The enum is extensible per the paper; these four are the canonical set.
+// - BPMNAgentRole: the lane's authorable profile is deliberately small
+//   (solution / supervision). It uses the established Component AgentCategory
+//   vocabulary directly at derivation time.
 // - BPMNReflectionMode: the SelfReflection / CrossReflection / HumanReflection
 //   subclasses flattened to an attribute enum; 'none' covers the optional case.
 // - clampTrustScore: trustScore is a 0–100 percentage (paper §4.1 / §4.2).
-export type BPMNAgentRole = 'solution' | 'supervision' | 'collaboration' | 'consensus';
+export type BPMNAgentProfile = 'solution' | 'supervision';
+// The role field is open like a Component stereotype. The two profile types above
+// are presets, while a custom role remains valid persisted model data.
+export type BPMNAgentRole = string;
+
+export function isSupervisorRole(role: unknown): boolean {
+  return role === 'supervisor' || role === 'supervision';
+}
+
+/** Map the BPMN lane profile to the Component/BESSER AgentCategory token. */
+export function componentStereotypeForLaneRole(role: unknown): string {
+  if (role === 'supervisor' || role === 'supervision') return 'supervision';
+  if (typeof role === 'string' && role.trim() !== '') return role.trim();
+  return 'solution';
+}
 
 // Legacy → new role migration. Older diagrams / .bpmn files / modeling-agent
 // output carry the old binary enum; map it on every input boundary (JSON
 // deserialize, XML import, agent injection) so the role is never silently
-// dropped. Unknown values fall back to the default 'solution'.
+// dropped. Custom values remain intact because the role field is deliberately open.
 const LEGACY_ROLE_MAP: Record<string, BPMNAgentRole> = {
   worker: 'solution',
   manager: 'supervision',
+  // Accept the brief supervisor spelling as input, but keep existing projects and
+  // XML exports on the long-standing supervision token.
+  supervisor: 'supervision',
 };
 
 export function migrateLegacyRole(role: unknown): BPMNAgentRole {
   if (typeof role !== 'string') return 'solution';
-  if (role === 'solution' || role === 'supervision' || role === 'collaboration' || role === 'consensus') {
-    return role;
-  }
-  return LEGACY_ROLE_MAP[role] ?? 'solution';
+  const normalized = role.trim();
+  if (normalized === '') return 'solution';
+  return LEGACY_ROLE_MAP[normalized] ?? normalized;
 }
 
 export type BPMNReflectionMode = 'none' | 'self' | 'cross' | 'human';

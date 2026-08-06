@@ -57,7 +57,7 @@ export class BPMNSwimlane extends UMLContainer {
     super(values);
     assign<BPMNSwimlane>(this, values);
     this.isAgentic = values?.isAgentic ?? false;
-    this.role = values?.role ?? BPMNSwimlane.defaultRole;
+    this.role = migrateLegacyRole(values?.role as string | undefined);
     this.trustScore = clampTrustScore(values?.trustScore ?? BPMNSwimlane.defaultTrustScore);
     this.multiplicity = clampMultiplicity(values?.multiplicity ?? BPMNSwimlane.defaultMultiplicity);
     this.agentDiagramRef = values?.agentDiagramRef ?? undefined;
@@ -78,7 +78,7 @@ export class BPMNSwimlane extends UMLContainer {
   deserialize<T extends Apollon.UMLModelElement>(
     values: T & {
       isAgentic?: boolean;
-      role?: BPMNAgentRole;
+      role?: BPMNAgentRole | 'supervisor' | 'worker' | 'manager';
       trustScore?: number;
       multiplicity?: number;
       agentDiagramRef?: string;

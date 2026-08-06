@@ -3,13 +3,11 @@ import { ThemedRect } from '../../../components/theme/themedComponents';
 import { BPMNSwimlane } from './bpmn-swimlane';
 import { Multiline } from '../../../utils/svg/multiline';
 import { BPMNBotIcon } from '../common/icons/bpmn-bot-icon';
-import { BPMNAgentRole } from '../common/types';
+import { BPMNAgentProfile } from '../common/types';
 
-const ROLE_BADGE: Record<BPMNAgentRole, string> = {
+const ROLE_BADGE: Record<BPMNAgentProfile, string> = {
   solution: 'S',
   supervision: 'Sv',
-  collaboration: 'C',
-  consensus: 'Cn',
 };
 
 export const BPMNSwimlaneComponent: FunctionComponent<Props> = ({ element, fillColor, textColor, children }) => {
@@ -46,7 +44,7 @@ export const BPMNSwimlaneComponent: FunctionComponent<Props> = ({ element, fillC
             fill={fg}
             pointerEvents="none"
           >
-            {ROLE_BADGE[element.role] ?? 'S'}
+            {ROLE_BADGE[element.role as keyof typeof ROLE_BADGE] ?? element.role.slice(0, 2).toUpperCase()}
           </text>
           <text
             x={42}

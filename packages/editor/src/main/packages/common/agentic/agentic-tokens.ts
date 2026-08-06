@@ -13,7 +13,7 @@
 
 /** AgentCategory — an agent's collaboration role. `none` is the default
  *  ("an agent, role unspecified") and is intentionally not a preset. */
-export const AGENT_CATEGORY_TOKENS = ['solution', 'supervision', 'consensus', 'collaboration'] as const;
+export const AGENT_CATEGORY_TOKENS = ['solution', 'supervision'] as const;
 
 // Human-actor tokens are intentionally absent: a human has no
 // implementation and is not shown in the Component view. The BPMN→Component

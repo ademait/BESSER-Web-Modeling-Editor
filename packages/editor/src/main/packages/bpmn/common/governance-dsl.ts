@@ -1,3 +1,4 @@
+import { isSupervisorRole } from './types';
 import { resolveUpstreamDivergingGateway } from '../bpmn-flow/bpmn-flow-validator';
 
 // Duck-typed read-only view over the unified elements+flows map (same shape the
@@ -30,11 +31,7 @@ function sanitizeId(raw: string | undefined, fallback: string): string {
 // dropdown. This is the offered set (LazyConsensus / Composed stay manual-only).
 // The string values are the govdsl PolicyType keywords, so the mapping is a
 // near-identity.
-export type GovPolicyType =
-  | 'MajorityPolicy'
-  | 'AbsoluteMajorityPolicy'
-  | 'LeaderDrivenPolicy'
-  | 'ConsensusPolicy';
+export type GovPolicyType = 'MajorityPolicy' | 'AbsoluteMajorityPolicy' | 'LeaderDrivenPolicy' | 'ConsensusPolicy';
 
 export const GOV_POLICY_TYPES: readonly GovPolicyType[] = [
   'MajorityPolicy',
@@ -76,8 +73,7 @@ export function generateGovernanceDsl(
   const trust = typeof gw?.trustScore === 'number' ? gw.trustScore : 0;
   // Back-compat: VotingPolicy is not constructible in govdsl (no case in
   // PolicyCreationListener). Remap silently so old diagrams still generate valid DSL.
-  const effectivePolicyType: GovPolicyType =
-    (policyType as string) === 'VotingPolicy' ? 'MajorityPolicy' : policyType;
+  const effectivePolicyType: GovPolicyType = (policyType as string) === 'VotingPolicy' ? 'MajorityPolicy' : policyType;
   const choice = policyFor(effectivePolicyType);
 
   // Scope = the merging gateway itself (the one-per-block anchor).
@@ -134,7 +130,7 @@ export function generateGovernanceDsl(
   // If supervision lanes exist in the block, restrict participants to them;
   // fall back to all agentic lanes when none are present.
   const allLanes = Array.from(lanes.values());
-  const supervisionLanes = allLanes.filter((l) => l.role === 'supervision');
+  const supervisionLanes = allLanes.filter((l) => isSupervisorRole(l.role));
   const participantLanes =
     policyType === 'LeaderDrivenPolicy' && supervisionLanes.length > 0 ? supervisionLanes : allLanes;
 

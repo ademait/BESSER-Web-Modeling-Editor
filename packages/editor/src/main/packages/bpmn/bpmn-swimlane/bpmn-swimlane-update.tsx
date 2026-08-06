@@ -7,6 +7,7 @@ import { Dropdown } from '../../../components/controls/dropdown/dropdown';
 import { Switch } from '../../../components/controls/switch/switch';
 import { TrashIcon } from '../../../components/controls/icon/trash';
 import { Textfield } from '../../../components/controls/textfield/textfield';
+import { Body } from '../../../components/controls/typography/typography';
 import { I18nContext } from '../../../components/i18n/i18n-context';
 import { localized } from '../../../components/i18n/localized';
 import { ModelState } from '../../../components/store/model-state';
@@ -19,7 +20,7 @@ import { StylePane } from '../../../components/style-pane/style-pane';
 import { BPMNElementType } from '..';
 import { IUMLContainer, UMLContainer } from '../../../services/uml-container/uml-container';
 import { BPMNSwimlane } from './bpmn-swimlane';
-import { BPMNAgentRole, clampTrustScore, clampMultiplicity } from '../common/types';
+import { clampTrustScore, clampMultiplicity } from '../common/types';
 import { AgentDiagramLinkSection } from '../../../components/agent-diagram-linker/AgentDiagramLinkSection';
 
 interface OwnProps {
@@ -92,6 +93,17 @@ const Flex = styled.div`
   justify-content: space-between;
 `;
 
+/** Matches the Component stereotype popup: a content-sized Dropdown fills the
+ *  available row width and keeps its selected text left aligned. */
+const PresetField = styled.div`
+  width: 100%;
+
+  button {
+    width: 100%;
+    text-align: left;
+  }
+`;
+
 type State = { colorOpen: boolean };
 
 // Agentic BPMN (04D): a lane is a plain BPMNSwimlane; the "Agentic" toggle marks
@@ -138,20 +150,23 @@ class BPMNSwimlaneUpdateComponent extends Component<Props, State> {
           <>
             <section>
               <Divider />
-              <Dropdown value={element.role} onChange={this.changeRole(element.id)}>
-                <Dropdown.Item value={'solution'}>
-                  {this.props.translate('packages.BPMNDiagram.BPMNAgentRoleSolution')}
-                </Dropdown.Item>
-                <Dropdown.Item value={'supervision'}>
-                  {this.props.translate('packages.BPMNDiagram.BPMNAgentRoleSupervision')}
-                </Dropdown.Item>
-                <Dropdown.Item value={'collaboration'}>
-                  {this.props.translate('packages.BPMNDiagram.BPMNAgentRoleCollaboration')}
-                </Dropdown.Item>
-                <Dropdown.Item value={'consensus'}>
-                  {this.props.translate('packages.BPMNDiagram.BPMNAgentRoleConsensus')}
-                </Dropdown.Item>
-              </Dropdown>
+              <Flex>
+                <Body style={{ width: '6em', flexShrink: 0, marginRight: '0.5em' }}>Role</Body>
+                <Textfield value={element.role} onChange={this.changeRole(element.id)} placeholder="e.g. solution" />
+              </Flex>
+              <Flex>
+                <Body style={{ width: '6em', flexShrink: 0, marginRight: '0.5em' }}>Preset</Body>
+                <PresetField>
+                  <Dropdown value={element.role} onChange={this.changeRole(element.id)} placeholder="Choose a preset…">
+                    <Dropdown.Item value={'solution'}>
+                      {this.props.translate('packages.BPMNDiagram.BPMNAgentRoleSolution')}
+                    </Dropdown.Item>
+                    <Dropdown.Item value={'supervision'}>
+                      {this.props.translate('packages.BPMNDiagram.BPMNAgentRoleSupervision')}
+                    </Dropdown.Item>
+                  </Dropdown>
+                </PresetField>
+              </Flex>
             </section>
             <section>
               <Divider />
@@ -206,7 +221,7 @@ class BPMNSwimlaneUpdateComponent extends Component<Props, State> {
   };
 
   private changeRole = (id: string) => (value: string) => {
-    this.props.update<BPMNSwimlane>(id, { role: value as BPMNAgentRole });
+    this.props.update<BPMNSwimlane>(id, { role: value });
   };
 
   private changeTrustScore = (id: string) => (value: string) => {
