@@ -71,6 +71,7 @@ const HelpGuideDialog = React.lazy(() =>
 import { KeyboardShortcutsDialog, useKeyboardShortcutsToggle } from '../../shared/dialogs/KeyboardShortcutsDialog';
 import { CommandPalette, useCommandPaletteShortcut, buildDefaultActions } from '../../shared/components/command-palette/CommandPalette';
 import { HiddenPerspectivesBanner } from '../../features/editors/HiddenPerspectivesBanner';
+import { GeneratingOverlay } from '../../shared/components/loading/GeneratingOverlay';
 
 export type { GeneratorType, GeneratorMenuMode } from './workspace-types';
 
@@ -1146,6 +1147,7 @@ export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({
         onOpenChange={setIsCommandPaletteOpen}
         actions={commandPaletteActions}
       />
+      <GeneratingOverlay visible={isDockerComposing} />
     </div>
   );
 };
