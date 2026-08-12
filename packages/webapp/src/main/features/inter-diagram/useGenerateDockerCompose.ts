@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { createElement, useState, useCallback } from 'react';
 import { toast } from 'react-toastify';
 import { useFileDownload } from '../../shared/services/file-download/useFileDownload';
 import { BACKEND_URL } from '../../shared/constants/constant';
@@ -48,6 +48,23 @@ export function useGenerateDockerCompose(): { generate: () => Promise<void>; isL
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ detail: 'Could not parse error response' }));
         let detail: string = errorData?.detail ?? `HTTP ${response.status}`;
+        const governanceDslMatch = response.status === 422 && typeof errorData?.detail === 'string'
+          ? errorData.detail.match(/^Invalid Governance DSL on merging gateway '([^']+)'(?=:|$)/)
+          : null;
+        if (governanceDslMatch) {
+          const gatewayName = governanceDslMatch[1];
+          const governanceDslMessage = `Check the governance policy on gateway “${gatewayName}”. See the browser console for details.`;
+          console.error('Invalid Governance DSL:', errorData.detail);
+          toast.error(
+            createElement(
+              'div',
+              undefined,
+              createElement('strong', undefined, 'Invalid Governance DSL'),
+              createElement('div', undefined, governanceDslMessage),
+            ),
+          );
+          return;
+        }
         if (/required for the deployment/i.test(detail)) {
           detail = 'No Deployment diagram content found — add at least one element before generating.';
         }
