@@ -21,13 +21,13 @@ export const ALL_DIAGRAM_TYPES: SupportedDiagramType[] = [
   'ObjectDiagram',
   'StateMachineDiagram',
   'AgentDiagram',
-  'ComponentDiagram',
-  'DeploymentDiagram',
   'UserDiagram',
   'GUINoCodeDiagram',
   'QuantumCircuitDiagram',
   'NNDiagram',
   'BPMN',
+  'ComponentDiagram',
+  'DeploymentDiagram',
 ];
 
 export type PerspectiveSettings = Record<SupportedDiagramType, boolean>;
